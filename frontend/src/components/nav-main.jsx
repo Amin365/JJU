@@ -19,7 +19,7 @@ export function NavMain({ items = [] }) {
         <span>JJU Reading Club</span>
       </SidebarGroupLabel>
 
-      <SidebarMenu className="mt-4 space-y-1 text-sm">
+      <SidebarMenu className="mt-12 space-y-3  text-base">
         {items.map((item) => (
           <SidebarMenuItem key={item.title}>
             <SidebarMenuButton asChild tooltip={item.title}>
@@ -27,11 +27,11 @@ export function NavMain({ items = [] }) {
                 to={item.url}
                 className={({ isActive }) =>
                   [
-                    "flex items-center gap-3 px-3 py-2 rounded-md transition-colors",
+                    "flex items-center gap-3 px-3 py-2  transition-colors",
                     "text-sm font-medium truncate",
                     isActive
-                      ? "bg-slate-100 text-slate-900 dark:bg-gray-800 dark:text-white"
-                      : "text-slate-700 hover:bg-slate-50 dark:text-gray-300 dark:hover:bg-gray-800",
+                      ? " text-slate-900  dark:text-white"
+                      : "text-slate-700  dark:text-gray-300 ",
                   ].join(" ")
                 }
               >
@@ -40,7 +40,7 @@ export function NavMain({ items = [] }) {
                 ) : (
                   <BookIcon className="h-4 w-4 flex-shrink-0 text-muted-foreground" />
                 )}
-                <span className="truncate">{item.title}</span>
+                <span className="truncate ">{item.title}</span>
               </NavLink>
             </SidebarMenuButton>
           </SidebarMenuItem>

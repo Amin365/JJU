@@ -356,7 +356,7 @@ const MembersForm = () => {
   };
 
   return (
-    <div className={`min-h-screen py-8 px-4 ${"bg-slate-50 bg-gradient-to-br from-slate-50 via-slate-100 to-slate-200"}`}>
+    <div className={`min-h-screen py-8 px-4 }`}>
       <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
         {/* Header */}
         <div className="flex justify-between items-start mb-10">

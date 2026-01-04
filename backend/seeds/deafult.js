@@ -1,4 +1,6 @@
-import User from "../module/user.js";
+import { runMigrations } from "../migrations/index.js";
+import Role from "../models/Role.js";
+import User from "../models/user.js";
 
 
 
@@ -13,15 +15,20 @@ async function MigrateDefaults() {
       console.log("✅ Default user already exists");
       return;
     }
-
+     
+   
     await User.create({
+      first_name: "Amin",
+      last_name: "Bashir",
       username: "aminbashir07",
       email: "aminbashir@gmail.com",
       password: "aminbashir07",
-      role: "admin",
+   
     });
+    await runMigrations();
+    console.log('Migrations ran successfully')
 
-    console.log("✅ Default admin user created successfully");
+  
   } catch (error) {
     console.error("❌ Error creating default user:", error);
   }

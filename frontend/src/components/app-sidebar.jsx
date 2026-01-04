@@ -14,6 +14,8 @@ import {
   Settings2,
   SquareTerminal,
   Users2,
+  LayoutGrid
+  
 } from "lucide-react"
 
 
@@ -37,10 +39,18 @@ const data = {
 
   navMain: [
     {
+      title:"Dashbaord",
+      url:"/dashboard",
+      icon:LayoutGrid,
+       isActive: true,
+
+
+    },
+    {
       title: "Books",
       url: "/dashboard/books",
       icon: BookOpen,
-      isActive: true,
+     
     
     },
     {

@@ -43,7 +43,7 @@ export function LoginForm({ className, ...props }) {
         dispatch(setAuth({ user: data.user, token: data.token }))
         toast.success("Login successful")
         // navigate where appropriate
-        navigate("/dashboard") // change to your preferred route
+        navigate("/dashboard") 
       }
     },
     onError: (error) => {

@@ -12,12 +12,7 @@ import { useQuery } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { cn } from "@/lib/utils";
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import {
@@ -33,8 +28,17 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 
 const fetchMembers = async ({ queryKey }) => {
-  const [, page = 1, limit = 10] = queryKey;
-  const res = await api.get("/members", { params: { page, limit } });
+  const [, params] = queryKey;
+  const { page = 1, limit = 10, searchTerm = "", region = "All" } = params || {};
+
+  const res = await api.get("/members", {
+    params: {
+      page,
+      limit,
+      q: searchTerm || undefined,
+      region: region === "All" ? undefined : region,
+    },
+  });
   return res.data;
 };
 
@@ -42,10 +46,10 @@ const formatDate = (d) => (d ? new Date(d).toLocaleDateString() : "N/A");
 
 const StatusPill = ({ status = "Active" }) => {
   const map = {
-    Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Inactive: "bg-red-50 text-red-700 border-red-200",
+    Active: "bg-emerald-100 text-emerald-800 border-emerald-200 dark:bg-emerald-900/40 dark:text-emerald-100 dark:border-emerald-800",
+    Inactive: "bg-red-100 text-red-800 border-red-200 dark:bg-red-900/40 dark:text-red-100 dark:border-red-800",
   };
-  const classes = map[status] ?? "bg-slate-100 text-slate-800 border-slate-200";
+  const classes = map[status] ?? "bg-muted text-foreground border-border";
   return <span className={cn("px-3 py-1 rounded-full text-xs font-medium border", classes)}>{status}</span>;
 };
 
@@ -54,16 +58,15 @@ export default function MemberTable() {
 
   // pagination
   const [currentPage, setCurrentPage] = useState(1);
-  const [limit, setLimit] = useState(10);
+  const limit = 10;
 
   // filters & UI
   const [searchTerm, setSearchTerm] = useState("");
   const [filterRegion, setFilterRegion] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
-  const [isImportOpen, setIsImportOpen] = useState(false);
 
-  const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["members", currentPage, limit],
+  const { data, isLoading, isFetching } = useQuery({
+    queryKey: ["members", { page: currentPage, limit, searchTerm, region: filterRegion }],
     queryFn: fetchMembers,
     keepPreviousData: true,
     staleTime: 30_000,
@@ -75,24 +78,12 @@ export default function MemberTable() {
 
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchTerm, filterRegion, filterStatus, limit]);
+  }, [searchTerm, filterRegion, filterStatus]);
 
   const filteredMembers = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return members.filter((m) => {
-      const matchesSearch =
-        !q ||
-        (m.first_name && m.first_name.toLowerCase().includes(q)) ||
-        (m.middle_name && m.middle_name.toLowerCase().includes(q)) ||
-        (m.last_name && m.last_name.toLowerCase().includes(q)) ||
-        (m.email && m.email.toLowerCase().includes(q)) ||
-        (m.phone && m.phone.toLowerCase().includes(q)) ||
-        (m.code && m.code.toLowerCase().includes(q));
-      const matchesRegion = filterRegion === "All" || (m.region === filterRegion);
-      const matchesStatus = filterStatus === "All" || (m.status === filterStatus);
-      return matchesSearch && matchesRegion && matchesStatus;
-    });
-  }, [members, searchTerm, filterRegion, filterStatus]);
+    if (filterStatus === "All") return members;
+    return members.filter((m) => m.status === filterStatus);
+  }, [members, filterStatus]);
 
   const regions = useMemo(() => ["All", ...Array.from(new Set(members.map((m) => m.region).filter(Boolean)))], [members]);
   const statuses = useMemo(() => ["All", ...Array.from(new Set(members.map((m) => m.status).filter(Boolean)))], [members]);
@@ -115,16 +106,16 @@ export default function MemberTable() {
   const endItem = totalItems === 0 ? 0 : Math.min(currentPage * limit, totalItems);
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 bg-white">
+    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 bg-background text-foreground">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
-          <h1 className="text-3xl font-bold tracking-tight text-slate-800">Members</h1>
-          <p className="text-sm mt-1 text-slate-500">Manage club members and their profiles.</p>
+          <h1 className="text-3xl font-bold tracking-tight">Members</h1>
+          <p className="text-sm mt-1 text-muted-foreground">Manage club members and their profiles.</p>
         </div>
 
         <div className="flex gap-3">
-          <Button variant="default" onClick={() => setIsImportOpen(true)}>
+          <Button variant="default" onClick={() => {}}>
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
           </Button>
           <Button onClick={handleAddNew}>
@@ -137,7 +128,7 @@ export default function MemberTable() {
       <Card>
         <CardContent className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
           <div className="md:col-span-3 relative">
-            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
+            <SearchIcon className="absolute left-3 top-1/2 transform -translate-y-1/2 text-muted-foreground" size={18} />
             <Input className="pl-10" placeholder="Search by name, email or code..." value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
           </div>
 
@@ -164,29 +155,29 @@ export default function MemberTable() {
           </div>
 
           <div className="md:col-span-4 flex justify-end">
-            <span className="text-xs font-medium px-2 py-1 rounded-md bg-slate-100 text-slate-800">{filteredMembers.length}</span>
+            <span className="text-xs font-medium px-2 py-1 rounded-md bg-muted text-foreground">{filteredMembers.length}</span>
           </div>
         </CardContent>
       </Card>
 
       {/* Table */}
-      <Card className="flex-1 overflow-hidden bg-white">
+      <Card className="flex-1 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 border-b z-10 bg-slate-50 border-slate-200">
+            <thead className="sticky top-0 border-b z-10 bg-muted/60 border-border">
               <tr>
-                <th className="p-4 font-semibold text-slate-500">Member</th>
-                <th className="p-4 font-semibold text-slate-500">Code</th>
-                <th className="p-4 font-semibold text-slate-500">Region</th>
-                <th className="p-4 font-semibold text-slate-500">Joined</th>
-                <th className="p-4 font-semibold text-slate-500">Status</th>
-                <th className="p-4 font-semibold text-slate-500 text-right">Actions</th>
+                <th className="p-4 font-semibold text-muted-foreground">Member</th>
+                <th className="p-4 font-semibold text-muted-foreground">Code</th>
+                <th className="p-4 font-semibold text-muted-foreground">Region</th>
+                <th className="p-4 font-semibold text-muted-foreground">Joined</th>
+                <th className="p-4 font-semibold text-muted-foreground">Status</th>
+                <th className="p-4 font-semibold text-muted-foreground text-right">Actions</th>
               </tr>
             </thead>
 
-            <tbody className="divide-y divide-slate-100">
+            <tbody className="divide-y divide-border">
               {filteredMembers.map((m) => (
-                <tr key={m._id ?? m.id} onClick={() => handleRowClick(m._id ?? m.id)} className="group cursor-pointer hover:bg-slate-50 transition-colors">
+                <tr key={m._id ?? m.id} onClick={() => handleRowClick(m._id ?? m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
                   <td className="p-4 flex items-center gap-3">
                     <Avatar className="w-10 h-10">
                       <AvatarFallback className="bg-gradient-to-br from-orange-500 to-indigo-600 text-white">
@@ -194,14 +185,14 @@ export default function MemberTable() {
                       </AvatarFallback>
                     </Avatar>
                     <div>
-                      <div className="font-medium text-slate-800">{m.first_name} {m.last_name}</div>
-                      <div className="text-xs text-slate-500">{m.email || m.phone || "No contact"}</div>
+                      <div className="font-medium">{m.first_name} {m.last_name}</div>
+                      <div className="text-xs text-muted-foreground">{m.email || m.phone || "No contact"}</div>
                     </div>
                   </td>
 
-                  <td className="p-4 text-slate-700">{m.code}</td>
-                  <td className="p-4 text-slate-700">{m.region || "N/A"}</td>
-                  <td className="p-4 text-slate-700">{formatDate(m.join_date)}</td>
+                  <td className="p-4">{m.code}</td>
+                  <td className="p-4">{m.region || "N/A"}</td>
+                  <td className="p-4">{formatDate(m.join_date)}</td>
 
                   <td className="p-4">
                     <StatusPill status={m.status || "Active"} />
@@ -209,27 +200,27 @@ export default function MemberTable() {
 
                   <td className="p-4 text-right">
                     <div className="flex items-center justify-end  group-hover:opacity-100 transition-opacity gap-2">
-                      <span className="text-xs text-slate-400 font-medium px-2">View Details</span>
-                      <ArrowLeft className="rotate-180 text-slate-300" size={16} />
+                      <span className="text-xs text-muted-foreground font-medium px-2">View Details</span>
+                      <ArrowLeft className="rotate-180 text-muted-foreground" size={16} />
                     </div>
                   </td>
                 </tr>
               ))}
 
               {isLoading && (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400">Loading members...</td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-muted-foreground">Loading members...</td></tr>
               )}
 
               {!isLoading && filteredMembers.length === 0 && (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400">No members found.</td></tr>
+                <tr><td colSpan={6} className="p-12 text-center text-muted-foreground">No members found.</td></tr>
               )}
             </tbody>
           </table>
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-between items-center p-4 border-t border-slate-200 bg-white">
-          <p className="text-sm text-slate-500">
+        <div className="flex justify-between items-center p-4 border-t border-border bg-card">
+          <p className="text-sm text-muted-foreground">
             {totalItems === 0 ? "Showing 0 results" : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
           </p>
 
@@ -238,7 +229,7 @@ export default function MemberTable() {
               <ChevronLeft size={16} /> Previous
             </Button>
 
-            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-orange-100 text-orange-600">
+            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground">
               {currentPage} / {totalPages}
             </span>
 
@@ -248,8 +239,6 @@ export default function MemberTable() {
           </div>
         </div>
       </Card>
-
-      {/* <ImportExcelModal isOpen={isImportOpen} onClose={() => setIsImportOpen(false)} refreshTable={refetch} /> */}
     </div>
   );
 }

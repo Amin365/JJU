@@ -8,6 +8,7 @@ import { PersistGate } from 'redux-persist/es/integration/react'
 import { Provider } from 'react-redux'
 import store, { persister } from './app/store.js'
 import { Toaster } from "@/components/ui/sonner"
+import { ThemeProvider } from './components/ThemeProvider.jsx'
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -23,8 +24,10 @@ createRoot(document.getElementById('root')).render(
 <Provider store={store}>
 <PersistGate loading={null} persistor={persister}>
  <BrowserRouter>
+ <ThemeProvider>
         <App />
          <Toaster />
+      </ThemeProvider>
       </BrowserRouter>
 </PersistGate>
 </Provider>

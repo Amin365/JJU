@@ -1,6 +1,6 @@
 import nodemailer from "nodemailer";
 import dotenv from "dotenv";
-import Member from "../module/Members.js";
+import Member from "../models/Members.js";
 
 
 dotenv.config();

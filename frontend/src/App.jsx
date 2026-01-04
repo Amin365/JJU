@@ -14,6 +14,9 @@ const BookDetails = lazy(() => import("./components/Books/BookDetails"));
 const MembersForm = lazy(() => import("./components/Members/MemberForm"));
 const MemberTable = lazy(() => import("./components/Members/MembersTable"));
 const MemberDetails = lazy(() => import("./components/Members/MemberDetails"));
+const SectionCards = lazy(() =>
+  import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
+);
 
 function App() {
   return (
@@ -30,6 +33,14 @@ function App() {
             </ProtectedRoute>
           }
         >
+          <Route
+            index
+            element={
+              <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}>
+                <SectionCards />
+              </Suspense>
+            }
+          />
        
           <Route path="books" element=
           {<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}>
@@ -39,7 +50,7 @@ function App() {
           <Route path="members/new"  element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersForm /></Suspense>} />
           <Route path="members/edit/:id"  element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersForm /></Suspense>} />
           <Route path="members/:id" element={<MemberDetails />} />
-          <Route index element={<DashboardPage />} />
+  
         </Route>
       </Routes>
 

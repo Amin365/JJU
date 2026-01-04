@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Book from "../module/Books.js";
+import Book from "../models/Books.js";
 
 /**
  * Helper: escape user input for use in a RegExp

@@ -1,5 +1,5 @@
 import mongoose from "mongoose";
-import Member from "../module/Members.js"; 
+import Member from "../models/Members.js"; 
 
 /**
  * Helpers

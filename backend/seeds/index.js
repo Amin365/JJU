@@ -9,7 +9,8 @@ const seedAllModules = async () => {
   try {
     const seedFiles = fs
       .readdirSync(__dirname)
-      .filter(file => file !== "index.js" && file.endsWith(".js"));
+      .filter(file => file !== "index.js" && file.endsWith(".js"))
+      .sort();
 
     for (const file of seedFiles) {
       const fullPath = path.join(__dirname, file);

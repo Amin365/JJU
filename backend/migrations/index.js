@@ -11,7 +11,8 @@ export const runMigrations = async () => {
 
     const migrationFiles = fs
       .readdirSync(migrationsDir)
-      .filter(file => file !== 'index.js' && path.extname(file) === '.js');
+      .filter(file => file !== 'index.js' && path.extname(file) === '.js')
+      .sort(); // ensure deterministic order: 001, 002, ...
 
     for (const file of migrationFiles) {
       const filePath = path.join(migrationsDir, file);

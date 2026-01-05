@@ -4,6 +4,7 @@ import bcrypt from "bcryptjs";
 const userSchema = new mongoose.Schema(
   {
     first_name: { type: String, required: true, trim: true },
+  middle_name: { type: String, trim: true },
     last_name: { type: String, required: true, trim: true },
     username: { type: String, required: true, unique: true, trim: true },
     email: { type: String, required: true, unique: true, trim: true },
@@ -16,6 +17,8 @@ const userSchema = new mongoose.Schema(
       ref: "Role",
       default: null,
     },
+    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true, unique: true },
+
 
     // 🔗 Self-reference for added_by and updated_by
     added_by: {

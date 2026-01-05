@@ -20,9 +20,6 @@ const PermissionCategorySchema = new mongoose.Schema(
   }
 );
 
-// 📌 Index for fast lookup
-PermissionCategorySchema.index({ name: 1 });
-
 const PermissionCategory = mongoose.model(
   "PermissionCategory",
   PermissionCategorySchema

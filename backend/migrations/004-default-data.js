@@ -50,6 +50,7 @@ export const defaultUsersAndRoles = async () => {
         { username },
         {
           first_name,
+          middle_name,
           last_name,
           username,
           email,
@@ -81,3 +82,8 @@ export const defaultUsersAndRoles = async () => {
     console.error("Error initializing default users and roles:", error);
   }
 };
+
+// Default export to integrate with runMigrations
+export default async function runDefaultUsersAndRoles() {
+  await defaultUsersAndRoles();
+}

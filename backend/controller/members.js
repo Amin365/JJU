@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Member from "../models/Members.js"; 
-
+import Role from "../models/Role.js";
+Role
 /**
  * Helpers
  */
@@ -12,6 +13,7 @@ const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  * Body: { first_name, middle_name, last_name, code?, phone?, email?, date_of_birth?, gender?, region?, join_date? }
  * Response: { data: member }
  */
+
 export const createMember = async (req, res, next) => {
   try {
     const {
@@ -28,10 +30,22 @@ export const createMember = async (req, res, next) => {
       department,
       student_id,
       study_year,
+      role, // ✅ ADD THIS
     } = req.body;
 
     if (!first_name || !last_name) {
       return res.status(400).json({ message: "first_name and last_name are required" });
+    }
+
+    // ✅ Validate role if provided
+    if (role) {
+      if (!mongoose.Types.ObjectId.isValid(role)) {
+        return res.status(400).json({ message: "Invalid role id" });
+      }
+      const roleExists = await Role.exists({ _id: role });
+      if (!roleExists) {
+        return res.status(400).json({ message: "Role not found" });
+      }
     }
 
     const member = new Member({
@@ -48,12 +62,16 @@ export const createMember = async (req, res, next) => {
       department,
       student_id,
       study_year,
-
+      role: role || null, // ✅ SAVE ROLE
     });
 
     try {
       const saved = await member.save();
-      return res.status(201).json({ data: saved });
+
+      // optional: return populated role for UI
+      const populated = await Member.findById(saved._id).populate("role").lean();
+
+      return res.status(201).json({ data: populated });
     } catch (err) {
       if (err && err.code === 11000) {
         const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
@@ -69,11 +87,7 @@ export const createMember = async (req, res, next) => {
   }
 };
 
-/**
- * Get members with pagination, filtering, search and sorting
- * GET /members?page=1&limit=20&sort=-createdAt&q=search&region=...&gender=...&isArchived=true&from=YYYY-MM-DD&to=YYYY-MM-DD
- * Returns: { data, total, page, limit, totalPages }
- */
+
 export const getMembers = async (req, res, next) => {
   try {
     const {
@@ -92,13 +106,20 @@ export const getMembers = async (req, res, next) => {
 
     if (q) {
       const re = new RegExp(escapeRegex(q), "i");
-      filter.$or = [{ first_name: re }, { middle_name: re }, { last_name: re }, { email: re }, { phone: re }, { code: re }];
+      filter.$or = [
+        { first_name: re },
+        { middle_name: re },
+        { last_name: re },
+        { email: re },
+        { phone: re },
+        { code: re },
+      ];
     }
 
     if (region) filter.region = region;
     if (gender) filter.gender = gender;
+
     if (typeof isArchived !== "undefined") {
-      // Accept 'true'/'false' strings
       if (isArchived === "true" || isArchived === "1") filter.isArchived = true;
       else if (isArchived === "false" || isArchived === "0") filter.isArchived = false;
     }
@@ -121,7 +142,13 @@ export const getMembers = async (req, res, next) => {
     const skip = (pageNum - 1) * perPage;
 
     const [items, total] = await Promise.all([
-      Member.find(filter).sort(sort).skip(skip).limit(perPage).lean().exec(),
+      Member.find(filter)
+        .populate("role", "role color plural system") // ✅ add this
+        .sort(sort)
+        .skip(skip)
+        .limit(perPage)
+        .lean()
+        .exec(),
       Member.countDocuments(filter).exec(),
     ]);
 
@@ -137,33 +164,9 @@ export const getMembers = async (req, res, next) => {
   }
 };
 
-/**
- * Get a single member by id
- * GET /members/:id
- * Returns: { data: member }
- */
-export const getMemberById = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
 
-    const member = await Member.findById(id).lean().exec();
-    if (!member) return res.status(404).json({ message: "Member not found" });
 
-    return res.status(200).json({ data: member });
-  } catch (err) {
-    return next(err);
-  }
-};
 
-/**
- * Update a member by id
- * PUT /members/:id
- * Body: partial fields to update
- * Returns: { data: updatedMember }
- */
 export const updateMember = async (req, res, next) => {
   try {
     const { id } = req.params;
@@ -174,12 +177,31 @@ export const updateMember = async (req, res, next) => {
     const update = { ...req.body };
     if (update._id) delete update._id;
 
+    // ✅ Validate role if client sends it
+    if (Object.prototype.hasOwnProperty.call(update, "role")) {
+      if (update.role) {
+        if (!mongoose.Types.ObjectId.isValid(update.role)) {
+          return res.status(400).json({ message: "Invalid role id" });
+        }
+        const roleExists = await Role.exists({ _id: update.role });
+        if (!roleExists) {
+          return res.status(400).json({ message: "Role not found" });
+        }
+      } else {
+        // allow clearing role by sending null/"":
+        update.role = null;
+      }
+    }
+
     try {
       const updated = await Member.findByIdAndUpdate(id, update, {
         new: true,
         runValidators: true,
         context: "query",
-      }).lean().exec();
+      })
+        .populate("role")   // ✅ populate for UI
+        .lean()
+        .exec();
 
       if (!updated) return res.status(404).json({ message: "Member not found" });
 
@@ -194,6 +216,27 @@ export const updateMember = async (req, res, next) => {
       }
       return next(err);
     }
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+export const getMemberById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid member id" });
+    }
+
+    const member = await Member.findById(id)
+      .populate("role", "role color plural system") // ✅ add this
+      .lean()
+      .exec();
+
+    if (!member) return res.status(404).json({ message: "Member not found" });
+
+    return res.status(200).json({ data: member });
   } catch (err) {
     return next(err);
   }

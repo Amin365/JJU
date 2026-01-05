@@ -8,6 +8,9 @@ import seedAllModules from "./seeds/index.js"
 import AuthRouter from "./routers/AuthRouter.js"
 import cors from 'cors'
 import MemberRouter from "./routers/MemberRouter.js"
+import RoleRouter from "./routers/RoleRouter.js"
+import issueRouter from "./routers/IssueRouter.js"
+
 dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
@@ -22,6 +25,8 @@ app.use('/api',AuthRouter)
 
 app.use("/api", BookRouter);
 app.use("/api",MemberRouter);
+app.use("/api", RoleRouter);
+app.use('/api',issueRouter)
 
 
 

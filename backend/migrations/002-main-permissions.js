@@ -8,9 +8,9 @@ import mongoose from 'mongoose';
 
 export const mainPermissions = async () => {
   try {
-    // -------------------------------
+    // 
     // Create permission categories
-    // -------------------------------
+    // 
     const categoriesData = [
       { name: "General Settings", system: true },
       { name: "Main System", system: true },
@@ -27,9 +27,9 @@ export const mainPermissions = async () => {
       categories[cat.name] = category;
     }
 
-    // -------------------------------
+    // 
     // Create permissions
-    // -------------------------------
+    // 
     const permissionsData = [
       { permission: "Preferences", system: true, category: categories["General Settings"]._id, grouped_under: "" },
       { permission: "Add Users", system: true, category: categories["General Settings"]._id, grouped_under: "Manage Users" },
@@ -41,15 +41,12 @@ export const mainPermissions = async () => {
       { permission: "Edit Role", system: true, category: categories["General Settings"]._id, grouped_under: "Manage Roles" },
       { permission: "Delete Role", system: true, category: categories["General Settings"]._id, grouped_under: "Manage Roles" },
       { permission: "View Role", system: true, category: categories["General Settings"]._id, grouped_under: "Manage Roles" },
-      { permission: "Chat", system: true, category: categories["General Settings"]._id, grouped_under: "" },
-      { permission: "My Tasks", system: true, category: categories["General Settings"]._id, grouped_under: "" },
-      { permission: "Manage Companies", system: true, category: categories["General Settings"]._id, grouped_under: "" },
-      { permission: "HR Manager", system: true, category: categories["Main System"]._id, grouped_under: "" },
-      { permission: "Archive", system: true, category: categories["Main System"]._id, grouped_under: "" },
-      { permission: "Accountant", system: true, category: categories["Main System"]._id, grouped_under: "" },
-      { permission: "Projects", system: true, category: categories["Main System"]._id, grouped_under: "" },
-      { permission: "Task", system: true, category: categories["States"]._id, grouped_under: "" },
-      { permission: "Report", system: true, category: categories["States"]._id, grouped_under: "" },
+      { permission: "Manage States", system: true, category: categories["States"]._id, grouped_under: "" },
+      { permission: "Manage Books", system: true, category: categories["Main System"]._id, grouped_under: "" },
+      { permission: "Manage Members", system: true, category: categories["Main System"]._id, grouped_under: "" },
+      { permission: "Manage Issues", system: true, category: categories["Main System"]._id, grouped_under: "" },
+      {permission: "View Moderator", system: true, category: categories["Main System"]._id, grouped_under: "" },
+      {permission:"View Members",system:true,category:categories["Main System"]._id,grouped_under:"" }
     ];
 
     const permissions = {};
@@ -62,14 +59,18 @@ export const mainPermissions = async () => {
       permissions[perm.permission] = permission;
     }
 
-    // -------------------------------
+    // 
     // Assign permissions to system roles
-    // -------------------------------
+    // 
     const rolesData = await Role.find({});
     const roles = {};
     rolesData.forEach(r => { roles[r.role] = r; });
 
-    const SUPER_ADMIN_USER = await User.findOne({ username: "superadmin" });
+    // Prefer the canonical superadmin; fallback to any user if needed
+    let SUPER_ADMIN_USER = await User.findOne({ username: "aminbashir07" });
+    if (!SUPER_ADMIN_USER) {
+      SUPER_ADMIN_USER = await User.findOne();
+    }
 
     // Assign all permissions to Super Admin
     if (roles["Super Admin"] && SUPER_ADMIN_USER) {
@@ -88,8 +89,34 @@ export const mainPermissions = async () => {
       }
     }
 
+    const rolePermissionMap = {
+      Moderator: ["View Moderator", "View Users"],
+      Members: ["View Members"],
+    };
+
+for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {
+  const roleDoc = roles[roleName];
+  if (!roleDoc) continue;
+
+  for (const permName of permNames) {
+    const permDoc = permissions[permName];
+    if (!permDoc) continue;
+
+    await RolePermission.findOneAndUpdate(
+      { role: roleDoc._id, permission: permDoc._id },
+      { role: roleDoc._id, permission: permDoc._id, system: true, added_by: SUPER_ADMIN_USER?._id || null },
+      { upsert: true, new: true }
+    );
+  }
+}
+
     console.log("Permissions initialized ✅");
   } catch (error) {
     console.error("Error initializing permissions:", error);
   }
 };
+
+// Default export so runMigrations executes this file
+export default async function runMainPermissions() {
+  await mainPermissions();
+}

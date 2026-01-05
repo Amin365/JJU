@@ -1,7 +1,7 @@
 
 export const moderator={
   moderator:{
-      add:'Moderator',
+      add:'Moderator ',
     edit:'Moderator',
     delete:'Moderator',
     view:'Moderator'

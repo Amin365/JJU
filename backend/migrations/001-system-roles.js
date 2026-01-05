@@ -35,3 +35,8 @@ export const systemRoles = async () => {
     console.error("Error initializing system roles:", error);
   }
 };
+
+// Default export so runMigrations can pick it up
+export default async function runSystemRoles() {
+  await systemRoles();
+}

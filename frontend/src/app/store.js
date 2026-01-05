@@ -4,6 +4,8 @@ import { persistReducer, persistStore } from "redux-persist";
 import storage from "redux-persist/lib/storage";
 
 import AuthReducer from "./AuthSlice";
+import Common from "./CommonnSlice";
+
 
 // Auth Persist Config
 const authPersistConfig = {
@@ -21,12 +23,15 @@ const persistedAuthReducer = persistReducer(authPersistConfig, AuthReducer);
 const store = configureStore({
   reducer: {
     auth: persistedAuthReducer,
+    common: Common,
   
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware({
       serializableCheck: false,
+
     }),
+
 });
 
 export const persister = persistStore(store);

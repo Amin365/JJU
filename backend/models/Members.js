@@ -114,7 +114,7 @@ study_year: {
   enum: ["1","2","3","4","5",""], // allow empty for non-students
   default: ""
 },
-
+role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", default: null }
     // any other custom fields can go here
   },
   {

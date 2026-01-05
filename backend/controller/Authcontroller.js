@@ -5,6 +5,10 @@ import User from "../models/user.js"
 import rateLimit from 'express-rate-limit'
 import bcrypt from 'bcryptjs'
 import jwt from 'jsonwebtoken'
+import Role from "../models/Role.js"
+import RolePermission from "../models/RolePermission.js"
+import UserPermission from "../models/UserPermission.js"
+import Permission from "../models/Permissions.js" // ensure model is registered for populate
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
@@ -88,6 +92,21 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
+    const roleDoc = user.role ? await Role.findById(user.role) : null
+
+    const [rolePermDocs, userPermDocs] = await Promise.all([
+      roleDoc ? RolePermission.find({ role: roleDoc._id }).populate("permission", "permission") : [],
+      UserPermission.find({ user: user._id }).populate("permission", "permission"),
+    ])
+
+    const permissionSet = new Set()
+    rolePermDocs.forEach((rp) => {
+      if (rp.permission?.permission) permissionSet.add(rp.permission.permission)
+    })
+    userPermDocs.forEach((up) => {
+      if (up.permission?.permission) permissionSet.add(up.permission.permission)
+    })
+
     const payload = { id: user._id, role: user.role }
     const token = jwt.sign(payload, process.env.JWT_SECRET || 'please_set_a_secret', {
       expiresIn: process.env.JWT_EXPIRES_IN || '7d'
@@ -99,7 +118,8 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         username: user.username,
         email: user.email,
-        role: user.role
+        role: roleDoc ? { _id: roleDoc._id, role: roleDoc.role } : user.role,
+        permissions: Array.from(permissionSet),
       }
     })
   } catch (error) {

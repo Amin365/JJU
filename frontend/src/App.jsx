@@ -18,6 +18,10 @@ const SectionCards = lazy(() =>
   import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
 );
 
+const Users = lazy(() => import("./components/Users/UserTable"));
+const UsersFromMember = lazy(() => import("./components/Users/UserFromMember"));
+
+
 function App() {
   return (
  
@@ -45,12 +49,14 @@ function App() {
           <Route path="books" element=
           {<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}>
           <BookTable /></Suspense>} />
+
           <Route path="books/:id" element={<BookDetails />} />
           <Route path="members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MemberTable /></Suspense>} />
           <Route path="members/new"  element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersForm /></Suspense>} />
           <Route path="members/edit/:id"  element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersForm /></Suspense>} />
           <Route path="members/:id" element={<MemberDetails />} />
-  
+          <Route path="users" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Users /></Suspense>} />
+  <Route path="users/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><UsersFromMember /></Suspense>} />
         </Route>
       </Routes>
 

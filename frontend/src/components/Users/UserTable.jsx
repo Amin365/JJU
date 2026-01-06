@@ -101,7 +101,7 @@ const UsersTable = () => {
 
       <Card>
         <CardContent className="grid grid-cols-1 md:grid-cols-12 gap-4 items-center">
-          <div className="md:col-span-11 relative">
+          <div className="md:col-span-11 relative w-70">
             <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-slate-400" size={18} />
             <Input
               className="pl-10"

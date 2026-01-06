@@ -312,6 +312,23 @@ export const deleteMember = async (req, res, next) => {
   }
 };
 
+export const getMemberByCode = async (req, res, next) => {
+  try {
+    const { code } = req.params;
+    if (!code) return res.status(400).json({ message: "MemberId is required" });
+
+    const member = await Member.findOne({ code }).populate("role", "role color").lean().exec();
+
+    if (!member) return res.status(404).json({
+      message: "Before requesting a book you must be member of the Club",
+    });
+
+    return res.status(200).json({ data: member });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export default {
   createMember,
   getMembers,
@@ -320,4 +337,5 @@ export default {
   archiveMember,
   restoreMember,
   deleteMember,
+  getMemberByCode,
 };

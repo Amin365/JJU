@@ -14,7 +14,8 @@ import {
   Settings2,
   SquareTerminal,
   Users2,
-  LayoutGrid
+  LayoutGrid,
+  FileChartColumn
 
   
 } from "lucide-react"
@@ -72,8 +73,20 @@ const data = {
     },
     {
       title: "Issue Books ",
-      url: "/test",
+      url: "/dashboard/issues",
       icon: BookOpen,
+   
+    },
+    {
+      title: " Request Issue  ",
+      url: "/dashboard/issues/request",
+      icon: BookOpen,
+   
+    },
+    {
+      title: "Reports ",
+      url: "/dashboard/report",
+      icon: FileChartColumn,
    
     },
     {
@@ -88,20 +101,7 @@ const data = {
 
 export function AppSidebar({ ...props }) {
   const permissions = useSelector(selectPermissions);
-  const userRoleRaw = useSelector((state) => state.auth.user?.role ?? null);
-  const roleName = typeof userRoleRaw === "string" ? userRoleRaw : userRoleRaw?.role || "";
-  const userRoleLower = roleName.trim().toLowerCase();
-
-  const isSuperAdmin = userRoleLower === "super admin" || userRoleLower.includes("super");
-  const isModerator = userRoleLower === "moderator";
-
-  // Only Super Admin or Moderator can see Members
-  const canViewMembers = isSuperAdmin || isModerator;
-
-  const filteredNav = data.navMain.filter((item) => {
-    if (item.title === "Members") return canViewMembers;
-    return true;
-  });
+  const filteredNav = data.navMain;
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>

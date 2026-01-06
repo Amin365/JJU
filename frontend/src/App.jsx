@@ -6,8 +6,7 @@ import Loader from "./components/Loader";
 
 // lazy-loaded route components
 const DashboardPage = lazy(() => import("./pages/Dashboard"));
-const Test = lazy(() => import("./pages/Test"));
-const TestTwo = lazy(() => import("./pages/TestTwo"));
+
 const LoginPage = lazy(() => import("./pages/Loginpage"));
 const BookTable = lazy(() => import("./components/Books/BookTable"));
 const BookDetails = lazy(() => import("./components/Books/BookDetails"));
@@ -18,10 +17,14 @@ const SectionCards = lazy(() =>
   import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
 );
 
+
 const Users = lazy(() => import("./components/Users/UserTable"));
 const UsersFromMember = lazy(() => import("./components/Users/UserFromMember"));
-
-
+const Report = lazy(() => import("./components/Members/DailyReport"));
+// const Report= lazy(()=>import('./components/Members/DailyReport'))
+const MemberGate=lazy(()=>import( "./components/Issue/IssueMemberGate"));
+const IssueMembersForm=lazy(()=>import( "./components/Issue/IssueForm"));
+const Issuetable=lazy(()=>import( "./components/Issue/IssueTable"));
 function App() {
   return (
  
@@ -57,6 +60,10 @@ function App() {
           <Route path="members/:id" element={<MemberDetails />} />
           <Route path="users" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Users /></Suspense>} />
   <Route path="users/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><UsersFromMember /></Suspense>} />
+  <Route path="report" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Report /></Suspense>} />
+  <Route path="issues/request" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MemberGate /></Suspense>} />
+<Route path="issue/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IssueMembersForm /></Suspense>} />
+  <Route path="issues" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Issuetable /></Suspense>} />
         </Route>
       </Routes>
 

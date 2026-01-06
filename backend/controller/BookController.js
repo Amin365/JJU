@@ -11,7 +11,7 @@ const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export const createBook = async (req, res, next) => {
   try {
-    const { title, author, BookType, publishedDate, isbn, status, book_picture } = req.body;
+    const { title, author, BookType, publishedDate, isbn, status, book_picture ,totalPages} = req.body;
 
     // Basic validation (consider replacing with express-validator/Joi)
     if (!title || !BookType) {
@@ -27,6 +27,7 @@ export const createBook = async (req, res, next) => {
       isbn,
       status,
       book_picture,
+      totalPages
     });
 
     try {

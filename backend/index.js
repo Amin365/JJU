@@ -9,7 +9,9 @@ import AuthRouter from "./routers/AuthRouter.js"
 import cors from 'cors'
 import MemberRouter from "./routers/MemberRouter.js"
 import RoleRouter from "./routers/RoleRouter.js"
+import DailyReportRouter from "./routers/DailyReportRouter.js"
 import issueRouter from "./routers/IssueRouter.js"
+// import DailyReportRouter from "./routers/DailyReportRouter.js"
 
 dotenv.config()
 const app = express()
@@ -27,6 +29,7 @@ app.use("/api", BookRouter);
 app.use("/api",MemberRouter);
 app.use("/api", RoleRouter);
 app.use('/api',issueRouter)
+app.use('/api',DailyReportRouter)
 
 
 

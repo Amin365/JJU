@@ -55,7 +55,7 @@ const IssuesTable = () => {
   const rows = useMemo(() => issues, [issues]);
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 dark:bg-gray-900 bg-slate-50">
+    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 ">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">Issued Books</h1>

@@ -1,224 +1,215 @@
-import { useState } from 'react';
-import { BookOpen, Calendar, Star, FileText, Clock, CheckCircle, TrendingUp, Flame, AlertTriangle, Sparkles, Smile, Frown, Meh, Save } from 'lucide-react';
-import { Card, CardContent, CardHeader, CardTitle } from '../ui/card';
-import { Button } from '../ui/button';
-import { Label } from '../ui/label';
-import { Input } from '../ui/input';
-import { Textarea } from '../ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../ui/select';
-import { Badge } from '../ui/badge';
-import { Progress } from '../ui/progress';
-import { toast } from 'sonner';
+import React, { useEffect, useMemo, useState } from "react";
+import {
+  BookOpen,
+  Calendar,
+  Clock,
+  CheckCircle,
+  TrendingUp,
+  Flame,
+  AlertTriangle,
+  FileText,
+  Star,
+  Plus,
+  Loader2,
+} from "lucide-react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import api from "@/app/api/apislice";
+import { toast } from "sonner";
 
-const mockIssuedBooks = [
-  { 
-    id: '1', 
-    title: 'To Kill a Mockingbird', 
-    totalPages: 324,
-    currentPage: 120,
-    issueDate: '2025-12-20',
-    returnDate: '2026-01-20',
-    status: 'Active'
-  },
-  { 
-    id: '2', 
-    title: '1984', 
-    totalPages: 328,
-    currentPage: 280,
-    issueDate: '2025-12-15',
-    returnDate: '2026-01-10',
-    status: 'Overdue'
-  },
-  { 
-    id: '3', 
-    title: 'The Great Gatsby', 
-    totalPages: 180,
-    currentPage: 78,
-    issueDate: '2026-01-01',
-    returnDate: '2026-01-25',
-    status: 'Active'
-  },
-];
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { Label } from "../ui/label";
+import { Input } from "../ui/input";
+import { Textarea } from "../ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "../ui/select";
+import { Badge } from "../ui/badge";
+import { Progress } from "../ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "../ui/dialog";
 
-const initialReports = [
-  {
-    id: '1',
-    bookId: '1',
-    bookName: 'To Kill a Mockingbird',
-    date: '2026-01-04',
-    pagesFrom: 100,
-    pagesTo: 120,
-    timeSpent: 45,
-    summary: 'Explored the themes of racial injustice and moral growth through Scout\'s perspective.',
-    rating: 5,
-    mood: 'focused',
-    status: 'Approved',
-  },
-  {
-    id: '2',
-    bookId: '1',
-    bookName: 'To Kill a Mockingbird',
-    date: '2026-01-03',
-    pagesFrom: 80,
-    pagesTo: 100,
-    timeSpent: 35,
-    summary: 'Scout and Jem\'s adventures continue. The character development is excellent.',
-    rating: 4,
-    mood: 'relaxed',
-    status: 'Pending',
-  },
-  {
-    id: '3',
-    bookId: '1',
-    bookName: 'To Kill a Mockingbird',
-    date: '2026-01-02',
-    pagesFrom: 60,
-    pagesTo: 80,
-    timeSpent: 40,
-    summary: 'The courtroom scenes are gripping. Atticus is an inspiring character.',
-    rating: 5,
-    mood: 'focused',
-    status: 'Approved',
-  },
-];
+const toISODate = (d) => new Date(d).toISOString().slice(0, 10);
+
+const StarRating = ({ value, onChange }) => (
+  <div className="flex gap-1">
+    {[1, 2, 3, 4, 5].map((star) => (
+      <button key={star} type="button" onClick={() => onChange(star)} className="focus:outline-none">
+        <Star className={`w-6 h-6 ${star <= value ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`} />
+      </button>
+    ))}
+  </div>
+);
+
+const getReportStatusColor = (status) => {
+  switch (status) {
+    case "Approved":
+      return "bg-green-100 text-green-700 hover:bg-green-100";
+    case "Pending":
+      return "bg-amber-100 text-amber-700 hover:bg-amber-100";
+    case "Needs Improvement":
+      return "bg-red-100 text-red-700 hover:bg-red-100";
+    default:
+      return "bg-gray-100 text-gray-700";
+  }
+};
 
 export default function DailyReadingReport() {
-  const [reports, setReports] = useState(initialReports);
-  const [selectedBookId, setSelectedBookId] = useState('1');
-  const [showForm, setShowForm] = useState(false);
-  const [readingDate, setReadingDate] = useState('');
-  const [pagesFrom, setPagesFrom] = useState('');
-  const [pagesTo, setPagesTo] = useState('');
-  const [timeSpent, setTimeSpent] = useState('');
-  const [summary, setSummary] = useState('');
+  const qc = useQueryClient();
+
+  const [selectedBookId, setSelectedBookId] = useState("");
+  const [isCreateOpen, setIsCreateOpen] = useState(false);
+
+  // modal fields
+  const [readingDate, setReadingDate] = useState("");
+  const [pagesFrom, setPagesFrom] = useState("");
+  const [pagesTo, setPagesTo] = useState("");
+  const [timeSpent, setTimeSpent] = useState("");
+  const [summary, setSummary] = useState("");
   const [rating, setRating] = useState(0);
-  const [mood, setMood] = useState('');
-  const [showSuccess, setShowSuccess] = useState(false);
 
-  const selectedBook = mockIssuedBooks.find(b => b.id === selectedBookId);
-  const bookReports = reports.filter(r => r.bookId === selectedBookId);
-  
-  // Calculate statistics
-  const pagesRead = selectedBook?.currentPage || 0;
-  const totalPages = selectedBook?.totalPages || 0;
-  const remainingPages = totalPages - pagesRead;
-  const progressPercentage = totalPages > 0 ? Math.round((pagesRead / totalPages) * 100) : 0;
-  
-  // Calculate days remaining
-  const today = new Date('2026-01-05'); // Current date
-  const returnDate = selectedBook ? new Date(selectedBook.returnDate) : new Date();
-  const daysRemaining = Math.ceil((returnDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-  const isOverdue = daysRemaining < 0;
-  const overdueDays = Math.abs(daysRemaining);
-  
-  // Calculate reading streak
-  const readingStreak = 3; // Mock data - consecutive days of reading
-  
-  // Calculate average pages per day
-  const totalReports = bookReports.length;
-  const avgPagesPerDay = totalReports > 0 
-    ? Math.round(bookReports.reduce((sum, r) => sum + (r.pagesTo - r.pagesFrom), 0) / totalReports)
-    : 0;
-  
-  // Calculate days to finish
-  const daysToFinish = avgPagesPerDay > 0 ? Math.ceil(remainingPages / avgPagesPerDay) : 0;
+  // 48 hours: today + yesterday only
+  const today = new Date();
+  const yesterday = new Date();
+  yesterday.setDate(today.getDate() - 1);
 
-  const handleSubmitReport = (isDraft = false) => {
-    if (!selectedBookId || !readingDate || !pagesFrom || !pagesTo || !timeSpent || !summary || rating === 0) {
-      toast.error('Please fill in all fields');
+  const minAllowedDate = toISODate(yesterday);
+  const maxAllowedDate = toISODate(today);
+
+  // ---- books ----
+  const { data: booksResp, isLoading: booksLoading } = useQuery({
+    queryKey: ["books", "daily-report"],
+    queryFn: async () => {
+      const res = await api.get("/books", { params: { page: 1, limit: 500 } });
+      return res.data;
+    },
+    staleTime: 30_000,
+  });
+
+  const books = booksResp?.data ?? [];
+
+  useEffect(() => {
+    if (!selectedBookId && books.length) setSelectedBookId(books[0]._id);
+  }, [books, selectedBookId]);
+
+  const selectedBook = useMemo(
+    () => books.find((b) => b._id === selectedBookId) || null,
+    [books, selectedBookId]
+  );
+
+  // ---- reports (server returns only current logged-in user's reports) ----
+  const { data: reportsResp, isLoading: reportsLoading } = useQuery({
+    queryKey: ["daily-reports", selectedBookId],
+    enabled: Boolean(selectedBookId),
+    queryFn: async () => {
+      const res = await api.get("/daily-reports", {
+        params: { book: selectedBookId, limit: 100 },
+      });
+      return res.data;
+    },
+    staleTime: 15_000,
+  });
+
+  const reports = useMemo(() => {
+    const arr = reportsResp?.data ?? [];
+    return arr
+      .slice()
+      .sort((a, b) => new Date(b.readingDate).getTime() - new Date(a.readingDate).getTime());
+  }, [reportsResp]);
+
+  const lastThree = reports.slice(0, 3);
+
+  // ---- progress (based on max pagesTo from reports) ----
+  const currentPage = useMemo(() => {
+    if (!reports.length) return 0;
+    return reports.reduce((mx, r) => Math.max(mx, Number(r.pagesTo || 0)), 0);
+  }, [reports]);
+
+  // NOTE: Your Book model doesn't have totalPages, so this will be N/A until you add it.
+  const totalPages = Number(selectedBook?.totalPages || 0);
+  const progressPercentage =
+    totalPages > 0 ? Math.min(100, Math.round((currentPage / totalPages) * 100)) : 0;
+  const remainingPages = totalPages > 0 ? Math.max(0, totalPages - currentPage) : 0;
+
+  const avgPagesPerReport = useMemo(() => {
+    if (!reports.length) return 0;
+    const sum = reports.reduce((acc, r) => acc + (Number(r.pagesTo) - Number(r.pagesFrom)), 0);
+    return Math.max(0, Math.round(sum / reports.length));
+  }, [reports]);
+
+  const readingStreak = useMemo(() => {
+    if (!reports.length) return 0;
+    const dates = Array.from(new Set(reports.map((r) => toISODate(r.readingDate)))).sort().reverse();
+    let streak = 1;
+    for (let i = 1; i < dates.length; i++) {
+      const prev = new Date(dates[i - 1]);
+      const cur = new Date(dates[i]);
+      const diff = Math.round((prev.getTime() - cur.getTime()) / (1000 * 60 * 60 * 24));
+      if (diff === 1) streak++;
+      else break;
+    }
+    return dates.length ? streak : 0;
+  }, [reports]);
+
+  // ---- create report (backend sets createdBy from auth middleware) ----
+  const createReport = useMutation({
+    mutationFn: async (payload) => {
+      const res = await api.post("/daily-reports", payload);
+      return res.data?.data ?? res.data;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["daily-reports", selectedBookId] });
+      toast.success("Reading report submitted successfully!");
+      setIsCreateOpen(false);
+      setReadingDate("");
+      setPagesFrom("");
+      setPagesTo("");
+      setTimeSpent("");
+      setSummary("");
+      setRating(0);
+    },
+    onError: (err) => {
+      // If you get 401 here, it means axios isn't sending token/cookie
+      toast.error(err?.response?.data?.message || "Failed to submit report");
+    },
+  });
+
+  const submitReport = () => {
+    if (!selectedBookId) {
+      toast.error("Select a book first");
       return;
     }
 
-    const book = mockIssuedBooks.find((b) => b.id === selectedBookId);
-    if (!book) return;
+    if (!readingDate || !pagesFrom || !pagesTo || !timeSpent || !summary || rating === 0) {
+      toast.error("Please fill in all fields");
+      return;
+    }
 
-    const newReport = {
-      id: Date.now().toString(),
-      bookId: selectedBookId,
-      bookName: book.title,
-      date: readingDate,
-      pagesFrom: parseInt(pagesFrom),
-      pagesTo: parseInt(pagesTo),
-      timeSpent: parseInt(timeSpent),
+    // Client-side guard (UX) - backend should also validate
+    if (readingDate !== minAllowedDate && readingDate !== maxAllowedDate) {
+      toast.error(`Allowed dates: ${minAllowedDate} and ${maxAllowedDate}`);
+      return;
+    }
+
+    const pf = Number(pagesFrom);
+    const pt = Number(pagesTo);
+    if (Number.isNaN(pf) || Number.isNaN(pt) || pt <= pf) {
+      toast.error("Pages To must be greater than Pages From");
+      return;
+    }
+
+    createReport.mutate({
+      book: selectedBookId,
+      readingDate,
+      pagesFrom: pf,
+      pagesTo: pt,
+      timeSpent: Number(timeSpent),
       summary,
       rating,
-      mood,
-      status: 'Pending',
-    };
-
-    setReports([newReport, ...reports]);
-    setShowSuccess(true);
-    
-    if (isDraft) {
-      toast.success('Report saved as draft!');
-    } else {
-      toast.success('Reading report submitted successfully!');
-    }
-
-    // Reset form
-    setReadingDate('');
-    setPagesFrom('');
-    setPagesTo('');
-    setTimeSpent('');
-    setSummary('');
-    setRating(0);
-    setMood('');
-    setShowForm(false);
-
-    setTimeout(() => setShowSuccess(false), 3000);
-  };
-
-  const StarRating = ({ value, onChange }) => {
-    return (
-      <div className="flex gap-1">
-        {[1, 2, 3, 4, 5].map((star) => (
-          <button
-            key={star}
-            type="button"
-            onClick={() => onChange(star)}
-            className="focus:outline-none transition-colors"
-          >
-            <Star
-              className={`w-6 h-6 ${
-                star <= value ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-              }`}
-            />
-          </button>
-        ))}
-      </div>
-    );
-  };
-
-  const getStatusColor = (status) => {
-    switch (status) {
-      case 'Approved':
-        return 'bg-green-100 text-green-700 hover:bg-green-100';
-      case 'Pending':
-        return 'bg-amber-100 text-amber-700 hover:bg-amber-100';
-      case 'Needs Improvement':
-        return 'bg-red-100 text-red-700 hover:bg-red-100';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
-  };
-
-  const getBookStatusColor = (status) => {
-    switch (status) {
-      case 'Active':
-        return 'bg-blue-100 text-blue-700 hover:bg-blue-100';
-      case 'Overdue':
-        return 'bg-red-100 text-red-700 hover:bg-red-100';
-      case 'Completed':
-        return 'bg-green-100 text-green-700 hover:bg-green-100';
-      default:
-        return 'bg-gray-100 text-gray-700';
-    }
+    });
   };
 
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className=" space-y-6">
-        {/* Page Header */}
+      <div className="space-y-6">
+        {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">
             <BookOpen className="w-8 h-8 text-blue-600" />
@@ -228,100 +219,86 @@ export default function DailyReadingReport() {
             </div>
           </div>
 
-          {/* Book Selector */}
+          {/* Book selector */}
           <div className="flex items-center gap-3 mt-4">
             <div className="flex-1 max-w-md">
-              <Select value={selectedBookId} onValueChange={setSelectedBookId}>
+              <Select value={selectedBookId} onValueChange={setSelectedBookId} disabled={booksLoading}>
                 <SelectTrigger>
-                  <SelectValue />
+                  <SelectValue placeholder={booksLoading ? "Loading books..." : "Select a book"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {mockIssuedBooks.map((book) => (
-                    <SelectItem key={book.id} value={book.id}>
-                      {book.title}
+                  {books.map((book) => (
+                    <SelectItem key={book._id} value={book._id}>
+                      {book.title} {book.author ? `— ${book.author}` : ""}
                     </SelectItem>
                   ))}
                 </SelectContent>
               </Select>
             </div>
-            {selectedBook && (
-              <Badge className={getBookStatusColor(selectedBook.status)}>
+
+            {/* {selectedBook && (
+              <Badge className={selectedBook.status === "borrowed" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}>
                 {selectedBook.status}
               </Badge>
-            )}
+            )} */}
           </div>
         </div>
 
-        {/* Success Message */}
-        {showSuccess && (
-          <div className="bg-green-50 border border-green-200 rounded-lg p-4 flex items-center gap-3">
-            <CheckCircle className="w-5 h-5 text-green-600" />
-            <p className="text-green-800">Your reading report has been submitted successfully!</p>
+        {/* Summary header + Create button */}
+        <div className="flex items-center justify-between gap-3">
+          <div>
+            <h2 className="text-lg font-semibold text-gray-900">Summary</h2>
+            <p className="text-sm text-gray-600">Quick overview for the selected book.</p>
           </div>
-        )}
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+            <Plus className="w-4 h-4 mr-2" /> Create report
+          </Button>
+        </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-4">
-          {/* Total Pages */}
-          <Card className="shadow-sm">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-12  md:gap-6">
+          <Card className="shadow-sm  md:w-70 w-50 " >
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-gray-600" />
                 <p className="text-xs text-gray-600">Total Pages</p>
               </div>
-              <p className="text-2xl font-semibold text-gray-900">{totalPages}</p>
+              <p className="text-2xl font-semibold text-gray-900">{totalPages > 0 ? totalPages : "—"}</p>
             </CardContent>
           </Card>
 
-          {/* Pages Read */}
-          <Card className="shadow-sm">
+          <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-blue-600" />
                 <p className="text-xs text-gray-600">Pages Read</p>
               </div>
-              <p className="text-2xl font-semibold text-blue-600">{pagesRead}</p>
-              <p className="text-xs text-gray-500">{progressPercentage}%</p>
+              <p className="text-2xl font-semibold text-blue-600">{currentPage}</p>
+              <p className="text-xs text-gray-500">{totalPages > 0 ? `${progressPercentage}%` : "N/A"}</p>
             </CardContent>
           </Card>
 
-          {/* Remaining Pages */}
-          <Card className="shadow-sm">
+          <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Clock className="w-4 h-4 text-gray-600" />
                 <p className="text-xs text-gray-600">Remaining</p>
               </div>
-              <p className="text-2xl font-semibold text-gray-900">{remainingPages}</p>
+              <p className="text-2xl font-semibold text-gray-900">{totalPages > 0 ? remainingPages : "—"}</p>
             </CardContent>
           </Card>
 
-          {/* Days Remaining / Overdue */}
-          {isOverdue ? (
-            <Card className="shadow-sm border-red-200">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <AlertTriangle className="w-4 h-4 text-red-600" />
-                  <p className="text-xs text-red-600">Overdue</p>
-                </div>
-                <p className="text-2xl font-semibold text-red-600">{overdueDays}</p>
-                <p className="text-xs text-red-500">days</p>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card className="shadow-sm">
-              <CardContent className="p-4">
-                <div className="flex items-center gap-2 mb-1">
-                  <Calendar className="w-4 h-4 text-gray-600" />
-                  <p className="text-xs text-gray-600">Days Left</p>
-                </div>
-                <p className="text-2xl font-semibold text-gray-900">{daysRemaining}</p>
-              </CardContent>
-            </Card>
-          )}
+          {/* <Card className="shadow-sm">
+            <CardContent className="p-4">
+              <div className="flex items-center gap-2 mb-1">
+                <Calendar className="w-4 h-4 text-gray-600" />
+                <p className="text-xs text-gray-600">Reports</p>
+              </div>
+              <p className="text-2xl font-semibold text-gray-900">{reports.length}</p>
+            </CardContent>
+          </Card> */}
 
-          {/* Reading Streak */}
-          <Card className="shadow-sm">
+          <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Flame className="w-4 h-4 text-orange-600" />
@@ -332,292 +309,201 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          {/* Avg Pages/Day */}
-          <Card className="shadow-sm">
+          <Card className="shadow-sm md:w-70 hidden lg:block ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="w-4 h-4 text-green-600" />
-                <p className="text-xs text-gray-600">Avg/Day</p>
+                <p className="text-xs text-gray-600">Avg/Report</p>
               </div>
-              <p className="text-2xl font-semibold text-green-600">{avgPagesPerDay}</p>
+              <p className="text-2xl font-semibold text-green-600">{avgPagesPerReport}</p>
               <p className="text-xs text-gray-500">pages</p>
             </CardContent>
           </Card>
         </div>
 
-        {/* Progress Bar */}
-        <Card className="shadow-sm">
+        {/* Progress */}
+        <Card className="shadow-sm ">
           <CardContent className="p-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between">
                 <h3 className="font-medium text-gray-900">Reading Progress</h3>
-                <span className="text-sm font-medium text-blue-600">{progressPercentage}%</span>
+                <span className="text-sm font-medium text-blue-600">
+                  {totalPages > 0 ? `${progressPercentage}%` : "N/A"}
+                </span>
               </div>
-              <Progress value={progressPercentage} className="h-3" />
+              <Progress value={totalPages > 0 ? progressPercentage : 0} className="h-3" />
               <div className="flex items-center justify-between text-xs text-gray-600">
-                <span>Page {pagesRead} of {totalPages}</span>
-                <span>{remainingPages} pages remaining</span>
+                <span>{totalPages > 0 ? `Page ${currentPage} of ${totalPages}` : "Add totalPages to Book model to calculate progress"}</span>
+                <span>{totalPages > 0 ? `${remainingPages} pages remaining` : ""}</span>
               </div>
             </div>
           </CardContent>
         </Card>
 
-        {/* Smart Insights Panel */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <Card className="shadow-sm bg-gradient-to-br from-blue-50 to-indigo-50 border-blue-200">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-blue-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-blue-900">Reading Pace</p>
-                  <p className="text-sm text-blue-700 mt-1">
-                    {daysToFinish > 0 
-                      ? `At your current pace, you'll finish in ${daysToFinish} days`
-                      : 'Keep up the great work!'}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-
-          <Card className="shadow-sm bg-gradient-to-br from-green-50 to-emerald-50 border-green-200">
-            <CardContent className="p-4">
-              <div className="flex items-start gap-3">
-                <Sparkles className="w-5 h-5 text-green-600 mt-0.5" />
-                <div>
-                  <p className="font-medium text-green-900">Motivation</p>
-                  <p className="text-sm text-green-700 mt-1">
-                    {progressPercentage >= 70 
-                      ? "Great job! You're almost there!"
-                      : progressPercentage >= 40
-                      ? "You're making excellent progress!"
-                      : "Keep going! Every page counts!"}
-                  </p>
-                </div>
-              </div>
-            </CardContent>
-          </Card>
-        </div>
-
-        {/* Create Report Button */}
-        {!showForm && (
-          <Button 
-            onClick={() => setShowForm(true)} 
-            className="w-full bg-blue-600 hover:bg-blue-700"
-            size="lg"
-          >
-            <FileText className="w-5 h-5 mr-2" />
-            Create New Reading Report
-          </Button>
-        )}
-
-        {/* Report Submission Form */}
-        {showForm && (
-          <Card className="shadow-sm">
-            <CardHeader>
-              <CardTitle className="text-xl">Submit Today's Reading</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-6">
-                {/* Reading Date */}
-                <div className="space-y-2">
-                  <Label htmlFor="date" className="flex items-center gap-2">
-                    <Calendar className="w-4 h-4" />
-                    Reading Date
-                  </Label>
-                  <Input
-                    id="date"
-                    type="date"
-                    value={readingDate}
-                    onChange={(e) => setReadingDate(e.target.value)}
-                  />
-                </div>
-
-                {/* Pages Read */}
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="pagesFrom">Pages Read (From)</Label>
-                    <Input
-                      id="pagesFrom"
-                      type="number"
-                      placeholder="e.g., 45"
-                      value={pagesFrom}
-                      onChange={(e) => setPagesFrom(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="pagesTo">Pages Read (To)</Label>
-                    <Input
-                      id="pagesTo"
-                      type="number"
-                      placeholder="e.g., 70"
-                      value={pagesTo}
-                      onChange={(e) => setPagesTo(e.target.value)}
-                    />
-                  </div>
-                </div>
-
-                {/* Time Spent */}
-                <div className="space-y-2">
-                  <Label htmlFor="timeSpent" className="flex items-center gap-2">
-                    <Clock className="w-4 h-4" />
-                    Time Spent Reading (minutes)
-                  </Label>
-                  <Input
-                    id="timeSpent"
-                    type="number"
-                    placeholder="e.g., 45"
-                    value={timeSpent}
-                    onChange={(e) => setTimeSpent(e.target.value)}
-                  />
-                </div>
-
-                {/* Mood / Focus Selector */}
-                <div className="space-y-2">
-                  <Label htmlFor="mood">Mood / Focus</Label>
-                  <Select value={mood} onValueChange={setMood}>
-                    <SelectTrigger id="mood">
-                      <SelectValue placeholder="How was your reading session?" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="focused">
-                        <div className="flex items-center gap-2">
-                          <Smile className="w-4 h-4" />
-                          Focused & Engaged
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="relaxed">
-                        <div className="flex items-center gap-2">
-                          <Meh className="w-4 h-4" />
-                          Relaxed & Calm
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="distracted">
-                        <div className="flex items-center gap-2">
-                          <Frown className="w-4 h-4" />
-                          Distracted
-                        </div>
-                      </SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-
-                {/* Summary */}
-                <div className="space-y-2">
-                  <Label htmlFor="summary" className="flex items-center gap-2">
-                    <FileText className="w-4 h-4" />
-                    Short Summary
-                  </Label>
-                  <Textarea
-                    id="summary"
-                    placeholder="Share your thoughts about today's reading..."
-                    rows={4}
-                    value={summary}
-                    onChange={(e) => setSummary(e.target.value)}
-                  />
-                </div>
-
-                {/* Rating */}
-                <div className="space-y-2">
-                  <Label className="flex items-center gap-2">
-                    <Star className="w-4 h-4" />
-                    Self Rating
-                  </Label>
-                  <StarRating value={rating} onChange={setRating} />
-                </div>
-
-                {/* Action Buttons */}
-                <div className="flex gap-3">
-                  <Button 
-                    onClick={() => handleSubmitReport(false)} 
-                    className="flex-1 bg-blue-600 hover:bg-blue-700"
-                  >
-                    Submit Today's Reading
-                  </Button>
-                  <Button 
-                    onClick={() => handleSubmitReport(true)} 
-                    variant="outline"
-                    className="flex items-center gap-2"
-                  >
-                    <Save className="w-4 h-4" />
-                    Save as Draft
-                  </Button>
-                </div>
-                
-                <Button 
-                  onClick={() => setShowForm(false)} 
-                  variant="ghost"
-                  className="w-full"
-                >
-                  Cancel
-                </Button>
-              </div>
-            </CardContent>
-          </Card>
-        )}
-
-        {/* Reading History Section */}
+        {/* Reading Story last 3 */}
         <Card className="shadow-sm">
           <CardHeader>
-            <CardTitle className="text-xl">Reading History</CardTitle>
+            <CardTitle className="text-xl">Reading Story (Last 3 reports)</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {bookReports.map((report) => (
-                <div
-                  key={report.id}
-                  className="border rounded-lg p-4 hover:shadow-sm transition-shadow"
-                >
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
-                        <span className="flex items-center gap-1 font-medium text-gray-900">
-                          <Calendar className="w-4 h-4" />
-                          {new Date(report.date).toLocaleDateString('en-US', { 
-                            weekday: 'short', 
-                            year: 'numeric', 
-                            month: 'short', 
-                            day: 'numeric' 
-                          })}
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <BookOpen className="w-4 h-4" />
-                          Pages {report.pagesFrom} - {report.pagesTo} ({report.pagesTo - report.pagesFrom} pages)
-                        </span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-4 h-4" />
-                          {report.timeSpent} mins
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 mb-2">
-                        {[...Array(5)].map((_, i) => (
-                          <Star
-                            key={i}
-                            className={`w-4 h-4 ${
-                              i < report.rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'
-                            }`}
-                          />
-                        ))}
-                        {report.mood && (
-                          <span className="text-xs text-gray-500 ml-2 capitalize">
-                            • {report.mood}
+            {reportsLoading ? (
+              <div className="text-sm text-gray-500">Loading reports...</div>
+            ) : lastThree.length === 0 ? (
+              <div className="text-sm text-gray-500">No reports yet. Create your first report.</div>
+            ) : (
+              <div className="space-y-3">
+                {lastThree.map((r) => (
+                  <div key={r._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
+                    <div className="flex items-start justify-between gap-4">
+                      <div className="flex-1">
+                        <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">
+                          <span className="flex items-center gap-1 font-medium text-gray-900">
+                            <Calendar className="w-4 h-4" />
+                            {new Date(r.readingDate).toLocaleDateString()}
                           </span>
-                        )}
+                          <span className="flex items-center gap-1">
+                            <BookOpen className="w-4 h-4" />
+                            Pages {r.pagesFrom} - {r.pagesTo} ({Number(r.pagesTo) - Number(r.pagesFrom)} pages)
+                          </span>
+                          <span className="flex items-center gap-1">
+                            <Clock className="w-4 h-4" />
+                            {r.timeSpent} mins
+                          </span>
+                        </div>
+
+                        <div className="flex items-center gap-2 mb-2">
+                          {[...Array(5)].map((_, i) => (
+                            <Star
+                              key={i}
+                              className={`w-4 h-4 ${i < r.rating ? "fill-yellow-400 text-yellow-400" : "text-gray-300"}`}
+                            />
+                          ))}
+                        </div>
+
+                        <p className="text-sm text-gray-700">{r.summary}</p>
                       </div>
-                      <p className="text-sm text-gray-700">{report.summary}</p>
+
+                      <Badge className={`${getReportStatusColor(r.status)} flex items-center gap-1`}>
+                        {r.status === "Approved" && <CheckCircle className="w-3 h-3" />}
+                        {r.status === "Pending" && <Clock className="w-3 h-3" />}
+                        {r.status === "Needs Improvement" && <AlertTriangle className="w-3 h-3" />}
+                        {r.status || "Pending"}
+                      </Badge>
                     </div>
-                    <Badge className={`${getStatusColor(report.status)} flex items-center gap-1 ml-4`}>
-                      {report.status === 'Approved' && <CheckCircle className="w-3 h-3" />}
-                      {report.status === 'Pending' && <Clock className="w-3 h-3" />}
-                      {report.status === 'Needs Improvement' && <AlertTriangle className="w-3 h-3" />}
-                      {report.status}
-                    </Badge>
                   </div>
-                </div>
-              ))}
-            </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
+
+        {/* Modal */}
+        <Dialog open={isCreateOpen} onOpenChange={setIsCreateOpen}>
+          <DialogContent className="sm:max-w-2xl">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <FileText className="w-5 h-5" /> Create Reading Report
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-5">
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Calendar className="w-4 h-4" />
+                  Reading Date (only today/yesterday)
+                </Label>
+                <Input
+                  type="date"
+                  value={readingDate}
+                  min={minAllowedDate}
+                  max={maxAllowedDate}
+                  onChange={(e) => setReadingDate(e.target.value)}
+                />
+                <p className="text-xs text-gray-500">Allowed: {minAllowedDate} and {maxAllowedDate}</p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label>Pages From</Label>
+                  <Input type="number" value={pagesFrom} onChange={(e) => setPagesFrom(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Pages To</Label>
+                  <Input type="number" value={pagesTo} onChange={(e) => setPagesTo(e.target.value)} />
+                </div>
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Clock className="w-4 h-4" />
+                  Time Spent (minutes)
+                </Label>
+                <Input type="number" value={timeSpent} onChange={(e) => setTimeSpent(e.target.value)} />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <FileText className="w-4 h-4" />
+                  Summary
+                </Label>
+                <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={4} />
+              </div>
+
+              <div className="space-y-2">
+                <Label className="flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Rating
+                </Label>
+                <StarRating value={rating} onChange={setRating} />
+              </div>
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setIsCreateOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={() => {
+                  // backend should validate 48h too; this is just UX
+                  if (readingDate !== minAllowedDate && readingDate !== maxAllowedDate) {
+                    toast.error(`Allowed dates: ${minAllowedDate} and ${maxAllowedDate}`);
+                    return;
+                  }
+                  // Submit
+                  if (!selectedBookId) return toast.error("Select a book first");
+                  if (!readingDate || !pagesFrom || !pagesTo || !timeSpent || !summary || rating === 0) {
+                    return toast.error("Please fill in all fields");
+                  }
+                  const pf = Number(pagesFrom);
+                  const pt = Number(pagesTo);
+                  if (Number.isNaN(pf) || Number.isNaN(pt) || pt <= pf) {
+                    return toast.error("Pages To must be greater than Pages From");
+                  }
+                  createReport.mutate({
+                    book: selectedBookId,
+                    readingDate,
+                    pagesFrom: pf,
+                    pagesTo: pt,
+                    timeSpent: Number(timeSpent),
+                    summary,
+                    rating,
+                  });
+                }}
+                disabled={createReport.isPending || !selectedBookId}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {createReport.isPending ? (
+                  <>
+                    <Loader2 className="animate-spin w-4 h-4 mr-2" />
+                    Submitting...
+                  </>
+                ) : (
+                  "Submit report"
+                )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );

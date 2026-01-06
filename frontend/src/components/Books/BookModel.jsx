@@ -38,6 +38,7 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
       publishedDate: "",
       status: "available",
       book_picture: "",
+      totalPages: "",
     },
   });
 
@@ -52,6 +53,7 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
         publishedDate: initialData.publishedDate ? new Date(initialData.publishedDate).toISOString().slice(0, 10) : "",
         status: initialData.status ?? "available",
         book_picture: initialData.book_picture ?? "",
+        totalPages: initialData.totalPages ?? "",
       });
     } else {
       reset({
@@ -62,6 +64,7 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
         publishedDate: "",
         status: "available",
         book_picture: "",
+        totalPages: "",
       });
     }
   }, [initialData, isOpen, reset]);
@@ -114,6 +117,7 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
       publishedDate: values.publishedDate ? new Date(values.publishedDate).toISOString() : undefined,
       status: values.status || undefined,
       book_picture: values.book_picture || undefined,
+      totalPages: values.totalPages !== undefined ? Number(values.totalPages) : undefined,
     };
 
     if (mode === "edit" && initialData && (initialData._id )) {
@@ -133,34 +137,34 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
         </DialogHeader>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
-            <Label htmlFor="title">Title</Label>
+          <div className="mb-3">
+            <Label htmlFor="title" className="block mb-1">Title</Label>
             <Input id="title" {...register("title", { required: "Title is required" })} />
             {errors.title && <p className="text-sm text-red-600 mt-1">{errors.title.message}</p>}
           </div>
 
-          <div>
-            <Label htmlFor="author">Author</Label>
+          <div className="mb-3">
+            <Label htmlFor="author" className="block mb-1">Author</Label>
             <Input id="author" {...register("author")} />
           </div>
 
-          <div>
-            <Label htmlFor="isbn">ISBN (leave blank to auto-generate)</Label>
-            <Input id="isbn" {...register("isbn")} />
+          <div className="mb-3">
+            <Label htmlFor="totalPages" className="block mb-1">Total Pages </Label>
+            <Input id="totalPages" {...register("totalPages")} />
           </div>
 
-          <div>
-            <Label htmlFor="BookType">Book Type</Label>
+          <div className="mb-3">
+            <Label htmlFor="BookType" className="block mb-1">Book Type</Label>
             <Input id="BookType" {...register("BookType")} placeholder="e.g. Fiction, Non-fiction" />
           </div>
 
-          <div>
-            <Label htmlFor="publishedDate">Published Date</Label>
+          <div className="mb-3">
+            <Label htmlFor="publishedDate" className="block mb-1">Published Date</Label>
             <Input id="publishedDate" type="date" {...register("publishedDate")} />
           </div>
 
-          <div>
-            <Label htmlFor="status">Status</Label>
+          <div className="mb-3">
+            <Label htmlFor="status" className="block mb-1">Status</Label>
             <Controller
               name="status"
               control={control}
@@ -179,8 +183,8 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
             />
           </div>
 
-          <div>
-            <Label htmlFor="book_picture">Book Picture URL</Label>
+          <div className="mb-3">
+            <Label htmlFor="book_picture" className="block mb-1">Book Picture URL</Label>
             <Input id="book_picture" {...register("book_picture")} placeholder="https://..." />
             { /* optional preview */ }
             { /* If you want preview: show <img src={watch('book_picture')} /> */ }

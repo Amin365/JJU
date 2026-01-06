@@ -14,7 +14,8 @@ const bookSchema = new mongoose.Schema({
   BookType: { type: String },
   publishedDate: { type: Date },
   status: { type: String, enum: ['available', 'borrowed'] ,default:"available"},
-  book_picture:{type:String}
+  book_picture:{type:String},
+  totalPages: { type: Number, default: 0 }
 }, { timestamps: true });
 
 

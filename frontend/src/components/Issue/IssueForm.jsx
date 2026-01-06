@@ -100,7 +100,7 @@ const IssueCreateForm = () => {
 
   if (!memberId) {
     return (
-      <div className="p-6">
+      <div className="p-6 max-w-7xl mx-auto"> 
         <p className="text-slate-600">No member selected. Go back and enter MemberId.</p>
         <Button className="mt-4" onClick={() => navigate("/dashboard/issues/request")}>
           Go to MemberId page
@@ -123,7 +123,7 @@ const IssueCreateForm = () => {
   }
 
   return (
-    <div className="min-h-[calc(100vh-64px)] p-4 bg-slate-50 dark:bg-gray-900 flex justify-center">
+    <div className="min-h-[calc(100vh-64px)] p-4  flex justify-center">
       <div className="w-full max-w-3xl">
         <div className="flex items-center justify-between mb-6">
           <div>
@@ -133,7 +133,7 @@ const IssueCreateForm = () => {
             </p>
           </div>
 
-          <Button variant="outline" onClick={() => navigate("/dashboard/issues")}>
+          <Button variant="outline" onClick={() => navigate("/dashboard/issues/request")}>
             <ArrowLeft size={16} /> <span className="ml-2">Back</span>
           </Button>
         </div>
@@ -145,7 +145,7 @@ const IssueCreateForm = () => {
 
           <CardContent className="space-y-6">
             {/* Member info */}
-            <div className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4">
+            <div className="rounded-2xl border border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900 p-4 mb-12">
               <div className="flex items-center gap-2 text-sm font-semibold text-slate-700 dark:text-slate-200">
                 <User size={16} /> Member Information
               </div>
@@ -153,7 +153,7 @@ const IssueCreateForm = () => {
               {memberLoading ? (
                 <div className="mt-3 text-sm text-slate-500">Loading member...</div>
               ) : (
-                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-4 ">
                   <div>
                     <div className="text-xs text-slate-500">MemberId</div>
                     <div className="text-sm font-medium text-slate-800 dark:text-white">{member?.code || "—"}</div>
@@ -177,7 +177,7 @@ const IssueCreateForm = () => {
             {/* Form */}
             <form onSubmit={handleSubmit(onSubmit)} className="space-y-5">
               {/* Book */}
-              <div className="space-y-2">
+              <div className="space-y-2 mb-8">
                 <label className="text-sm font-semibold text-slate-600 dark:text-slate-200 flex items-center gap-2">
                   <BookOpen size={16} /> Select Book <span className="text-red-500">*</span>
                 </label>
@@ -204,7 +204,7 @@ const IssueCreateForm = () => {
               </div>
 
               {/* Dates */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
                 <div className="space-y-2">
                   <label className="text-sm font-semibold text-slate-600 dark:text-slate-200 flex items-center gap-2">
                     <CalendarDays size={16} /> Issue Date <span className="text-red-500">*</span>
@@ -222,7 +222,7 @@ const IssueCreateForm = () => {
                 </div>
               </div>
 
-              <div className="flex justify-end gap-3 pt-2">
+              <div className="flex justify-end gap-3 pt-2 mt-5">
                 <Button type="button" variant="outline" onClick={() => navigate("/dashboard/issues")}>
                   Cancel
                 </Button>

@@ -73,6 +73,8 @@ const IssueCreateForm = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       qc.invalidateQueries({ queryKey: ["books"] });
+      // Ensure header notifications refresh immediately
+      qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Book issued successfully!");
       navigate("/dashboard/issues"); // table page
     },

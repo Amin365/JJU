@@ -10,6 +10,8 @@ import cors from 'cors'
 import MemberRouter from "./routers/MemberRouter.js"
 import RoleRouter from "./routers/RoleRouter.js"
 import DailyReportRouter from "./routers/DailyReportRouter.js"
+import NotificationRouter from "./routers/NotificationRouter.js"
+import { startIssueDueScheduler } from "./modules/issueDueScheduler.js"
 import issueRouter from "./routers/IssueRouter.js"
 // import DailyReportRouter from "./routers/DailyReportRouter.js"
 
@@ -30,6 +32,7 @@ app.use("/api",MemberRouter);
 app.use("/api", RoleRouter);
 app.use('/api',issueRouter)
 app.use('/api',DailyReportRouter)
+app.use('/api',NotificationRouter)
 
 
 
@@ -81,7 +84,11 @@ app.use(NotFound)
 app.use(ErrorHandle);
 
 mongoose.connect(process.env.MONGO_URI, )
-  .then(() => console.log('✅ Connected to MongoDB successfully'))
+  .then(() => {
+    console.log('✅ Connected to MongoDB successfully')
+    // start background scheduler for due/overdue notifications
+    startIssueDueScheduler();
+  })
   .catch((error) => console.log('❌ MongoDB Connection Error:', error));
 
 // Start server

@@ -45,6 +45,8 @@ const IssuesTable = () => {
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["issues"] });
       qc.invalidateQueries({ queryKey: ["books"] });
+      // Refresh notifications for return events
+      qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Marked as returned");
     },
     onError: (err) => {

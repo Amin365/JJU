@@ -2,6 +2,7 @@
 import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
 import Book from "../models/Books.js"; 
+import Notification from "../models/Notification.js";
                                    
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -51,6 +52,24 @@ export const createDailyReport = async (req, res, next) => {
       return res.status(400).json({ message: "pagesTo must be greater than pagesFrom" });
     }
 
+    const last = await DailyReport.findOne({ createdBy, book })
+  .sort({ readingDate: -1, createdAt: -1 })
+  .select("pagesTo")
+  .lean()
+  .exec();
+
+if (!last) {
+  if (pf !== 1) {
+    return res.status(400).json({ message: "First report must start from page 1." });
+  }
+} else {
+  const expectedFrom = Number(last.pagesTo) + 1;
+  if (pf !== expectedFrom) {
+    return res.status(400).json({
+      message: `pagesFrom must be ${expectedFrom} based on your previous report.`,
+    });
+  }
+}
     const rd = toDateOnlyUTC(readingDate);
 
     const report = await DailyReport.create({
@@ -70,6 +89,17 @@ export const createDailyReport = async (req, res, next) => {
       .populate("book", "title author isbn status")
       .lean()
       .exec();
+
+    // Notify user about their submitted report
+    try {
+      await Notification.create({
+        user: createdBy,
+        title: "Reading report submitted",
+        message: `Report for ${bookDoc.title} on ${new Date(readingDate).toLocaleDateString()} submitted`,
+        type: "success",
+        meta: { report: report._id, kind: "report-submitted" },
+      });
+    } catch (e) {}
 
     return res.status(201).json({ data: populated });
   } catch (err) {

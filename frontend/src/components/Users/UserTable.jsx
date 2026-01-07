@@ -48,7 +48,9 @@ const UsersTable = () => {
     staleTime: 30_000,
   });
 
+
   const users = data?.data ?? [];
+  console.log('users',users)
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / limit) : 1);
 

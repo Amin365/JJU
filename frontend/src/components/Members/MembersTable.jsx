@@ -42,6 +42,10 @@ const fetchMembers = async ({ queryKey }) => {
   return res.data;
 };
 
+
+
+
+
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString() : "N/A");
 
 const StatusPill = ({ status = "Active" }) => {
@@ -71,6 +75,7 @@ export default function MemberTable() {
     keepPreviousData: true,
     staleTime: 30_000,
   });
+  console.log('members',data)
 
   const members = data?.data ?? [];
   const totalItems = data?.total ?? 0;

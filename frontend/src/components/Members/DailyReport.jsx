@@ -73,28 +73,35 @@ export default function DailyReadingReport() {
   const minAllowedDate = toISODate(yesterday);
   const maxAllowedDate = toISODate(today);
 
-  // ---- books ----
-  const { data: booksResp, isLoading: booksLoading } = useQuery({
-    queryKey: ["books", "daily-report"],
+  // ---- issued books (from /issues/my) ----
+  const { data: issuesResp, isLoading: booksLoading } = useQuery({
+    queryKey: ["issues", "my", "daily-report"],
     queryFn: async () => {
-      const res = await api.get("/books", { params: { page: 1, limit: 500 } });
+      const res = await api.get("/issues/my");
       return res.data;
     },
     staleTime: 30_000,
   });
 
-  const books = booksResp?.data ?? [];
+  const issuedBooks = useMemo(() => {
+    const issues = issuesResp?.data ?? [];
+    const books = issues.map((it) => it.book).filter(Boolean);
+
+    const map = new Map();
+    for (const b of books) map.set(b._id, b);
+    return Array.from(map.values());
+  }, [issuesResp]);
 
   useEffect(() => {
-    if (!selectedBookId && books.length) setSelectedBookId(books[0]._id);
-  }, [books, selectedBookId]);
+    if (!selectedBookId && issuedBooks.length) setSelectedBookId(issuedBooks[0]._id);
+  }, [issuedBooks, selectedBookId]);
 
   const selectedBook = useMemo(
-    () => books.find((b) => b._id === selectedBookId) || null,
-    [books, selectedBookId]
+    () => issuedBooks.find((b) => b._id === selectedBookId) || null,
+    [issuedBooks, selectedBookId]
   );
 
-  // ---- reports (server returns only current logged-in user's reports) ----
+  // ---- reports ----
   const { data: reportsResp, isLoading: reportsLoading } = useQuery({
     queryKey: ["daily-reports", selectedBookId],
     enabled: Boolean(selectedBookId),
@@ -115,6 +122,19 @@ export default function DailyReadingReport() {
   }, [reportsResp]);
 
   const lastThree = reports.slice(0, 3);
+
+  // NEW FEATURE: compute next start page (first report => 1, else last pagesTo + 1)
+  const nextPagesFrom = useMemo(() => {
+    if (!reports.length) return 1;
+    const lastPagesTo = Math.max(...reports.map((r) => Number(r.pagesTo || 0)));
+    return lastPagesTo + 1;
+  }, [reports]);
+
+  // NEW FEATURE: when modal opens, auto-fill pagesFrom and lock it
+  useEffect(() => {
+    if (!isCreateOpen) return;
+    setPagesFrom(String(nextPagesFrom));
+  }, [isCreateOpen, nextPagesFrom]);
 
   // ---- progress (based on max pagesTo from reports) ----
   const currentPage = useMemo(() => {
@@ -148,7 +168,7 @@ export default function DailyReadingReport() {
     return dates.length ? streak : 0;
   }, [reports]);
 
-  // ---- create report (backend sets createdBy from auth middleware) ----
+  // ---- create report ----
   const createReport = useMutation({
     mutationFn: async (payload) => {
       const res = await api.post("/daily-reports", payload);
@@ -156,6 +176,8 @@ export default function DailyReadingReport() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["daily-reports", selectedBookId] });
+      // Refresh notifications immediately so the bell updates without reload
+      qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Reading report submitted successfully!");
       setIsCreateOpen(false);
       setReadingDate("");
@@ -166,7 +188,6 @@ export default function DailyReadingReport() {
       setRating(0);
     },
     onError: (err) => {
-      // If you get 401 here, it means axios isn't sending token/cookie
       toast.error(err?.response?.data?.message || "Failed to submit report");
     },
   });
@@ -182,7 +203,6 @@ export default function DailyReadingReport() {
       return;
     }
 
-    // Client-side guard (UX) - backend should also validate
     if (readingDate !== minAllowedDate && readingDate !== maxAllowedDate) {
       toast.error(`Allowed dates: ${minAllowedDate} and ${maxAllowedDate}`);
       return;
@@ -190,6 +210,13 @@ export default function DailyReadingReport() {
 
     const pf = Number(pagesFrom);
     const pt = Number(pagesTo);
+
+    // NEW FEATURE: enforce start page in UI too
+    if (pf !== nextPagesFrom) {
+      toast.error(`Pages From must be ${nextPagesFrom} based on your previous report.`);
+      return;
+    }
+
     if (Number.isNaN(pf) || Number.isNaN(pt) || pt <= pf) {
       toast.error("Pages To must be greater than Pages From");
       return;
@@ -207,7 +234,7 @@ export default function DailyReadingReport() {
   };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
+    <div className="min-h-screen  py-8 px-4">
       <div className="space-y-6">
         {/* Header */}
         <div className="space-y-2">
@@ -227,20 +254,20 @@ export default function DailyReadingReport() {
                   <SelectValue placeholder={booksLoading ? "Loading books..." : "Select a book"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {books.map((book) => (
+                  {issuedBooks.map((book) => (
                     <SelectItem key={book._id} value={book._id}>
                       {book.title} {book.author ? `— ${book.author}` : ""}
                     </SelectItem>
                   ))}
+
+                  {!booksLoading && issuedBooks.length === 0 && (
+                    <div className="px-3 py-2 text-sm text-slate-500">
+                      No issued/requested books found for your account.
+                    </div>
+                  )}
                 </SelectContent>
               </Select>
             </div>
-
-            {/* {selectedBook && (
-              <Badge className={selectedBook.status === "borrowed" ? "bg-amber-100 text-amber-700" : "bg-green-100 text-green-700"}>
-                {selectedBook.status}
-              </Badge>
-            )} */}
           </div>
         </div>
 
@@ -257,7 +284,7 @@ export default function DailyReadingReport() {
 
         {/* Summary Cards */}
         <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-12  md:gap-6">
-          <Card className="shadow-sm  md:w-70 w-50 " >
+          <Card className="shadow-sm  md:w-70 w-50 ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-gray-600" />
@@ -287,16 +314,6 @@ export default function DailyReadingReport() {
               <p className="text-2xl font-semibold text-gray-900">{totalPages > 0 ? remainingPages : "—"}</p>
             </CardContent>
           </Card>
-
-          {/* <Card className="shadow-sm">
-            <CardContent className="p-4">
-              <div className="flex items-center gap-2 mb-1">
-                <Calendar className="w-4 h-4 text-gray-600" />
-                <p className="text-xs text-gray-600">Reports</p>
-              </div>
-              <p className="text-2xl font-semibold text-gray-900">{reports.length}</p>
-            </CardContent>
-          </Card> */}
 
           <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
@@ -425,7 +442,11 @@ export default function DailyReadingReport() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
                   <Label>Pages From</Label>
-                  <Input type="number" value={pagesFrom} onChange={(e) => setPagesFrom(e.target.value)} />
+                  {/* NEW FEATURE: readOnly so it always starts correctly */}
+                  <Input type="number" value={pagesFrom} readOnly />
+                  <p className="text-xs text-gray-500">
+                    Start page is auto-set based on your previous report.
+                  </p>
                 </div>
                 <div className="space-y-2">
                   <Label>Pages To</Label>
@@ -463,32 +484,7 @@ export default function DailyReadingReport() {
                 Cancel
               </Button>
               <Button
-                onClick={() => {
-                  // backend should validate 48h too; this is just UX
-                  if (readingDate !== minAllowedDate && readingDate !== maxAllowedDate) {
-                    toast.error(`Allowed dates: ${minAllowedDate} and ${maxAllowedDate}`);
-                    return;
-                  }
-                  // Submit
-                  if (!selectedBookId) return toast.error("Select a book first");
-                  if (!readingDate || !pagesFrom || !pagesTo || !timeSpent || !summary || rating === 0) {
-                    return toast.error("Please fill in all fields");
-                  }
-                  const pf = Number(pagesFrom);
-                  const pt = Number(pagesTo);
-                  if (Number.isNaN(pf) || Number.isNaN(pt) || pt <= pf) {
-                    return toast.error("Pages To must be greater than Pages From");
-                  }
-                  createReport.mutate({
-                    book: selectedBookId,
-                    readingDate,
-                    pagesFrom: pf,
-                    pagesTo: pt,
-                    timeSpent: Number(timeSpent),
-                    summary,
-                    rating,
-                  });
-                }}
+                onClick={submitReport}
                 disabled={createReport.isPending || !selectedBookId}
                 className="bg-blue-600 hover:bg-blue-700"
               >

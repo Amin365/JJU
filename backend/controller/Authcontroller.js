@@ -130,7 +130,10 @@ export const loginUser = async (req, res) => {
 
 export const GetProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id).select("-password");
+    const user = await User.findById(req.user._id)
+      .select("-password")
+      .populate("role", "role color plural system")
+      .lean();
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({ success: true, user });

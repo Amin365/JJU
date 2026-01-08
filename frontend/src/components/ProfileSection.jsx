@@ -23,8 +23,9 @@ const MainHeader = () => {
   const dispatch = useDispatch()
   const handlelogout = () => {
     dispatch(setClear())
-    navigate('/login')
+    navigate('/')
   }
+ 
 
   const { data } = useQuery({
     queryKey: ["userProfile"],
@@ -40,6 +41,22 @@ const MainHeader = () => {
     cacheTime: 30 * 60 * 1000, // 30 minutes
   });
 
+  // Prefer populated role from server response; fallback to stored user role
+  const roleSource = data?.user?.role || user?.role;
+  let roleLabel = "";
+  if (roleSource && typeof roleSource === "object") {
+    roleLabel = roleSource.role || roleSource.name || roleSource.title || "";
+  } else if (typeof roleSource === "string") {
+    roleLabel = roleSource;
+  }
+
+  // Avoid showing raw ObjectId strings; fall back to a friendly placeholder
+  if (roleLabel && /^[a-f\d]{24}$/i.test(roleLabel)) {
+    roleLabel = "Role";
+  }
+    
+
+
   return (
     <div className="flex items-center">
       {token ? (
@@ -52,15 +69,16 @@ const MainHeader = () => {
                 }
                 alt={user?.name}
               />
-              <AvatarFallback>{user?.name?.charAt(0)}</AvatarFallback>
+              <AvatarFallback>{user?.first_name?.charAt(0)}</AvatarFallback>
             </Avatar>
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-56 p-2">
             <DropdownMenuLabel>
               <div>
-                <h1 className="text-gray-900 font-semibold text-sm">{user?.name}</h1>
-                <p className="text-xs text-gray-500">{user?.email}</p>
+                <h1 className="text-gray-900 font-semibold text-sm">{user?.first_name} {user?.last_name}</h1>
+                {/* <p className="text-xs text-gray-500">{user?.email}</p> */}
+                <p className="text-xs text-gray-500">{roleLabel || "Role"}</p>
               </div>
             </DropdownMenuLabel>
             <DropdownMenuSeparator />

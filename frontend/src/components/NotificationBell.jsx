@@ -95,7 +95,10 @@ export default function NotificationBell() {
               <Circle className="w-4 h-4 text-gray-400" />
             )}
             <div className="flex-1">
-              <div className="text-sm">{n.title || n.message || "Notification"}</div>
+              <div className="text-sm font-medium">{n.title || n.message || "Notification"}</div>
+              {n.message && n.title && (
+                <div className="text-[11px] text-gray-600">{n.message}</div>
+              )}
               {n.createdAt && (
                 <div className="text-[11px] text-gray-500">{new Date(n.createdAt).toLocaleString()}</div>
               )}

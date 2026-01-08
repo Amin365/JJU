@@ -7,7 +7,7 @@ import {
   ChevronRight,
   ArrowLeft,
 } from "lucide-react";
-import { useNavigate } from "react-router";
+import { useNavigate, useLocation } from "react-router";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { cn } from "@/lib/utils";
@@ -29,7 +29,18 @@ import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 const fetchMembers = async ({ queryKey }) => {
   const [, params] = queryKey;
-  const { page = 1, limit = 10, searchTerm = "", region = "All" } = params || {};
+  const { page = 1, limit = 10, searchTerm = "", region = "All", moderatorId } = params || {};
+
+  if (moderatorId) {
+    // fetch assigned members for a moderator (backend returns assignments or members)
+    const res = await api.get(`/moderators/${moderatorId}/members`);
+    let arr = res.data?.data ?? [];
+    // If backend returned ModeratorMember entries with populated `member`, extract members
+    if (arr.length > 0 && arr[0].member) {
+      arr = arr.map((a) => a.member ?? a);
+    }
+    return { data: arr, total: arr.length, totalPages: Math.max(1, Math.ceil((arr.length || 0) / limit)) };
+  }
 
   const res = await api.get("/members", {
     params: {
@@ -69,8 +80,12 @@ export default function MemberTable() {
   const [filterRegion, setFilterRegion] = useState("All");
   const [filterStatus, setFilterStatus] = useState("All");
 
+  const location = useLocation();
+  const urlParams = new URLSearchParams(location.search);
+  const moderatorId = urlParams.get("moderatorId");
+
   const { data, isLoading, isFetching } = useQuery({
-    queryKey: ["members", { page: currentPage, limit, searchTerm, region: filterRegion }],
+    queryKey: ["members", { page: currentPage, limit, searchTerm, region: filterRegion, moderatorId }],
     queryFn: fetchMembers,
     keepPreviousData: true,
     staleTime: 30_000,

@@ -17,7 +17,6 @@ const SectionCards = lazy(() =>
   import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
 );
 
-
 const Users = lazy(() => import("./components/Users/UserTable"));
 const UsersFromMember = lazy(() => import("./components/Users/UserFromMember"));
 const Report = lazy(() => import("./components/Members/DailyReport"));
@@ -25,12 +24,15 @@ const Report = lazy(() => import("./components/Members/DailyReport"));
 const MemberGate=lazy(()=>import( "./components/Issue/IssueMemberGate"));
 const IssueMembersForm=lazy(()=>import( "./components/Issue/IssueForm"));
 const Issuetable=lazy(()=>import( "./components/Issue/IssueTable"));
+const DailyActivity=lazy(()=>import('./components/Members/DailyActivity'));
+const ModeratorTable=lazy(()=>import('./components/Moderator/Moderator'));
+const ModeratorPage=lazy(()=>import('./components/Moderator/ModeratorTable'));
 function App() {
   return (
  
       <Routes>
         {/* auth */}
-        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<LoginPage />} />
 
         <Route
           path="/dashboard"
@@ -64,6 +66,9 @@ function App() {
   <Route path="issues/request" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MemberGate /></Suspense>} />
 <Route path="issue/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IssueMembersForm /></Suspense>} />
   <Route path="issues" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Issuetable /></Suspense>} />
+  <Route path="activity" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><DailyActivity /></Suspense>} />
+  <Route path="moderators" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorTable /></Suspense>} />
+  <Route path="moderators/:moderatorId/members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorPage /></Suspense>} />
         </Route>
       </Routes>
 

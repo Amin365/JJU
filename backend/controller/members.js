@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import Member from "../models/Members.js"; 
 import Role from "../models/Role.js";
-Role
+import User from '../models/user.js'
 /**
  * Helpers
  */
@@ -328,6 +328,19 @@ export const getMemberByCode = async (req, res, next) => {
     return next(err);
   }
 };
+export const getMembersList = async (req, res, next) => {
+  try {
+    const members = await Member.find()
+      .select("_id first_name middle_name last_name full_name code email createdAt")
+      .sort("-createdAt")
+      .lean()
+      .exec();
+
+    return res.status(200).json({ data: members });
+  } catch (err) {
+    return next(err);
+  }
+};
 
 export default {
   createMember,
@@ -338,4 +351,5 @@ export default {
   restoreMember,
   deleteMember,
   getMemberByCode,
+  getMembersList
 };

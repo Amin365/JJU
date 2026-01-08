@@ -3,8 +3,9 @@ import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
 import Book from "../models/Books.js"; 
 import Notification from "../models/Notification.js";
-                                   
-
+import User from "../models/user.js";
+import ModeratorMember from "../models/ModeratorMember.js";
+                       
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 const toDateOnlyUTC = (d) => {
@@ -92,10 +93,15 @@ if (!last) {
 
     // Notify user about their submitted report
     try {
+      const submitterName =
+        [req.user?.first_name, req.user?.middle_name, req.user?.last_name].filter(Boolean).join(" ") ||
+        req.user?.username ||
+        "User";
+
       await Notification.create({
         user: createdBy,
-        title: "Reading report submitted",
-        message: `Report for ${bookDoc.title} on ${new Date(readingDate).toLocaleDateString()} submitted`,
+        title: `Report submitted: ${bookDoc.title}`,
+        message: `${submitterName} submitted a reading report on ${new Date(readingDate).toLocaleDateString()}.`,
         type: "success",
         meta: { report: report._id, kind: "report-submitted" },
       });
@@ -164,6 +170,42 @@ export const getDailyReports = async (req, res, next) => {
   }
 };
 
+// GET /daily-reports/admin?memberId=...&from=YYYY-MM-DD&to=YYYY-MM-DD&book=
+export const getDailyReportsByMember = async (req, res, next) => {
+  try {
+    const { memberId, from, to, book, limit = 5000 } = req.query;
+
+    if (!memberId) return res.status(400).json({ message: "memberId is required" });
+
+    // find users that belong to this member
+    const users = await User.find({ member: memberId }).select("_id").lean().exec();
+    const userIds = users.map((u) => u._id);
+
+    if (userIds.length === 0) return res.status(200).json({ data: [] });
+
+    const filter = { createdBy: { $in: userIds } };
+
+    if (book) filter.book = book;
+
+    if (from || to) {
+      filter.readingDate = {};
+      if (from) filter.readingDate.$gte = new Date(from);
+      if (to) filter.readingDate.$lte = new Date(to);
+    }
+
+    const reports = await DailyReport.find(filter)
+      .populate("createdBy", "username first_name last_name email role member member_id")
+      .populate("book", "title author isbn status")
+      .sort("-readingDate")
+      .limit(Math.min(Number(limit) || 5000, 5000))
+      .lean()
+      .exec();
+
+    return res.status(200).json({ data: reports });
+  } catch (err) {
+    return next(err);
+  }
+};
 // Optional: GET /daily-reports/:id
 export const getDailyReportById = async (req, res, next) => {
   try {
@@ -184,6 +226,92 @@ export const getDailyReportById = async (req, res, next) => {
     }
 
     return res.status(200).json({ data: report });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+
+// GET /daily-reports/scope?memberId=&from=&to=&limit=
+export const getDailyReportsScope = async (req, res, next) => {
+  try {
+    const { memberId, from, to, limit = 5000 } = req.query;
+    // require logged in
+    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+
+    // load current user role (to determine if super admin or moderator)
+    const currentUser = await User.findById(req.user._id).populate("role", "role plural").lean().exec();
+    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
+    const isSuperAdmin = /super\s*admin/i.test(roleName);
+    const isModerator = /moderator/i.test(roleName);
+
+    const filter = {};
+
+    // optional date range
+    if (from || to) {
+      filter.readingDate = {};
+      if (from) filter.readingDate.$gte = new Date(from);
+      if (to) filter.readingDate.$lte = new Date(to);
+    }
+
+    // Behavior:
+    // - Super Admin: can view all reports (optionally filtered by memberId)
+    // - Moderator: can view reports only for members assigned to that moderator
+    // - Regular user: only their own reports
+
+    if (isSuperAdmin) {
+      // if memberId provided, validate and filter by it
+      if (memberId) {
+        if (!mongoose.Types.ObjectId.isValid(memberId)) {
+          return res.status(400).json({ message: "Invalid memberId" });
+        }
+
+        const users = await User.find({ member: memberId }).select("_id").lean().exec();
+        const ids = users.map((u) => u._id);
+        if (ids.length === 0) return res.status(200).json({ data: [] });
+        filter.createdBy = { $in: ids };
+      }
+    } else if (isModerator) {
+      // moderator: restrict to members assigned to this moderator
+      // if moderator asks for a specific member, ensure assignment exists
+      if (memberId) {
+        if (!mongoose.Types.ObjectId.isValid(memberId)) {
+          return res.status(400).json({ message: "Invalid memberId" });
+        }
+
+        const assigned = await ModeratorMember.findOne({ moderator: req.user._id, member: memberId }).lean().exec();
+        if (!assigned) return res.status(403).json({ message: "Forbidden" });
+
+        const users = await User.find({ member: memberId }).select("_id").lean().exec();
+        const ids = users.map((u) => u._id);
+        if (ids.length === 0) return res.status(200).json({ data: [] });
+        filter.createdBy = { $in: ids };
+      } else {
+        // no memberId: get all members assigned to moderator and return reports for users in those members
+        const assigned = await ModeratorMember.find({ moderator: req.user._id }).select("member").lean().exec();
+        const memberIds = assigned.map((a) => a.member);
+        if (memberIds.length === 0) return res.status(200).json({ data: [] });
+
+        const users = await User.find({ member: { $in: memberIds } }).select("_id").lean().exec();
+        const ids = users.map((u) => u._id);
+        if (ids.length === 0) return res.status(200).json({ data: [] });
+        filter.createdBy = { $in: ids };
+      }
+    } else {
+      // regular user: only their own reports
+      filter.createdBy = req.user._id;
+    }
+
+    const items = await DailyReport.find(filter)
+      .populate("createdBy", "username first_name last_name email role member member_id")
+      .populate("book", "title author isbn status")
+      .sort("-readingDate")
+      .limit(Math.min(Number(limit) || 5000, 5000))
+      .lean()
+      .exec();
+
+    return res.status(200).json({ data: items });
   } catch (err) {
     return next(err);
   }

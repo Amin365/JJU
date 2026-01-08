@@ -7,13 +7,13 @@ import { NotFound } from "./middleware/NotFound.js"
 import seedAllModules from "./seeds/index.js"
 import AuthRouter from "./routers/AuthRouter.js"
 import cors from 'cors'
-import MemberRouter from "./routers/MemberRouter.js"
 import RoleRouter from "./routers/RoleRouter.js"
+import MemberRouter from "./routers/MemberRouter.js"
 import DailyReportRouter from "./routers/DailyReportRouter.js"
 import NotificationRouter from "./routers/NotificationRouter.js"
 import { startIssueDueScheduler } from "./modules/issueDueScheduler.js"
 import issueRouter from "./routers/IssueRouter.js"
-// import DailyReportRouter from "./routers/DailyReportRouter.js"
+import ModeratorRouter from "./routers/ModeratorRouter.js"
 
 dotenv.config()
 const app = express()
@@ -28,6 +28,10 @@ app.use(cors(
 app.use('/api',AuthRouter)
 
 app.use("/api", BookRouter);
+// Register moderator routes before member routes so static paths like
+// `/api/members/unassigned` handled by ModeratorRouter instead of being
+// captured by MemberRouter's dynamic `:id` param.
+app.use('/api',ModeratorRouter)
 app.use("/api",MemberRouter);
 app.use("/api", RoleRouter);
 app.use('/api',issueRouter)

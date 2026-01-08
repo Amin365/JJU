@@ -50,7 +50,7 @@ const UsersTable = () => {
 
 
   const users = data?.data ?? [];
-  console.log('users',users)
+
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / limit) : 1);
 
@@ -87,7 +87,7 @@ const UsersTable = () => {
   const endItem = totalItems === 0 ? 0 : Math.min(currentPage * limit, totalItems);
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 dark:bg-gray-900 bg-slate-50">
+    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 dark:bg-gray-900">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
         <div>
           <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">Users</h1>

@@ -140,3 +140,57 @@ export const getUsers = async (req, res, next) => {
     return next(err);
   }
 };
+
+// List members that do NOT yet have a user account
+export const getAvailableMembersForUserCreation = async (req, res, next) => {
+  try {
+    const { q, page = 1, limit = 50, sort = "-createdAt" } = req.query;
+
+    // Collect all member ids that already have users
+    const userMemberDocs = await User.find({}, "member").lean().exec();
+    const usedMemberIds = new Set(
+      userMemberDocs
+        .map((u) => u.member)
+        .filter(Boolean)
+        .map((id) => String(id))
+    );
+
+    const filter = {};
+    if (q) {
+      const re = new RegExp(String(q).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "i");
+      filter.$or = [
+        { first_name: re },
+        { middle_name: re },
+        { last_name: re },
+        { email: re },
+        { phone: re },
+        { code: re },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
+    const skip = (pageNum - 1) * perPage;
+
+    // Query members and filter out those with existing users
+    const allMembers = await Member.find(filter)
+      .select("_id first_name middle_name last_name full_name code email createdAt role")
+      .sort(sort)
+      .lean()
+      .exec();
+
+    const available = allMembers.filter((m) => !usedMemberIds.has(String(m._id)));
+
+    const paged = available.slice(skip, skip + perPage);
+
+    return res.status(200).json({
+      data: paged,
+      total: available.length,
+      page: pageNum,
+      limit: perPage,
+      totalPages: Math.ceil(available.length / perPage),
+    });
+  } catch (err) {
+    return next(err);
+  }
+};

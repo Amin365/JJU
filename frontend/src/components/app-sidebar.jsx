@@ -15,7 +15,9 @@ import {
   SquareTerminal,
   Users2,
   LayoutGrid,
-  FileChartColumn
+  FileChartColumn,
+  User,
+  ActivityIcon
 
   
 } from "lucide-react"
@@ -31,7 +33,8 @@ import {
 import { NavMain } from "./nav-main"
 import { NavUser } from "./nav-user"
 import { useSelector } from "react-redux"
-import { selectPermissions } from "@/app/CommonnSlice"
+import { useQuery } from "@tanstack/react-query"
+import api from "@/app/api/apislice"
 
 
 // This is sample data.
@@ -78,15 +81,27 @@ const data = {
    
     },
     {
-      title: " Request Issue  ",
+      title: " Request Books  ",
       url: "/dashboard/issues/request",
       icon: BookOpen,
    
     },
     {
-      title: "Reports ",
+      title: "Reading Reports ",
       url: "/dashboard/report",
       icon: FileChartColumn,
+   
+    },
+    {
+      title: "Daily Activity ",
+      url: "/dashboard/activity",
+      icon: ActivityIcon,
+   
+    },
+    {
+      title: "Moderators ",
+      url: "/dashboard/moderators",
+      icon: User,
    
     },
     {
@@ -100,8 +115,40 @@ const data = {
 }
 
 export function AppSidebar({ ...props }) {
-  const permissions = useSelector(selectPermissions);
-  const filteredNav = data.navMain;
+  const { user, token } = useSelector((state) => state.auth);
+
+  // Fetch fresh profile to ensure populated role (object with role name)
+  const { data: profileData } = useQuery({
+    queryKey: ["sidebar-profile"],
+    queryFn: async () => {
+      const res = await api.get("/auth/me");
+      return res.data;
+    },
+    enabled: !!token,
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const roleName = React.useMemo(() => {
+    const roleSource = profileData?.user?.role || user?.role;
+    if (!roleSource) return "";
+    if (typeof roleSource === "object") return (roleSource.role || roleSource.name || roleSource.title || "").toLowerCase();
+    return String(roleSource).toLowerCase();
+  }, [profileData, user]);
+
+  const filteredNav = React.useMemo(() => {
+    if (roleName === "members") {
+      // Members: only Request Books and Reading Reports
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report"]);
+      return data.navMain.filter((item) => allowed.has(item.url));
+    }
+    if( roleName === "moderator") {
+      // Moderators: only Reading Reports and Daily Activity
+      const allowed = new Set(["/dashboard/report", "/dashboard/activity","/dashboard/members","/dashboard/issues/"]);
+      return data.navMain.filter((item) => allowed.has(item.url));
+    }
+    return data.navMain;
+  }, [roleName]);
+
   return (
     <Sidebar collapsible="icon" {...props}>
       <SidebarHeader>

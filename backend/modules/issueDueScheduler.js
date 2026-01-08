@@ -12,7 +12,11 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) { // hourly
   const run = async () => {
     try {
       const now = new Date();
-      const activeIssues = await Issue.find({ status: "Issued" }).select("_id member returnDate").lean().exec();
+      const activeIssues = await Issue.find({ status: "Issued" })
+        .select("_id member returnDate book")
+        .populate("book", "title")
+        .lean()
+        .exec();
 
       for (const iss of activeIssues) {
         const due = new Date(iss.returnDate);
@@ -32,7 +36,10 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) { // hourly
         await Notification.create({
           user: memberUser._id,
           title: kind === "overdue" ? "Book overdue" : "Book due soon",
-          message: kind === "overdue" ? "Your borrowed book is overdue." : "Your borrowed book is due tomorrow.",
+          message:
+            kind === "overdue"
+              ? `Your borrowed book "${iss.book?.title || "(unknown title)"}" is overdue.`
+              : `Your borrowed book "${iss.book?.title || "(unknown title)"}" is due tomorrow.`,
           type: kind === "overdue" ? "error" : "warning",
           meta: { issue: iss._id, kind },
         });

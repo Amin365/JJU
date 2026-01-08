@@ -239,10 +239,10 @@ export default function DailyReadingReport() {
         {/* Header */}
         <div className="space-y-2">
           <div className="flex items-center gap-3">
-            <BookOpen className="w-8 h-8 text-blue-600" />
+            <BookOpen className="w-8 h-8 text-orange-600" />
             <div>
-              <h1 className="text-3xl font-semibold text-gray-900">My Reading Report</h1>
-              <p className="text-sm text-gray-600 mt-1">Track your daily reading and progress</p>
+              <h1 className="text-3xl font-semibold dark:text-white text-gray-900">My Reading Report</h1>
+              <p className="text-sm text-gray-600 dark:text-white mt-1">Track your daily reading and progress</p>
             </div>
           </div>
 
@@ -274,10 +274,10 @@ export default function DailyReadingReport() {
         {/* Summary header + Create button */}
         <div className="flex items-center justify-between gap-3">
           <div>
-            <h2 className="text-lg font-semibold text-gray-900">Summary</h2>
-            <p className="text-sm text-gray-600">Quick overview for the selected book.</p>
+            <h2 className="text-lg font-semibold dark:text-white text-gray-900">Summary</h2>
+            <p className="text-sm text-white text-gray-600">Quick overview for the selected book.</p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} className="bg-blue-600 hover:bg-blue-700">
+          <Button onClick={() => setIsCreateOpen(true)} className="bg-orange-600 hover:bg-orange-700">
             <Plus className="w-4 h-4 mr-2" /> Create report
           </Button>
         </div>
@@ -287,20 +287,20 @@ export default function DailyReadingReport() {
           <Card className="shadow-sm  md:w-70 w-50 ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
-                <BookOpen className="w-4 h-4 text-gray-600" />
-                <p className="text-xs text-gray-600">Total Pages</p>
+                <BookOpen className="w-4 h-4 text-orange-600" />
+                <p className="text-xs dark:text-white text-gray-600">Total Pages</p>
               </div>
-              <p className="text-2xl font-semibold text-gray-900">{totalPages > 0 ? totalPages : "—"}</p>
+              <p className="text-2xl font-semibold dark:text-white text-gray-900">{totalPages > 0 ? totalPages : "—"}</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
-                <BookOpen className="w-4 h-4 text-blue-600" />
-                <p className="text-xs text-gray-600">Pages Read</p>
+                <BookOpen className="w-4 h-4 text-orange-600" />
+                <p className="text-xs dark:text-white text-gray-600">Pages Read</p>
               </div>
-              <p className="text-2xl font-semibold text-blue-600">{currentPage}</p>
+              <p className="text-2xl font-semibold dark:text-white text-gray-900">{currentPage}</p>
               <p className="text-xs text-gray-500">{totalPages > 0 ? `${progressPercentage}%` : "N/A"}</p>
             </CardContent>
           </Card>
@@ -308,10 +308,10 @@ export default function DailyReadingReport() {
           <Card className="shadow-sm md:w-70 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Clock className="w-4 h-4 text-gray-600" />
-                <p className="text-xs text-gray-600">Remaining</p>
+                <Clock className="w-4 h-4  text-orange-600" />
+                <p className="text-xs dark:text-white text-gray-600">Remaining</p>
               </div>
-              <p className="text-2xl font-semibold text-gray-900">{totalPages > 0 ? remainingPages : "—"}</p>
+              <p className="text-2xl font-semibold dark:text-white text-gray-900">{totalPages > 0 ? remainingPages : "—"}</p>
             </CardContent>
           </Card>
 
@@ -321,19 +321,19 @@ export default function DailyReadingReport() {
                 <Flame className="w-4 h-4 text-orange-600" />
                 <p className="text-xs text-gray-600">Streak</p>
               </div>
-              <p className="text-2xl font-semibold text-orange-600">{readingStreak}</p>
-              <p className="text-xs text-gray-500">days</p>
+              <p className="text-2xl font-semibold dark:text-orange-600">{readingStreak}</p>
+              <p className="text-xs dark:text-white text-gray-500">days</p>
             </CardContent>
           </Card>
 
           <Card className="shadow-sm md:w-70 hidden lg:block ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
-                <TrendingUp className="w-4 h-4 text-green-600" />
-                <p className="text-xs text-gray-600">Avg/Report</p>
+                <TrendingUp className="w-4 h-4 text-orange-600" />
+                <p className="text-xs dark:text-white text-gray-600">Avg/Report</p>
               </div>
-              <p className="text-2xl font-semibold text-green-600">{avgPagesPerReport}</p>
-              <p className="text-xs text-gray-500">pages</p>
+              <p className="text-2xl font-semibold text-gary-600">{avgPagesPerReport}</p>
+              <p className="text-xs dark:text-white text-gray-500">pages</p>
             </CardContent>
           </Card>
         </div>
@@ -399,13 +399,13 @@ export default function DailyReadingReport() {
 
                         <p className="text-sm text-gray-700">{r.summary}</p>
                       </div>
-
+{/* 
                       <Badge className={`${getReportStatusColor(r.status)} flex items-center gap-1`}>
                         {r.status === "Approved" && <CheckCircle className="w-3 h-3" />}
                         {r.status === "Pending" && <Clock className="w-3 h-3" />}
                         {r.status === "Needs Improvement" && <AlertTriangle className="w-3 h-3" />}
                         {r.status || "Pending"}
-                      </Badge>
+                      </Badge> */}
                     </div>
                   </div>
                 ))}
@@ -486,7 +486,7 @@ export default function DailyReadingReport() {
               <Button
                 onClick={submitReport}
                 disabled={createReport.isPending || !selectedBookId}
-                className="bg-blue-600 hover:bg-blue-700"
+                className="bg-orange-600 hover:bg-orange-700"
               >
                 {createReport.isPending ? (
                   <>

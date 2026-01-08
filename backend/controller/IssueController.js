@@ -130,7 +130,7 @@ export const markIssueReturned = async (req, res, next) => {
         await Notification.create({
           user: memberUser._id,
           title: "Book returned",
-          message: `Thank you for returning your book.`,
+          message: `Thank you for returning "${bookDoc?.title || "your book"}".`,
           type: "success",
           meta: { issue: issue._id, kind: "returned" },
         });

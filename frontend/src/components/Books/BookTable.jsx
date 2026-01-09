@@ -151,7 +151,9 @@ const BookTable = () => {
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Book</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">ISBN</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Type</th>
-                <th className="p-4 font-semibold text-slate-500 dark:text-white">Published</th>
+                <th className="p-4 font-semibold text-slate-500 dark:text-white">Total Copies</th>
+                <th className="p-4 font-semibold text-slate-500 dark:text-white">Borrowed</th>
+                <th className="p-4 font-semibold text-slate-500 dark:text-white">Remaining</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Status</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white text-right">Actions</th>
               </tr>
@@ -172,7 +174,9 @@ const BookTable = () => {
 
                   <td className="p-4 text-slate-700 dark:text-white">{b.isbn}</td>
                   <td className="p-4 text-slate-700 dark:text-white">{b.BookType ?? "—"}</td>
-                  <td className="p-4 text-slate-700 dark:text-white">{formatDate(b.publishedDate)}</td>
+                  <td className="p-4 text-slate-700 dark:text-white">{b.totalCopies ?? 0}</td>
+                  <td className="p-4 text-slate-700 dark:text-white">{b.borrowedCount ?? 0}</td>
+                  <td className="p-4 text-slate-700 dark:text-white">{b.availableCopies}</td>
                   <td className="p-4"><Badge status={b.status} /></td>
 
                   <td className="p-4 text-right">
@@ -185,11 +189,11 @@ const BookTable = () => {
               ))}
 
               {isLoading && (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400 dark:text-gray-400">Loading books...</td></tr>
+                <tr><td colSpan={8} className="p-12 text-center text-slate-400 dark:text-gray-400">Loading books...</td></tr>
               )}
 
               {!isLoading && filteredBooks.length === 0 && (
-                <tr><td colSpan={6} className="p-12 text-center text-slate-400 dark:text-gray-400">No books found.</td></tr>
+                <tr><td colSpan={8} className="p-12 text-center text-slate-400 dark:text-gray-400">No books found.</td></tr>
               )}
             </tbody>
           </table>

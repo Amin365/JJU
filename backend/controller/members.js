@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import Member from "../models/Members.js"; 
 import Role from "../models/Role.js";
 import User from '../models/user.js'
+import ModeratorMember from '../models/ModeratorMember.js'
 /**
  * Helpers
  */
@@ -330,14 +331,205 @@ export const getMemberByCode = async (req, res, next) => {
 };
 export const getMembersList = async (req, res, next) => {
   try {
-    const members = await Member.find()
-      .select("_id first_name middle_name last_name full_name code email createdAt")
-      .sort("-createdAt")
+    // If requester not authenticated, deny (we require auth for scoped list)
+    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+
+    // determine role of requester
+    const currentUser = await User.findById(req.user._id).populate('role', 'role plural').lean().exec();
+    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
+    const isSuperAdmin = /super\s*admin/i.test(roleName);
+    const isModerator = /moderator/i.test(roleName);
+
+    if (isSuperAdmin) {
+      const members = await Member.find()
+        .select("_id first_name middle_name last_name full_name code email createdAt")
+        .sort("-createdAt")
+        .lean()
+        .exec();
+      return res.status(200).json({ data: members });
+    }
+
+    if (isModerator) {
+      // return only members assigned to this moderator
+      const assigned = await ModeratorMember.find({ moderator: req.user._id }).select('member').lean().exec();
+      const memberIds = assigned.map(a => a.member).filter(Boolean);
+      if (memberIds.length === 0) return res.status(200).json({ data: [] });
+      const members = await Member.find({ _id: { $in: memberIds } })
+        .select("_id first_name middle_name last_name full_name code email createdAt")
+        .sort("-createdAt")
+        .lean()
+        .exec();
+      return res.status(200).json({ data: members });
+    }
+
+    // regular users: return only the member record they belong to (if any)
+    if (currentUser?.member) {
+      const m = await Member.findById(currentUser.member)
+        .select("_id first_name middle_name last_name full_name code email createdAt")
+        .lean()
+        .exec();
+      if (!m) return res.status(200).json({ data: [] });
+      return res.status(200).json({ data: [m] });
+    }
+
+    // fallback: empty
+    return res.status(200).json({ data: [] });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalize = (v) => (typeof v === "string" ? v.trim() : v);
+
+const normalizeEmail = (v) => {
+  const s = normalize(v);
+  return s ? String(s).trim().toLowerCase() : "";
+};
+
+const toDateOrNull = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  // invalid date
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+};
+
+export const bulkCreateMembers = async (req, res, next) => {
+  try {
+    const { members } = req.body;
+
+    if (!Array.isArray(members) || members.length === 0) {
+      return res.status(400).json({ message: "members must be a non-empty array" });
+    }
+
+    // sanitize + basic validation
+    const prepared = [];
+    const errors = [];
+
+    for (let i = 0; i < members.length; i++) {
+      const raw = members[i] || {};
+
+      const first_name = normalize(raw.first_name) || "";
+      const last_name = normalize(raw.last_name) || "";
+      const middle_name = normalize(raw.middle_name) || "";
+
+      if (!String(first_name).trim() || !String(last_name).trim()) {
+        errors.push({ index: i, message: "first_name and last_name are required" });
+        continue;
+      }
+
+      const email = normalizeEmail(raw.email);
+      if (email && !emailRegex.test(email)) {
+        errors.push({ index: i, message: `Invalid email: ${email}` });
+        continue;
+      }
+
+      const doc = {
+        first_name: String(first_name).trim(),
+        middle_name: String(middle_name).trim(),
+        last_name: String(last_name).trim(),
+        email: email || "",
+        phone: normalize(raw.phone) ? String(raw.phone).trim() : "",
+        department: normalize(raw.department) ? String(raw.department).trim() : "",
+        student_id: normalize(raw.student_id) ? String(raw.student_id).trim() : "",
+        study_year: normalize(raw.study_year) ? String(raw.study_year).trim() : "",
+        gender: raw.gender || undefined,
+        region: normalize(raw.region) ? String(raw.region).trim() : "",
+        city: normalize(raw.city) ? String(raw.city).trim() : "",
+        status: raw.status || undefined,
+        date_of_birth: toDateOrNull(raw.date_of_birth),
+        join_date: toDateOrNull(raw.join_date) || undefined,
+        role: raw.role || undefined, // optional
+      };
+
+      // allow optional custom code if you import it; else schema generates it
+      if (raw.code && String(raw.code).trim()) doc.code = String(raw.code).trim();
+
+      prepared.push(doc);
+    }
+
+    // Deduplicate inside the file payload by email/code
+    const seenEmail = new Set();
+    const seenCode = new Set();
+
+    const deduped = [];
+    for (const doc of prepared) {
+      const e = doc.email ? doc.email.toLowerCase() : "";
+      const c = doc.code ? doc.code : "";
+
+      if (e && seenEmail.has(e)) continue;
+      if (c && seenCode.has(c)) continue;
+
+      if (e) seenEmail.add(e);
+      if (c) seenCode.add(c);
+
+      deduped.push(doc);
+    }
+
+    // Find existing duplicates in DB
+    const emails = deduped.map((d) => d.email).filter(Boolean);
+    const codes = deduped.map((d) => d.code).filter(Boolean);
+
+    const existing = await Member.find({
+      $or: [
+        ...(emails.length ? [{ email: { $in: emails } }] : []),
+        ...(codes.length ? [{ code: { $in: codes } }] : []),
+      ],
+    })
+      .select("email code")
       .lean()
       .exec();
 
-    return res.status(200).json({ data: members });
+    const existingEmails = new Set(existing.map((x) => x.email).filter(Boolean));
+    const existingCodes = new Set(existing.map((x) => x.code).filter(Boolean));
+
+    const toInsert = [];
+    let skippedCount = 0;
+
+    for (const doc of deduped) {
+      const e = doc.email ? doc.email.toLowerCase() : "";
+      const c = doc.code ? doc.code : "";
+
+      if ((e && existingEmails.has(e)) || (c && existingCodes.has(c))) {
+        skippedCount++;
+        continue;
+      }
+      toInsert.push(doc);
+    }
+
+    if (toInsert.length === 0) {
+      return res.status(200).json({
+        message: "No new members inserted (all duplicates or invalid).",
+        insertedCount: 0,
+        skippedCount,
+        errorCount: errors.length,
+        errors,
+      });
+    }
+
+    // Insert
+    const inserted = await Member.insertMany(toInsert, {
+      ordered: false, // continue on duplicates
+    });
+
+    return res.status(201).json({
+      message: `Bulk members import complete.`,
+      insertedCount: inserted.length,
+      skippedCount,
+      errorCount: errors.length,
+      errors,
+    });
   } catch (err) {
+    // If insertMany ordered:false still throws for duplicates, report nicely
+    if (err?.code === 11000) {
+      return res.status(409).json({
+        message: "Some records already exist (duplicate email/code).",
+        details: err?.keyValue,
+      });
+    }
     return next(err);
   }
 };

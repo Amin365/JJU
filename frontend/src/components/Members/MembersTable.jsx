@@ -8,6 +8,7 @@ import {
   ArrowLeft,
 } from "lucide-react";
 import { useNavigate, useLocation } from "react-router";
+import { useSelector } from "react-redux";
 import { useQuery } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { cn } from "@/lib/utils";
@@ -23,14 +24,13 @@ import {
   SelectItem,
 } from "@/components/ui/select";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
-// import ImportExcelModal from "./BulkCreating";
+import ImportExcelModal from "./ImportExcelModel";
 
 
 
 const fetchMembers = async ({ queryKey }) => {
   const [, params] = queryKey;
   const { page = 1, limit = 10, searchTerm = "", region = "All", moderatorId } = params || {};
-
   if (moderatorId) {
     // fetch assigned members for a moderator (backend returns assignments or members)
     const res = await api.get(`/moderators/${moderatorId}/members`);
@@ -42,15 +42,12 @@ const fetchMembers = async ({ queryKey }) => {
     return { data: arr, total: arr.length, totalPages: Math.max(1, Math.ceil((arr.length || 0) / limit)) };
   }
 
-  const res = await api.get("/members", {
-    params: {
-      page,
-      limit,
-      q: searchTerm || undefined,
-      region: region === "All" ? undefined : region,
-    },
-  });
-  return res.data;
+  // Use the scoped members list endpoint which returns:
+  // - all members for super admin
+  // - assigned members for moderators
+  // - the user's own member for regular users
+  const res = await api.get("/members/list");
+  return { data: res.data?.data ?? [], total: (res.data?.data ?? []).length, totalPages: 1 };
 };
 
 
@@ -82,7 +79,15 @@ export default function MemberTable() {
 
   const location = useLocation();
   const urlParams = new URLSearchParams(location.search);
-  const moderatorId = urlParams.get("moderatorId");
+  const urlModeratorId = urlParams.get("moderatorId");
+
+  const authUser = useSelector((s) => s.auth.user);
+  const userRoleName = (authUser?.role?.role || authUser?.role?.plural || "").toLowerCase();
+  const userIsModerator = /moderator/i.test(userRoleName);
+  const userIsSuperAdmin = /super\s*admin/i.test(userRoleName);
+
+  // effective moderatorId: URL param takes precedence; otherwise, if current user is a moderator, scope to them
+  const moderatorId = urlModeratorId || (userIsModerator ? authUser?._id : null);
 
   const { data, isLoading, isFetching } = useQuery({
     queryKey: ["members", { page: currentPage, limit, searchTerm, region: filterRegion, moderatorId }],
@@ -90,7 +95,7 @@ export default function MemberTable() {
     keepPreviousData: true,
     staleTime: 30_000,
   });
-  console.log('members',data)
+  
 
   const members = data?.data ?? [];
   const totalItems = data?.total ?? 0;
@@ -122,6 +127,12 @@ export default function MemberTable() {
     }
   };
 
+  const[showmodelExcel,setModelExcell]=useState(false);
+
+ const OpenModelExcel=()=>{
+  setModelExcell(true);
+ }
+
   const startItem = totalItems === 0 ? 0 : (currentPage - 1) * limit + 1;
   const endItem = totalItems === 0 ? 0 : Math.min(currentPage * limit, totalItems);
 
@@ -135,7 +146,7 @@ export default function MemberTable() {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="default" onClick={() => {}}>
+          <Button variant="default" onClick={OpenModelExcel}>
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
           </Button>
           <Button onClick={handleAddNew}>
@@ -259,6 +270,8 @@ export default function MemberTable() {
           </div>
         </div>
       </Card>
+
+      <ImportExcelModal isOpen={showmodelExcel} onClose={()=>setModelExcell(false)}/>
     </div>
   );
 }

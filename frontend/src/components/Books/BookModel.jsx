@@ -16,15 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
-/**
- * BookModal
- * Props:
- * - isOpen: boolean
- * - onClose: () => void
- * - onSuccess: (createdOrUpdatedBook) => void
- * - initialData: optional book object to edit (if present -> edit mode)
- * - mode: "create" | "edit" (optional; inferred from initialData if not provided)
- */
+
 export default function BookModal({ isOpen, onClose, onSuccess, initialData = null, mode: inputMode = null }) {
   const qc = useQueryClient();
   const mode = inputMode || (initialData ? "edit" : "create");
@@ -35,10 +27,10 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
       author: "",
       isbn: "",
       BookType: "",
-      publishedDate: "",
       status: "available",
       book_picture: "",
       totalPages: "",
+      availableCopies: "",
     },
   });
 
@@ -50,10 +42,10 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
         author: initialData.author ?? "",
         isbn: initialData.isbn ?? "",
         BookType: initialData.BookType ?? "",
-        publishedDate: initialData.publishedDate ? new Date(initialData.publishedDate).toISOString().slice(0, 10) : "",
         status: initialData.status ?? "available",
         book_picture: initialData.book_picture ?? "",
         totalPages: initialData.totalPages ?? "",
+        availableCopies: initialData.availableCopies ?? "",
       });
     } else {
       reset({
@@ -61,10 +53,11 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
         author: "",
         isbn: "",
         BookType: "",
-        publishedDate: "",
+      
         status: "available",
         book_picture: "",
         totalPages: "",
+        availableCopies: "",
       });
     }
   }, [initialData, isOpen, reset]);
@@ -114,10 +107,10 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
       author: values.author || undefined,
       isbn: values.isbn || undefined,
       BookType: values.BookType || undefined,
-      publishedDate: values.publishedDate ? new Date(values.publishedDate).toISOString() : undefined,
       status: values.status || undefined,
       book_picture: values.book_picture || undefined,
       totalPages: values.totalPages !== undefined ? Number(values.totalPages) : undefined,
+      availableCopies: values.availableCopies !== undefined ? Number(values.availableCopies) : undefined,
     };
 
     if (mode === "edit" && initialData && (initialData._id )) {
@@ -159,8 +152,8 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
           </div>
 
           <div className="mb-3">
-            <Label htmlFor="publishedDate" className="block mb-1">Published Date</Label>
-            <Input id="publishedDate" type="date" {...register("publishedDate")} />
+            <Label htmlFor="publishedDate" className="block mb-1">Available Copies</Label>
+            <Input id="availableCopies" {...register("availableCopies")} />
           </div>
 
           <div className="mb-3">

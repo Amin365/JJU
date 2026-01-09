@@ -143,7 +143,7 @@ export function AppSidebar({ ...props }) {
     }
     if( roleName === "moderator") {
       // Moderators: only Reading Reports and Daily Activity
-      const allowed = new Set(["/dashboard/report", "/dashboard/activity","/dashboard/members","/dashboard/issues/"]);
+      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

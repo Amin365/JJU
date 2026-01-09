@@ -10,9 +10,12 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Book, Calendar, CheckCircle2, Plus } from "lucide-react";
 
-const fetchIssues = async () => {
-  const res = await api.get("/issue");
-  return res.data?.data ?? res.data ?? [];
+const fetchIssues = async ({ queryKey }) => {
+  const [, params] = queryKey;
+  const { page = 1, limit = 10, q, status } = params || {};
+  const res = await api.get("/issue", { params: { page, limit, q, status } });
+  // return structured payload expected by UI
+  return res.data ?? { data: [], total: 0, page: 1, totalPages: 0, limit };
 };
 
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString() : "—");
@@ -29,13 +32,18 @@ const IssuesTable = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
 
+  const [page, setPage] = React.useState(1);
+  const [limit, setLimit] = React.useState(10);
+
   const { data, isLoading } = useQuery({
-    queryKey: ["issues"],
+    queryKey: ["issues", { page, limit }],
     queryFn: fetchIssues,
     staleTime: 20_000,
   });
 
-  const issues = Array.isArray(data) ? data : [];
+  const issues = data?.data ?? [];
+  const totalItems = data?.total ?? 0;
+  const totalPages = data?.totalPages ?? Math.max(1, Math.ceil((totalItems || 0) / limit));
 
   const markReturned = useMutation({
     mutationFn: async (id) => {
@@ -148,7 +156,7 @@ const IssuesTable = () => {
 
               {isLoading && (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-400 dark:text-gray-400">
+                  <td colSpan={8} className="p-12 text-center text-slate-400 dark:text-gray-400">
                     Loading issues...
                   </td>
                 </tr>
@@ -156,13 +164,26 @@ const IssuesTable = () => {
 
               {!isLoading && rows.length === 0 && (
                 <tr>
-                  <td colSpan={6} className="p-12 text-center text-slate-400 dark:text-gray-400">
+                  <td colSpan={8} className="p-12 text-center text-slate-400 dark:text-gray-400">
                     No issued books yet.
                   </td>
                 </tr>
               )}
             </tbody>
           </table>
+        </div>
+        {/* Pagination */}
+        <div className="flex items-center justify-between p-4 border-t bg-card">
+          <div className="text-sm text-muted-foreground">Showing {issues.length} of {totalItems}</div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1 || isLoading}>
+              Prev
+            </Button>
+            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground">{page} / {totalPages}</span>
+            <Button size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages || isLoading}>
+              Next
+            </Button>
+          </div>
         </div>
       </Card>
     </div>

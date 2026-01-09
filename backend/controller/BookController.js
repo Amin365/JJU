@@ -1,5 +1,6 @@
 import mongoose from "mongoose";
 import Book from "../models/Books.js";
+import Issue from "../models/Issue.js";
 
 /**
  * Helper: escape user input for use in a RegExp
@@ -11,7 +12,7 @@ const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
  */
 export const createBook = async (req, res, next) => {
   try {
-    const { title, author, BookType, publishedDate, isbn, status, book_picture ,totalPages} = req.body;
+    const { title, author, BookType, isbn, status, book_picture, totalPages, totalCopies, availableCopies } = req.body;
 
     // Basic validation (consider replacing with express-validator/Joi)
     if (!title || !BookType) {
@@ -19,15 +20,29 @@ export const createBook = async (req, res, next) => {
     }
 
     // Build model instance and save
+    // normalize total/available copies
+    // If totalCopies was not provided but availableCopies was, assume totalCopies == availableCopies
+    let tc;
+    if (typeof totalCopies !== "undefined" && totalCopies !== null && totalCopies !== "") {
+      tc = Number(totalCopies) || 1;
+    } else if (typeof availableCopies !== "undefined" && availableCopies !== null && availableCopies !== "") {
+      tc = Number(availableCopies) || 1;
+    } else {
+      tc = 1;
+    }
+
+    const av = typeof availableCopies !== "undefined" ? Number(availableCopies) : tc;
+
     const book = new Book({
       title,
       author,
       BookType,
-      publishedDate,
       isbn,
       status,
       book_picture,
-      totalPages
+      totalPages,
+      totalCopies: tc,
+      availableCopies: Math.max(0, Math.min(av, tc)),
     });
 
     try {
@@ -104,6 +119,19 @@ export const getBooks = async (req, res, next) => {
       Book.countDocuments(filter).exec(),
     ]);
 
+    // attach borrowedCount per book (number of active Issued issues)
+    const bookIds = items.map((b) => b._id).filter(Boolean);
+    if (bookIds.length > 0) {
+      const counts = await Issue.aggregate([
+        { $match: { book: { $in: bookIds.map((id) => new mongoose.Types.ObjectId(id)) }, status: "Issued" } },
+        { $group: { _id: "$book", count: { $sum: 1 } } },
+      ]).exec();
+      const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
+      for (const it of items) {
+        it.borrowedCount = map[String(it._id)] || 0;
+      }
+    }
+
     // Return shape: { data, total, page, limit, totalPages }
     return res.status(200).json({
       data: items,
@@ -156,11 +184,30 @@ export const updateBook = async (req, res, next) => {
     if (update._id) delete update._id;
 
     try {
+      // If update contains copies, normalize availableCopies to not exceed totalCopies
+      if (Object.prototype.hasOwnProperty.call(update, "totalCopies")) {
+        update.totalCopies = Number(update.totalCopies) || 0;
+      }
+      if (Object.prototype.hasOwnProperty.call(update, "availableCopies")) {
+        update.availableCopies = Number(update.availableCopies) || 0;
+      }
+
       const updated = await Book.findByIdAndUpdate(id, update, {
         new: true,
         runValidators: true,
         context: "query",
-      }).lean().exec();
+      }).exec();
+
+      // ensure availableCopies never exceeds totalCopies
+      if (updated) {
+        const tc = Number(updated.totalCopies) || 0;
+        const av = Number(updated.availableCopies) || 0;
+        if (tc > 0 && av > tc) {
+          updated.availableCopies = tc;
+          await updated.save();
+        }
+      }
+      const updatedLean = updated ? (await Book.findById(updated._id).lean().exec()) : null;
 
       if (!updated) {
         return res.status(404).json({ message: "Book not found" });

@@ -3,6 +3,7 @@ import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
 import Book from "../models/Books.js"; 
 import Notification from "../models/Notification.js";
+import Role from "../models/Role.js";
 import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
                        
@@ -106,6 +107,49 @@ if (!last) {
         meta: { report: report._id, kind: "report-submitted" },
       });
     } catch (e) {}
+
+    // Additionally notify the assigned moderator (if any) and all super admins
+    try {
+      const memberId = req.user?.member;
+      if (memberId) {
+        const assignment = await ModeratorMember.findOne({ member: memberId }).populate("moderator", "_id first_name last_name username email").lean().exec();
+        if (assignment && assignment.moderator) {
+          await Notification.create({
+            user: assignment.moderator._id,
+            title: `Member report: ${bookDoc.title}`,
+            message: `${submitterName} (member) submitted a reading report.`,
+            type: "info",
+            meta: { report: report._id, member: memberId, kind: "report-submitted" },
+          });
+        }
+      }
+
+      // Notify super admins
+      const superAdminRole = await Role.findOne({
+        $or: [
+          { role: { $regex: "^Super Admin$", $options: "i" } },
+          { plural: { $regex: "^Super Admins$", $options: "i" } },
+        ],
+      }).lean().exec();
+
+      if (superAdminRole) {
+        const superAdmins = await User.find({ role: superAdminRole._id }).select("_id").lean().exec();
+        if (superAdmins && superAdmins.length > 0) {
+          const notifDocs = superAdmins.map((sa) => ({
+            user: sa._id,
+            title: `Member report: ${bookDoc.title}`,
+            message: `${submitterName} submitted a reading report.`,
+            type: "info",
+            meta: { report: report._id, member: req.user?.member, kind: "report-submitted" },
+            createdAt: new Date(),
+            updatedAt: new Date(),
+          }));
+          if (notifDocs.length > 0) await Notification.insertMany(notifDocs);
+        }
+      }
+    } catch (e) {
+      // swallow notification errors so report creation still succeeds
+    }
 
     return res.status(201).json({ data: populated });
   } catch (err) {
@@ -245,6 +289,7 @@ export const getDailyReportsScope = async (req, res, next) => {
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
+    console.debug("getDailyReportsScope - currentUser:", { id: req.user?._id?.toString(), isSuperAdmin, isModerator, roleName });
 
     const filter = {};
 
@@ -280,8 +325,10 @@ export const getDailyReportsScope = async (req, res, next) => {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
+        console.debug("getDailyReportsScope - moderator check", { requesterId: req.user?._id?.toString(), memberId });
         const assigned = await ModeratorMember.findOne({ moderator: req.user._id, member: memberId }).lean().exec();
-        if (!assigned) return res.status(403).json({ message: "Forbidden" });
+        console.debug("getDailyReportsScope - assigned result:", { found: !!assigned, assignedMember: assigned?.member?.toString() });
+        if (!assigned) return res.status(403).json({ message: "Forbidden: member not assigned to this moderator" });
 
         const users = await User.find({ member: memberId }).select("_id").lean().exec();
         const ids = users.map((u) => u._id);

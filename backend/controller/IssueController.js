@@ -2,7 +2,8 @@ import mongoose from "mongoose";
 import Issue from "../models/Issue.js";
 import Book from "../models/Books.js";     // file name Books.js, but model name inside should be "Book"
 import Member from "../models/Members.js"; // adjust if your actual file is Member.js
-import User from "../models/user.js";      // ✅ MISSING IMPORT (this breaks getMyIssues)
+import User from "../models/user.js";
+import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
 
 export const IssueCreate = async (req, res, next) => {
@@ -30,25 +31,32 @@ export const IssueCreate = async (req, res, next) => {
     }
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
 
-    if (String(bookDoc.status).toLowerCase() === "borrowed") {
-      return res.status(409).json({ message: "This book is already borrowed" });
+    // Ensure there are available copies and atomically decrement
+    const updatedBook = await Book.findOneAndUpdate(
+      { _id: bookDoc._id, availableCopies: { $gt: 0 } },
+      { $inc: { availableCopies: -1 } },
+      { new: true }
+    ).exec();
+
+    if (!updatedBook) {
+      return res.status(409).json({ message: "No available copies for this book" });
     }
 
-    const existingActive = await Issue.findOne({ book: bookDoc._id, status: "Issued" }).lean().exec();
-    if (existingActive) {
-      return res.status(409).json({ message: "This book already has an active issue" });
+    // Update status based on availability
+    if ((updatedBook.availableCopies || 0) <= 0) {
+      updatedBook.status = "borrowed";
+    } else {
+      updatedBook.status = "available";
     }
+    await updatedBook.save();
 
     const issue = await Issue.create({
-      book: bookDoc._id,
+      book: updatedBook._id,
       member: memberDoc._id,
       issueDate: new Date(issueDate),
       returnDate: new Date(returnDate),
       status: "Issued",
     });
-
-    bookDoc.status = "borrowed";
-    await bookDoc.save();
 
     const populated = await Issue.findById(issue._id)
       .populate("book", "title author isbn status book_picture")
@@ -80,14 +88,75 @@ export const IssueCreate = async (req, res, next) => {
 
 export const getIssues = async (req, res, next) => {
   try {
-    const issues = await Issue.find()
-      .populate("book", "title author isbn status book_picture")
-      .populate("member", "first_name middle_name last_name full_name email code")
-      .sort("-createdAt")
-      .lean()
-      .exec();
+    const { page = 1, limit = 20, q, status } = req.query;
 
-    return res.status(200).json({ data: issues });
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * perPage;
+
+    const filter = {};
+    if (q) {
+      const re = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+      // search by book title or member name
+      // we'll match later after populating, but keep simple: allow member code matching and book title by lookup
+      // for now support member code exact match via filter on member (if q looks like code)
+      filter.$or = [
+        { 'member.code': re },
+      ];
+    }
+    if (status) filter.status = status;
+
+    // Role-based scoping: require auth (router enforces protect)
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const currentUser = await User.findById(userId).populate('role', 'role plural').lean().exec();
+    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
+    const isSuperAdmin = /super\s*admin/i.test(roleName);
+    const isModerator = /moderator/i.test(roleName);
+
+    // if moderator, restrict to members assigned to them
+    if (isModerator && !isSuperAdmin) {
+      const assigned = await ModeratorMember.find({ moderator: userId }).select('member').lean().exec();
+      const memberIds = assigned.map((a) => a.member).filter(Boolean);
+      if (memberIds.length === 0) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      filter.member = { $in: memberIds };
+    }
+
+    // regular users: show only their member's issues
+    if (!isModerator && !isSuperAdmin) {
+      if (!currentUser?.member) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      filter.member = currentUser.member;
+    }
+
+    // Query with pagination
+    const [items, total] = await Promise.all([
+      Issue.find(filter)
+        .populate("book", "title author isbn status book_picture availableCopies")
+        .populate("member", "first_name middle_name last_name full_name email code")
+        .sort("-createdAt")
+        .skip(skip)
+        .limit(perPage)
+        .lean()
+        .exec(),
+      Issue.countDocuments(filter).exec(),
+    ]);
+
+    // Attach borrowed counts per book
+    const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
+    if (bookIds.length > 0) {
+      const counts = await Issue.aggregate([
+        { $match: { book: { $in: bookIds.map((id) => new mongoose.Types.ObjectId(id)) }, status: "Issued" } },
+        { $group: { _id: "$book", count: { $sum: 1 } } },
+      ]).exec();
+      const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
+      for (const it of items) {
+        const bid = String(it.book?._id);
+        if (it.book) it.book.borrowedCount = map[bid] || 0;
+      }
+    }
+
+    return res.status(200).json({ data: items, total, page: pageNum, totalPages: Math.ceil(total / perPage), limit: perPage });
   } catch (err) {
     return next(err);
   }
@@ -111,10 +180,20 @@ export const markIssueReturned = async (req, res, next) => {
     issue.returnedAt = new Date();
     await issue.save();
 
-    const bookDoc = await Book.findById(issue.book).exec();
+    // increment available copies
+    let bookDoc = await Book.findByIdAndUpdate(issue.book, { $inc: { availableCopies: 1 } }, { new: true }).exec();
     if (bookDoc) {
-      bookDoc.status = "available";
+      // cap availableCopies to totalCopies
+      const tc = Number(bookDoc.totalCopies) || 0;
+      if (tc > 0 && (bookDoc.availableCopies || 0) > tc) {
+        bookDoc.availableCopies = tc;
+      }
+      if ((bookDoc.availableCopies || 0) > 0) {
+        bookDoc.status = "available";
+      }
       await bookDoc.save();
+      // re-fetch to ensure consistency
+      bookDoc = await Book.findById(issue.book).lean().exec();
     }
 
     const populated = await Issue.findById(issue._id)

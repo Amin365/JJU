@@ -12,10 +12,12 @@ const bookSchema = new mongoose.Schema({
   author: { type: String },
   isbn: { type: String, required: true, unique: true },
   BookType: { type: String },
-  publishedDate: { type: Date },
+
   status: { type: String, enum: ['available', 'borrowed'] ,default:"available"},
   book_picture:{type:String},
-  totalPages: { type: Number, default: 0 }
+  totalPages: { type: Number, default: 0 },
+  totalCopies: { type: Number, default: 1 },
+  availableCopies: { type: Number, default: 1 },
 }, { timestamps: true });
 
 

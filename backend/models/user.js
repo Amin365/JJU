@@ -10,8 +10,9 @@ const userSchema = new mongoose.Schema(
     email: { type: String, required: true, unique: true, trim: true },
     password: { type: String, required: true },
     member_id: { type: String, unique: true, trim: true },
+    status: { type: String, enum: ['Active', 'Inactive', 'pending'], default: 'Active' },
 
-    // 🔗 Role reference (1-to-Many)
+    //  Role reference (1-to-Many)
     role: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "Role",
@@ -20,7 +21,7 @@ const userSchema = new mongoose.Schema(
     member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true, unique: true },
 
 
-    // 🔗 Self-reference for added_by and updated_by
+    //  Self-reference for added_by and updated_by
     added_by: {
       type: mongoose.Schema.Types.ObjectId,
       ref: "User",
@@ -48,7 +49,7 @@ userSchema.methods.matchPassword = async function (enteredPassword) {
   return await bcrypt.compare(enteredPassword, this.password);
 };
 
-// 🔗 Virtual for User → Permissions (Many-to-Many via UserPermission)
+//  Virtual for User → Permissions (Many-to-Many via UserPermission)
 userSchema.virtual("permissions", {
   ref: "UserPermission",    // join collection
   localField: "_id",

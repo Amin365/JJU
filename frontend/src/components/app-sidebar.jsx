@@ -17,7 +17,8 @@ import {
   LayoutGrid,
   FileChartColumn,
   User,
-  ActivityIcon
+  ActivityIcon,
+  StickyNote
 
   
 } from "lucide-react"
@@ -99,9 +100,21 @@ const data = {
    
     },
     {
+      title: "Reading Recap ",
+      url: "/dashboard/report-recap",
+      icon: ActivityIcon,
+    
+    },
+    {
       title: "Moderators ",
       url: "/dashboard/moderators",
       icon: User,
+   
+    },
+    {
+      title: "Blogs ",
+      url: "/dashboard/blogs",
+      icon: StickyNote,
    
     },
     {
@@ -138,7 +151,7 @@ export function AppSidebar({ ...props }) {
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
       // Members: only Request Books and Reading Reports
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report"]);
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report","/dashboard/report-recap"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {

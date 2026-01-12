@@ -1,13 +1,14 @@
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, Search, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { cn } from "@/lib/utils";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
+import { toast } from "sonner";
 
 const fetchUsers = async ({ queryKey }) => {
   const [, page = 1, limit = 10] = queryKey;
@@ -36,6 +37,7 @@ const RoleBadge = ({ role }) => {
 
 const UsersTable = () => {
   const navigate = useNavigate();
+  const queryClient = useQueryClient();
 
   const [currentPage, setCurrentPage] = useState(1);
   const [limit, setLimit] = useState(10);
@@ -47,6 +49,26 @@ const UsersTable = () => {
     keepPreviousData: true,
     staleTime: 30_000,
   });
+  const updateStatusMutation = useMutation({
+    mutationFn: async ({ id, status }) => {
+      const res = await api.patch(`/users/${id}/status`, { status });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("User status updated");
+      queryClient.invalidateQueries({ queryKey: ["users"] });
+    },
+    onError: (err) => {
+      const msg = err?.response?.data?.message || "Failed to update status";
+      toast.error(msg);
+    },
+  });
+
+  const handleToggleStatus = (e, user) => {
+    e.stopPropagation();
+    const next = user.status === "Active" ? "Inactive" : "Active";
+    updateStatusMutation.mutate({ id: user._id || user.id, status: next });
+  };
 
 
   const users = data?.data ?? [];
@@ -130,6 +152,7 @@ const UsersTable = () => {
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Username</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Email</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Role</th>
+                <th className="p-4 font-semibold text-slate-500 dark:text-white">Status</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white">Created</th>
                 <th className="p-4 font-semibold text-slate-500 dark:text-white text-right">Actions</th>
               </tr>
@@ -164,12 +187,32 @@ const UsersTable = () => {
                     <td className="p-4">
                       <RoleBadge role={u.role} />
                     </td>
+                    <td className="p-4">
+                      <span
+                        className={cn(
+                          "px-2 py-1 rounded-md text-xs font-semibold",
+                          u.status === "Active"
+                            ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-100"
+                            : u.status === "Inactive"
+                            ? "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-100"
+                            : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100"
+                        )}
+                      >
+                        {u.status || "—"}
+                      </span>
+                    </td>
                     <td className="p-4 text-slate-700 dark:text-white">{formatDate(u.createdAt)}</td>
 
                     <td className="p-4 text-right">
-                      <div className="flex items-center justify-end group-hover:opacity-100 transition-opacity gap-2">
-                        <span className="text-xs text-slate-400 font-medium px-2">View Details</span>
-                        <ArrowLeft className="rotate-180 text-slate-300" size={16} />
+                      <div className="flex items-center justify-end gap-2">
+                        <Button
+                          size="sm"
+                          variant={u.status === "Active" ? "destructive" : "default"}
+                          onClick={(e) => handleToggleStatus(e, u)}
+                          disabled={updateStatusMutation.isLoading}
+                        >
+                          {u.status === "Active" ? "Deactivate" : "Activate"}
+                        </Button>
                       </div>
                     </td>
                   </tr>

@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from "react";
 import { Routes, Route } from "react-router";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import Loader from "./components/Loader";
+import ReadingRecaps from "./components/Members/ReadingRecap";
 
 
 // lazy-loaded route components
@@ -27,12 +28,19 @@ const Issuetable=lazy(()=>import( "./components/Issue/IssueTable"));
 const DailyActivity=lazy(()=>import('./components/Members/DailyActivity'));
 const ModeratorTable=lazy(()=>import('./components/Moderator/Moderator'));
 const ModeratorPage=lazy(()=>import('./components/Moderator/ModeratorTable'));
+const ReportRecap=lazy(()=>import('./components/Members/ReadingRecap'));
+const BlogEdit=lazy(()=>import('./components/Blogs/BlogEdit'));
+const BlogTable=lazy(()=>import('./components/Blogs/BlogTable'));
+const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
+const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 function App() {
   return (
  
       <Routes>
         {/* auth */}
-        <Route path="/" element={<LoginPage />} />
+        <Route path="/login" element={<LoginPage />} />
+        <Route path="/" element={<Homepage />} />
+
 
         <Route
           path="/dashboard"
@@ -69,6 +77,11 @@ function App() {
   <Route path="activity" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><DailyActivity /></Suspense>} />
   <Route path="moderators" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorTable /></Suspense>} />
   <Route path="moderators/:moderatorId/members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorPage /></Suspense>} />
+  <Route path="report-recap" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ReportRecap /></Suspense>} />
+  <Route path="blogs/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />
+  <Route path="blogs/edit/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />
+  <Route path="blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
+  <Route path="blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogTable /></Suspense>} />
         </Route>
       </Routes>
 

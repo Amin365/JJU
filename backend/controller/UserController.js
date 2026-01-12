@@ -50,6 +50,7 @@ export const createUserFromMember = async (req, res, next) => {
       password,                 // plaintext ok here -> will be hashed by pre-save
       member_id: m.code || String(m._id), // optional mapping
       role: m.role || null,      // ✅ role copied from member
+      status: m.status || 'Active', // ✅ mirror member status
       member: m._id,             // ✅ relation user -> member
 
       // optional audit fields (if you have auth middleware)
@@ -190,6 +191,39 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
       limit: perPage,
       totalPages: Math.ceil(available.length / perPage),
     });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Update a user's status (Active, Inactive, pending)
+export const updateUserStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
+
+    const allowed = ["Active", "Inactive", "pending"];
+    if (!status || !allowed.includes(status)) {
+      return res.status(400).json({ message: `status must be one of: ${allowed.join(", ")}` });
+    }
+
+    const updated = await User.findByIdAndUpdate(
+      id,
+      { status, updated_by: req.user?._id || null },
+      { new: true }
+    )
+      .populate("role", "role color plural system")
+      .populate("member", "first_name middle_name last_name full_name email phone code role")
+      .lean()
+      .exec();
+
+    if (!updated) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ data: updated });
   } catch (err) {
     return next(err);
   }

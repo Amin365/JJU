@@ -87,6 +87,11 @@ export const loginUser = async (req, res) => {
       return res.status(401).json({ message: 'Invalid credentials' })
     }
 
+    // Block inactive/pending users from logging in
+    if (user.status && user.status !== 'Active') {
+      return res.status(403).json({ message: 'Account is not active. Please contact support.' })
+    }
+
     const isMatch = await bcrypt.compare(password, user.password)
     if (!isMatch) {
       return res.status(401).json({ message: 'Invalid credentials' })
@@ -118,6 +123,7 @@ export const loginUser = async (req, res) => {
         _id: user._id,
         username: user.username,
         email: user.email,
+        status: user.status,
         role: roleDoc ? { _id: roleDoc._id, role: roleDoc.role } : user.role,
         permissions: Array.from(permissionSet),
       }

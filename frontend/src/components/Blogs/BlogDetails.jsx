@@ -1,0 +1,811 @@
+import { useMemo, useState, useEffect } from "react";
+import { formatDistanceToNow } from "date-fns";
+import { useParams, useNavigate } from "react-router";
+import { useSelector } from "react-redux";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import api from "@/app/api/apislice";
+import { motion } from "framer-motion";
+import {
+  Heart,
+  MessageCircle,
+  Bookmark,
+  Share2,
+  Eye,
+  Clock,
+  BookOpen,
+  ArrowLeft,
+  Send,
+  ThumbsUp,
+  Flag,
+  Sparkles,
+  ChevronRight,
+  Pin,
+} from "lucide-react";
+import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
+import { Button } from "../ui/button";
+import { Badge } from "../ui/badge";
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
+import { Textarea } from "../ui/textarea";
+import { Separator } from "../ui/separator";
+import { toast } from "sonner";
+
+function timeAgo(dateLike) {
+  if (!dateLike) return "";
+  const d = new Date(dateLike);
+  if (Number.isNaN(d.getTime())) return "";
+  return formatDistanceToNow(d, { addSuffix: true });
+}
+
+export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
+  const user = useSelector((state) => state.auth?.user);
+  const queryClient = useQueryClient();
+
+  const [liked, setLiked] = useState(false);
+  const [bookmarked, setBookmarked] = useState(false);
+  const [likeCount, setLikeCount] = useState(0);
+  const [showFullContent, setShowFullContent] = useState(false);
+
+  const [commentText, setCommentText] = useState("");
+  const [showCommentForm, setShowCommentForm] = useState(false);
+
+  const [activeReplyCommentId, setActiveReplyCommentId] = useState(null);
+  const [replyTextByCommentId, setReplyTextByCommentId] = useState({});
+
+  // Local per-comment "did I like?" and counts (optimistic UI)
+  // key: commentId -> boolean
+  const [commentLikedByMe, setCommentLikedByMe] = useState({});
+  // key: commentId -> number (display)
+  const [commentLikes, setCommentLikes] = useState({});
+
+  // ------------------------
+  // Fetch post details
+  // ------------------------
+  const { data: postResponse } = useQuery({
+    queryKey: ["blogpost", postId],
+    queryFn: async () => {
+      const res = await api.get(`/blogposts/${postId}`);
+      return res.data?.data;
+    },
+    enabled: !!postId,
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (typeof postResponse?.likes === "number") setLikeCount(postResponse.likes);
+  }, [postResponse?.likes]);
+
+  // ------------------------
+  // Fetch comments (router: GET /blogposts/:id/comments)
+  // ------------------------
+  const {
+    data: commentsResponse,
+    isLoading: commentsLoading,
+    isError: commentsError,
+    error: commentsErr,
+  } = useQuery({
+    queryKey: ["blogpost-comments", postId],
+    queryFn: async () => {
+      const res = await api.get(`/blogposts/${postId}/comments`);
+      return res.data?.data;
+    },
+    enabled: !!postId,
+    staleTime: 30_000,
+  });
+
+  const comments = Array.isArray(commentsResponse) ? commentsResponse : [];
+
+  // Initialize like counts from server for comments (do NOT overwrite if user already interacted)
+  useEffect(() => {
+    if (!comments.length) return;
+
+    setCommentLikes((prev) => {
+      const next = { ...prev };
+      for (const c of comments) {
+        if (next[c._id] === undefined) next[c._id] = c.likes || 0;
+      }
+      return next;
+    });
+
+    // If backend returns likedBy array, we can also initialize "liked by me"
+    // (works only if your GET comments includes likedBy)
+    if (user?.id || user?._id) {
+      const myId = String(user.id || user._id);
+      setCommentLikedByMe((prev) => {
+        const next = { ...prev };
+        for (const c of comments) {
+          if (next[c._id] === undefined) {
+            const likedBy = Array.isArray(c.likedBy) ? c.likedBy : [];
+            next[c._id] = likedBy.some((u) => String(u) === myId);
+          }
+        }
+        return next;
+      });
+    }
+  }, [comments, user]);
+
+  const post = useMemo(() => {
+    return {
+      id: postResponse?._id || postId,
+      title: postResponse?.title || "",
+      content: postResponse?.content || "",
+      coverImage:
+        postResponse?.blog_picture ||
+        "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=1200&h=600&fit=crop",
+      author: {
+        name: postResponse?.author || "Unknown",
+        avatar: "",
+        role: "Member",
+      },
+      publishDate: postResponse?.createdAt || new Date().toISOString(),
+      readingTime: 5,
+      views: postResponse?.views || 0,
+      comments: comments.length,
+      tags: Array.isArray(postResponse?.tags) ? postResponse.tags : [],
+      bookRelated: postResponse?.relatedBook || "",
+    };
+  }, [postResponse, postId, comments.length]);
+
+  // ------------------------
+  // Related posts (unchanged)
+  // ------------------------
+  const { data: listResponse } = useQuery({
+    queryKey: ["blogposts-public"],
+    queryFn: async () => {
+      const res = await api.get("/blogposts", { params: { scope: "public", limit: 100 } });
+      return res.data;
+    },
+    staleTime: 60_000,
+  });
+
+  const relatedPosts = useMemo(() => {
+    const all = Array.isArray(listResponse?.data) ? listResponse.data : [];
+    const tags = Array.isArray(post.tags) ? post.tags : [];
+    if (!tags.length) return [];
+    return all
+      .filter((p) => p._id !== post.id)
+      .map((p) => {
+        const pTags = Array.isArray(p.tags) ? p.tags : [];
+        const matching = pTags.filter((t) => tags.includes(t));
+        return {
+          id: p._id,
+          title: p.title,
+          author: p.author || "Unknown",
+          publishDate: p.createdAt,
+          readingTime: 5,
+          coverImage: p.blog_picture || "",
+          tags: pTags,
+          matchingTags: matching,
+        };
+      })
+      .filter((rp) => rp.matchingTags.length > 0)
+      .slice(0, 6);
+  }, [listResponse, post.tags, post.id]);
+
+  // ------------------------
+  // Mutations (router)
+  // POST /blogposts/:id/comments
+  // POST /blogposts/:id/comments/:commentId/replies
+  // POST /blogposts/:id/comments/:commentId/like  <-- NEW (toggle)
+  // ------------------------
+  const createCommentMutation = useMutation({
+    mutationFn: async ({ content }) => {
+      const res = await api.post(`/blogposts/${postId}/comments`, { content });
+      return res.data?.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["blogpost-comments", postId] });
+      toast.success("Comment posted");
+      setCommentText("");
+      setShowCommentForm(false);
+    },
+    onError: (err) => {
+      toast.error("Failed to post comment", {
+        description: err?.response?.data?.message || "Please try again.",
+      });
+    },
+  });
+
+  const createReplyMutation = useMutation({
+    mutationFn: async ({ commentId, content }) => {
+      const res = await api.post(`/blogposts/${postId}/comments/${commentId}/replies`, {
+        content,
+      });
+      return res.data?.data;
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["blogpost-comments", postId] });
+      toast.success("Reply posted");
+      setReplyTextByCommentId((prev) => ({ ...prev, [activeReplyCommentId]: "" }));
+      setActiveReplyCommentId(null);
+    },
+    onError: (err) => {
+      toast.error("Failed to post reply", {
+        description: err?.response?.data?.message || "Please try again.",
+      });
+    },
+  });
+
+  const toggleCommentLikeMutation = useMutation({
+    mutationFn: async ({ commentId }) => {
+      // backend returns: { data: { commentId, likes, liked } }
+      const res = await api.post(`/blogposts/${postId}/comments/${commentId}/like`);
+      return res.data?.data;
+    },
+    onSuccess: (data) => {
+      // reconcile with server truth
+      if (!data?.commentId) return;
+
+      setCommentLikes((prev) => ({ ...prev, [data.commentId]: data.likes }));
+      setCommentLikedByMe((prev) => ({ ...prev, [data.commentId]: !!data.liked }));
+    },
+    onError: (err, vars) => {
+      // rollback optimistic update if needed
+      if (vars?.commentId) {
+        setCommentLikes((prev) => {
+          const current = prev[vars.commentId];
+          // revert by flipping: if we optimistically +1 then -1, etc.
+          // safest is refetch, but we keep style same:
+          queryClient.invalidateQueries({ queryKey: ["blogpost-comments", postId] });
+          return prev;
+        });
+      }
+
+      toast.error("Failed to like comment", {
+        description: err?.response?.data?.message || "Please try again.",
+      });
+    },
+  });
+
+  // ------------------------
+  // UI actions
+  // ------------------------
+  const handleLike = () => {
+    setLiked((prev) => {
+      const next = !prev;
+      setLikeCount((c) => (next ? c + 1 : Math.max(0, c - 1)));
+      toast.success(next ? "Post liked!" : "Like removed");
+      return next;
+    });
+  };
+
+  const handleBookmark = () => {
+    setBookmarked((prev) => {
+      const next = !prev;
+      toast.success(next ? "Post bookmarked!" : "Bookmark removed");
+      return next;
+    });
+  };
+
+  const handleShare = async () => {
+    try {
+      await navigator.clipboard.writeText(window.location.href);
+      toast.success("Link copied to clipboard!");
+    } catch {
+      toast.error("Copy failed", { description: "Could not copy link." });
+    }
+  };
+
+  const handleComment = () => {
+    if (!user) return;
+    if (!commentText.trim()) return;
+    createCommentMutation.mutate({ content: commentText.trim() });
+  };
+
+  const openReply = (commentId) => {
+    if (!user) return;
+    setActiveReplyCommentId((prev) => (prev === commentId ? null : commentId));
+  };
+
+  const submitReply = (commentId) => {
+    if (!user) return;
+    const text = (replyTextByCommentId[commentId] || "").trim();
+    if (!text) return;
+    createReplyMutation.mutate({ commentId, content: text });
+  };
+
+  // NEW: comment like handler (facebook style toggle)
+  const handleCommentLike = (comment) => {
+    if (!user) {
+      toast.error("Please login to like comments");
+      return;
+    }
+
+    const commentId = comment._id;
+    const currentlyLiked = !!commentLikedByMe[commentId];
+    const currentCount = commentLikes[commentId] ?? (comment.likes || 0);
+
+    // optimistic UI
+    setCommentLikedByMe((prev) => ({ ...prev, [commentId]: !currentlyLiked }));
+    setCommentLikes((prev) => ({
+      ...prev,
+      [commentId]: currentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1,
+    }));
+
+    toggleCommentLikeMutation.mutate({ commentId });
+  };
+
+  const loginCta = (
+    <div className="rounded-lg border bg-white dark:bg-gray-900 dark:border-gray-800 p-4">
+      <div className="flex items-start justify-between gap-4">
+        <div>
+          <p className="font-medium text-gray-900 dark:text-gray-100">
+            Want to join the discussion?
+          </p>
+          <p className="text-sm text-gray-600 dark:text-gray-400 mt-1">
+            Create an account to post comments and replies.
+          </p>
+        </div>
+        <Button onClick={() => (window.location.href = "/signup")}>Create Account</Button>
+      </div>
+    </div>
+  );
+
+  const handleRelated = (id) => {
+    onRelatedPostClick?.(id);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+      {/* Header - Sticky interaction bar */}
+      <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 sticky top-0 z-10 shadow-sm">
+        <div className="max-w-8xl mx-auto px-4 py-4">
+          <div className="flex items-center justify-between">
+            <Button variant="ghost" onClick={onBack}>
+              <ArrowLeft className="w-5 h-5 mr-2" />
+              Back to Blog
+            </Button>
+
+            <div className="flex items-center gap-2 mr-20">
+              <Button
+                variant={liked ? "default" : "outline"}
+                size="sm"
+                onClick={handleLike}
+                className={liked ? "bg-red-500 hover:bg-red-600" : ""}
+              >
+                <Heart className={`w-4 h-4 mr-1 ${liked ? "fill-white" : ""}`} />
+                {likeCount}
+              </Button>
+
+              <Button
+                variant={bookmarked ? "default" : "outline"}
+                size="sm"
+                onClick={handleBookmark}
+              >
+                <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-current" : ""}`} />
+              </Button>
+
+              <Button variant="outline" size="sm" onClick={handleShare}>
+                <Share2 className="w-4 h-4" />
+              </Button>
+
+              <span className="text-sm text-gray-500 dark:text-gray-400 flex items-center gap-1 ml-2">
+                <Eye className="w-4 h-4" />
+                {post.views}
+              </span>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+
+      <div className="max-w-7xl mx-auto px-4 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-8">
+          {/* Main Content */}
+          <div className="lg:col-span-8 min-w-0">
+            <motion.article
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-white dark:bg-gray-900 rounded-none sm:rounded-lg shadow-none sm:shadow-sm overflow-hidden"
+            >
+              {/* Cover Image */}
+              <div className="w-full h-96 overflow-hidden">
+                <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
+              </div>
+
+              {/* Post Header */}
+              <div className="p-4 sm:p-6 md:p-10 lg:p-12">
+                {post.bookRelated && (
+                  <div className="mb-6">
+                    <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-2 w-fit dark:bg-blue-950 dark:text-blue-200 dark:border-blue-900">
+                      <BookOpen className="w-4 h-4" />
+                      Written after reading {post.bookRelated}
+                    </Badge>
+                  </div>
+                )}
+
+                <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
+                  {post.title}
+                </h1>
+
+                {/* Author Info */}
+                <div className="flex items-center gap-4 mb-8 pb-8 border-b dark:border-gray-800">
+                  <Avatar className="w-14 h-14">
+                    <AvatarImage src={post.author.avatar} />
+                    <AvatarFallback>{post.author.name?.[0] || "U"}</AvatarFallback>
+                  </Avatar>
+
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="font-semibold text-gray-900 dark:text-gray-100">
+                        {post.author.name}
+                      </p>
+                      <Badge
+                        variant="outline"
+                        className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                      >
+                        {post.author.role}
+                      </Badge>
+                    </div>
+
+                    <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                      <span>
+                        {new Date(post.publishDate).toLocaleDateString("en-US", {
+                          month: "long",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {post.readingTime} min read
+                      </span>
+                      <span>•</span>
+                      <span className="flex items-center gap-1">
+                        <MessageCircle className="w-3 h-3" />
+                        {post.comments} comments
+                      </span>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Content */}
+                <div className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words ${
+                  showFullContent ? "" : "max-h-[520px] overflow-hidden"
+                }`}>
+                  {post.content && post.content.includes("<") ? (
+                    <div dangerouslySetInnerHTML={{ __html: post.content }} />
+                  ) : (
+                    post.content.split("\n\n").map((paragraph, index) => (
+                      <p key={index} className="mb-6 leading-relaxed break-words whitespace-pre-wrap">
+                        {paragraph}
+                      </p>
+                    ))
+                  )}
+
+                  {!showFullContent && (
+                    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
+                  )}
+                </div>
+
+                <div className="mt-4">
+                  <Button variant="outline" onClick={() => setShowFullContent((v) => !v)}>
+                    {showFullContent ? "Show less" : "Read full post"}
+                  </Button>
+                </div>
+
+                {/* Tags */}
+                <div className="flex flex-wrap gap-2 mt-12 pt-8 border-t dark:border-gray-800">
+                  {post.tags.map((tag) => (
+                    <Badge key={tag} variant="outline" className="text-sm">
+                      {tag}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            </motion.article>
+
+            {/* Comments Section */}
+            <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2 dark:text-gray-100">
+                  <MessageCircle className="w-5 h-5" />
+                  Comments ({comments.length})
+                </CardTitle>
+              </CardHeader>
+
+              <CardContent className="space-y-6">
+                {!user ? (
+                  <>
+                    {loginCta}
+                    <Separator className="dark:bg-gray-800" />
+                  </>
+                ) : (
+                  <>
+                    {!showCommentForm ? (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => setShowCommentForm(true)}
+                      >
+                        <MessageCircle className="w-4 h-4 mr-2" />
+                        Add a comment
+                      </Button>
+                    ) : (
+                      <div className="space-y-3">
+                        <Textarea
+                          placeholder="Share your thoughts..."
+                          value={commentText}
+                          onChange={(e) => setCommentText(e.target.value)}
+                          rows={3}
+                        />
+                        <div className="flex gap-2">
+                          <Button
+                            onClick={handleComment}
+                            className="bg-blue-600 hover:bg-blue-700"
+                            disabled={createCommentMutation.isPending}
+                          >
+                            <Send className="w-4 h-4 mr-2" />
+                            {createCommentMutation.isPending ? "Posting..." : "Post Comment"}
+                          </Button>
+                          <Button variant="outline" onClick={() => setShowCommentForm(false)}>
+                            Cancel
+                          </Button>
+                        </div>
+                      </div>
+                    )}
+
+                    <Separator className="dark:bg-gray-800" />
+                  </>
+                )}
+
+                <div className="space-y-6">
+                  {commentsLoading ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">
+                      Loading comments...
+                    </div>
+                  ) : commentsError ? (
+                    <div className="text-sm text-red-600">
+                      Failed to load comments:{" "}
+                      {commentsErr?.response?.data?.message || commentsErr?.message || "Unknown"}
+                    </div>
+                  ) : comments.length === 0 ? (
+                    <div className="text-sm text-gray-500 dark:text-gray-400">No comments yet.</div>
+                  ) : (
+                    comments.map((comment) => {
+                      const displayLikes = commentLikes[comment._id] ?? (comment.likes || 0);
+                      const isLiked = !!commentLikedByMe[comment._id];
+
+                      return (
+                        <div key={comment._id}>
+                          <div
+                            className={`${
+                              comment.isPinned || comment.isBestInsight
+                                ? "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-lg dark:from-blue-950 dark:to-indigo-950 dark:border-blue-900"
+                                : ""
+                            }`}
+                          >
+                            {comment.isPinned && (
+                              <div className="flex items-center gap-2 text-sm text-blue-700 mb-2 dark:text-blue-300">
+                                <Pin className="w-4 h-4" />
+                                <span className="font-medium">Pinned by moderator</span>
+                              </div>
+                            )}
+
+                            {comment.isBestInsight && (
+                              <div className="flex items-center gap-2 text-sm text-purple-700 mb-2 dark:text-purple-300">
+                                <Sparkles className="w-4 h-4" />
+                                <span className="font-medium">Best Insight</span>
+                              </div>
+                            )}
+
+                            <div className="flex gap-3">
+                              <Avatar className="w-10 h-10">
+                                <AvatarImage src={comment.author?.avatar} />
+                                <AvatarFallback>
+                                  {comment.author?.name?.[0] || "U"}
+                                </AvatarFallback>
+                              </Avatar>
+
+                              <div className="flex-1">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium text-gray-900 dark:text-gray-100">
+                                    {comment.author?.name || "Unknown"}
+                                  </span>
+                                  <Badge
+                                    variant="outline"
+                                    className={`text-xs ${
+                                      comment.author?.role === "Moderator"
+                                        ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                                        : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-900"
+                                    }`}
+                                  >
+                                    {comment.author?.role || "Member"}
+                                  </Badge>
+
+                                  <span className="text-sm text-gray-500 dark:text-gray-400">
+                                    {timeAgo(comment.createdAt)}
+                                  </span>
+                                </div>
+
+                                <p className="text-gray-700 dark:text-gray-200 mb-2 break-words">
+                                  {comment.content}
+                                </p>
+
+                                <div className="flex items-center gap-3 text-sm">
+                                  {/* UPDATED: uses backend toggle like endpoint */}
+                                  <button
+                                    className={`flex items-center gap-1 transition-colors ${
+                                      isLiked
+                                        ? "text-blue-600"
+                                        : "text-gray-500 hover:text-blue-600 dark:text-gray-400"
+                                    }`}
+                                    onClick={() => handleCommentLike(comment)}
+                                    type="button"
+                                    disabled={toggleCommentLikeMutation.isPending}
+                                  >
+                                    <ThumbsUp className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
+                                    <span>{displayLikes}</span>
+                                  </button>
+
+                                  <button
+                                    className="text-gray-500 hover:text-blue-600 transition-colors dark:text-gray-400"
+                                    onClick={() => openReply(comment._id)}
+                                    disabled={!user}
+                                    type="button"
+                                  >
+                                    Reply
+                                  </button>
+
+                                  <button
+                                    className="text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 dark:text-gray-400"
+                                    type="button"
+                                  >
+                                    <Flag className="w-3 h-3" />
+                                    Report
+                                  </button>
+                                </div>
+
+                                {user && activeReplyCommentId === comment._id && (
+                                  <div className="mt-3 space-y-2">
+                                    <Textarea
+                                      placeholder="Write a reply..."
+                                      rows={2}
+                                      value={replyTextByCommentId[comment._id] || ""}
+                                      onChange={(e) =>
+                                        setReplyTextByCommentId((prev) => ({
+                                          ...prev,
+                                          [comment._id]: e.target.value,
+                                        }))
+                                      }
+                                    />
+                                    <div className="flex gap-2">
+                                      <Button
+                                        onClick={() => submitReply(comment._id)}
+                                        disabled={createReplyMutation.isPending}
+                                        className="bg-blue-600 hover:bg-blue-700"
+                                      >
+                                        <Send className="w-4 h-4 mr-2" />
+                                        {createReplyMutation.isPending ? "Posting..." : "Reply"}
+                                      </Button>
+                                      <Button
+                                        variant="outline"
+                                        onClick={() => setActiveReplyCommentId(null)}
+                                      >
+                                        Cancel
+                                      </Button>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                          </div>
+
+                          {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+                            <div className="ml-12 mt-4 space-y-4">
+                              {comment.replies.map((reply) => (
+                                <div key={reply._id} className="flex gap-3">
+                                  <Avatar className="w-8 h-8">
+                                    <AvatarImage src={reply.author?.avatar} />
+                                    <AvatarFallback>
+                                      {reply.author?.name?.[0] || "U"}
+                                    </AvatarFallback>
+                                  </Avatar>
+                                  <div className="flex-1">
+                                    <div className="flex items-center gap-2 mb-1">
+                                      <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                                        {reply.author?.name || "Unknown"}
+                                      </span>
+                                      <Badge
+                                        variant="outline"
+                                        className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                                      >
+                                        {reply.author?.role || "Member"}
+                                      </Badge>
+                                      <span className="text-xs text-gray-500 dark:text-gray-400">
+                                        {timeAgo(reply.createdAt)}
+                                      </span>
+                                    </div>
+
+                                    <p className="text-sm text-gray-700 dark:text-gray-200 break-words">
+                                      {reply.content}
+                                    </p>
+                                  </div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* Sidebar */}
+          <div className="w-full space-y-12 lg:col-span-4">
+            <Card className="shadow-sm dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 dark:text-gray-100">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  Similar Topics You May Like
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Based on shared tags</p>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {relatedPosts.map((relatedPost) => (
+                  <motion.div
+                    key={relatedPost.id}
+                    whileHover={{ scale: 1.02 }}
+                    className="group cursor-pointer"
+                    onClick={() => handleRelated(relatedPost.id)}
+                  >
+                    <div className="flex gap-3">
+                      <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <img
+                          src={relatedPost.coverImage}
+                          alt={relatedPost.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      </div>
+                      <div className="flex-1">
+                        <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
+                          {relatedPost.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          By {relatedPost.author} • {relatedPost.readingTime} min
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {relatedPost.matchingTags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <Separator className="mt-4 dark:bg-gray-800" />
+                  </motion.div>
+                ))}
+
+                <Button variant="outline" className="w-full">
+                  Show More Related Posts
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Router wrapper
+export default function BlogDetailsPage() {
+  const { id } = useParams();
+  const navigate = useNavigate();
+  return (
+    <BlogPostDetail
+      postId={id}
+      onBack={() => navigate(-1)}
+      onRelatedPostClick={(relatedId) => navigate(`/dashboard/blogs/${relatedId}`)}
+    />
+  );
+}

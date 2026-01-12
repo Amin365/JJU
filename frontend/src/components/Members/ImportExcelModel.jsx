@@ -1,6 +1,5 @@
-import React, { useState, useRef, useCallback, useEffect, useLayoutEffect, memo } from "react";
+import React, { useState, useRef, useCallback, useEffect, useLayoutEffect } from "react";
 import * as XLSX from "xlsx";
-import PropTypes from "prop-types";
 import { UploadCloud, X, AlertCircle, CheckCircle, Info } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
@@ -56,7 +55,7 @@ function getDropAreaClass({ isDragging, file }) {
 
 const normalizeKey = (key) => String(key || "").toLowerCase().trim().replace(/\s+/g, "_");
 
-const ImportMembersExcelModal = memo(function ImportMembersExcelModal({ isOpen, onClose, refreshTable }) {
+function ImportMembersExcelModal({ isOpen, onClose, refreshTable }) {
   const qc = useQueryClient();
 
   const [file, setFile] = useState(null);
@@ -360,12 +359,6 @@ const ImportMembersExcelModal = memo(function ImportMembersExcelModal({ isOpen, 
       </Card>
     </div>
   );
-});
-
-ImportMembersExcelModal.propTypes = {
-  isOpen: PropTypes.bool.isRequired,
-  onClose: PropTypes.func.isRequired,
-  refreshTable: PropTypes.func,
-};
+}
 
 export default ImportMembersExcelModal;

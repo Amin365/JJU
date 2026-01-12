@@ -14,6 +14,9 @@ import NotificationRouter from "./routers/NotificationRouter.js"
 import { startIssueDueScheduler } from "./modules/issueDueScheduler.js"
 import issueRouter from "./routers/IssueRouter.js"
 import ModeratorRouter from "./routers/ModeratorRouter.js"
+import UserRouter from "./routers/UserRouter.js"
+import BlogRouter from "./routers/BlogRouter.js"
+import CommentRouter from "./routers/CommentRouter.js"
 
 dotenv.config()
 const app = express()
@@ -37,7 +40,9 @@ app.use("/api", RoleRouter);
 app.use('/api',issueRouter)
 app.use('/api',DailyReportRouter)
 app.use('/api',NotificationRouter)
-
+app.use('/api',UserRouter)
+app.use('/api',BlogRouter)
+app.use('/api/blogposts', CommentRouter)
 
 
 app.post("/sync-and-migration", async (req, res) => {

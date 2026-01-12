@@ -97,6 +97,13 @@ export default function ModeratorMembersPage() {
 
   return (
     <div className="p-6 space-y-4">
+    <div>
+    <Button className="p-4 mb-4" variant="outline" onClick={() => window.history.back()}>
+      Back 
+    </Button>
+
+
+    </div>
       <div className="mb-4 p-4  dark:text-white text-gray-800 rounded">
         <p>Manage assigned members for this moderator.</p>
       </div>

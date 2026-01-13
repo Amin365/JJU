@@ -32,6 +32,8 @@ const ReportRecap=lazy(()=>import('./components/Members/ReadingRecap'));
 const BlogEdit=lazy(()=>import('./components/Blogs/BlogEdit'));
 const BlogTable=lazy(()=>import('./components/Blogs/BlogTable'));
 const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
+const BlogFeeds=lazy(()=>import('./components/Blogs/BlogFeeds'));
+
 const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 function App() {
   return (
@@ -40,6 +42,8 @@ function App() {
         {/* auth */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/" element={<Homepage />} />
+          <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
+               <Route path="/blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogFeeds /></Suspense>} />
 
 
         <Route

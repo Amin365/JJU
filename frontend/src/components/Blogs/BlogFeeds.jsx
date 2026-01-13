@@ -1,471 +1,429 @@
-import { useState } from 'react';
-import { motion } from 'motion/react';
-import { BookOpen, Search, Plus, Heart, MessageCircle, Clock, Eye, TrendingUp, Sparkles, Filter } from 'lucide-react';
-import { Card, CardContent } from './ui/card';
-import { Button } from './ui/button';
-import { Input } from './ui/input';
-import { Badge } from './ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar';
-import { Tabs, TabsList, TabsTrigger } from './ui/tabs';
+import { useMemo, useState, useEffect } from "react";
+import { useNavigate } from "react-router";
+import { useQuery } from "@tanstack/react-query";
+import { Search, Clock, Eye, Filter, ChevronRight } from "lucide-react";
 
-interface BlogPost {
-  id: string;
-  title: string;
-  excerpt: string;
-  coverImage: string;
-  author: {
-    name: string;
-    avatar: string;
-    role: 'Member' | 'Moderator';
-  };
-  readingTime: number;
-  publishDate: string;
-  likes: number;
-  comments: number;
-  views: number;
-  tags: string[];
-  bookRelated?: string;
-  featured?: boolean;
-  trending?: boolean;
+import api from "@/app/api/apislice";
+import BlogHeros from "./BlogHero";
+
+import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge"; // shadcn badge
+
+import Footers from "../Homepage/Footer";
+
+/*  constants  */
+
+const FALLBACK_IMAGE =
+  "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=1200&h=600&fit=crop";
+
+const PAGE_SIZE = 12;
+
+/*  utils  */
+
+function stripHtml(input) {
+  if (!input) return "";
+  return String(input)
+    .replace(/<[^>]*>/g, " ")
+    .replace(/\s+/g, " ")
+    .trim();
 }
 
-const mockBlogPosts: BlogPost[] = [
-  {
-    id: '1',
-    title: 'The Power of Atomic Habits: How Small Changes Lead to Remarkable Results',
-    excerpt: 'After finishing James Clear\'s Atomic Habits, I\'ve discovered that building better habits isn\'t about massive transformations...',
-    coverImage: 'https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=800&h=400&fit=crop',
-    author: {
-      name: 'Sarah Johnson',
-      avatar: 'https://i.pravatar.cc/150?img=1',
-      role: 'Moderator',
-    },
-    readingTime: 5,
-    publishDate: '2026-01-10',
-    likes: 234,
-    comments: 45,
-    views: 1250,
-    tags: ['Self-Improvement', 'Habits', 'Productivity'],
-    bookRelated: 'Atomic Habits',
-    featured: true,
-  },
-  {
-    id: '2',
-    title: 'Why 1984 Still Resonates Today: A Modern Perspective',
-    excerpt: 'George Orwell\'s dystopian masterpiece continues to be relevant in our digital age. The themes of surveillance, truth manipulation...',
-    coverImage: 'https://images.unsplash.com/photo-1516979187457-637abb4f9353?w=800&h=400&fit=crop',
-    author: {
-      name: 'Michael Chen',
-      avatar: 'https://i.pravatar.cc/150?img=12',
-      role: 'Member',
-    },
-    readingTime: 7,
-    publishDate: '2026-01-09',
-    likes: 189,
-    comments: 32,
-    views: 890,
-    tags: ['Classic Literature', 'Social Commentary', 'Dystopian'],
-    bookRelated: '1984',
-    trending: true,
-  },
-  {
-    id: '3',
-    title: 'Building a Consistent Reading Habit: My Journey',
-    excerpt: 'Three months ago, I committed to reading 30 minutes daily. Here\'s what I learned about consistency, motivation, and the joy of reading...',
-    coverImage: 'https://images.unsplash.com/photo-1507842217343-583bb7270b66?w=800&h=400&fit=crop',
-    author: {
-      name: 'Emma Wilson',
-      avatar: 'https://i.pravatar.cc/150?img=5',
-      role: 'Member',
-    },
-    readingTime: 4,
-    publishDate: '2026-01-08',
-    likes: 156,
-    comments: 28,
-    views: 654,
-    tags: ['Reading Tips', 'Personal Growth', 'Habits'],
-  },
-  {
-    id: '4',
-    title: 'The Great Gatsby: Symbolism and the American Dream',
-    excerpt: 'F. Scott Fitzgerald\'s use of symbolism throughout The Great Gatsby creates layers of meaning that go far beyond the surface narrative...',
-    coverImage: 'https://images.unsplash.com/photo-1544947950-fa07a98d237f?w=800&h=400&fit=crop',
-    author: {
-      name: 'David Martinez',
-      avatar: 'https://i.pravatar.cc/150?img=8',
-      role: 'Moderator',
-    },
-    readingTime: 6,
-    publishDate: '2026-01-07',
-    likes: 198,
-    comments: 41,
-    views: 987,
-    tags: ['Classic Literature', 'Literary Analysis', 'American Literature'],
-    bookRelated: 'The Great Gatsby',
-  },
-  {
-    id: '5',
-    title: 'My Top 10 Book Recommendations for 2026',
-    excerpt: 'As we start a new year, I wanted to share my favorite books that have shaped my thinking and inspired me to become a better reader...',
-    coverImage: 'https://images.unsplash.com/photo-1512820790803-83ca734da794?w=800&h=400&fit=crop',
-    author: {
-      name: 'Lisa Anderson',
-      avatar: 'https://i.pravatar.cc/150?img=9',
-      role: 'Member',
-    },
-    readingTime: 8,
-    publishDate: '2026-01-06',
-    likes: 312,
-    comments: 67,
-    views: 1543,
-    tags: ['Book Recommendations', 'Reading Lists', 'Reviews'],
-    trending: true,
-  },
-];
-
-interface BlogFeedProps {
-  onWriteClick: () => void;
-  onPostClick: (postId: string) => void;
+function normTag(tag) {
+  return String(tag ?? "")
+    .replace(/\u00a0/g, " ")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toLowerCase();
 }
 
-export function BlogFeed({ onWriteClick, onPostClick }: BlogFeedProps) {
-  const [searchQuery, setSearchQuery] = useState('');
-  const [selectedFilter, setSelectedFilter] = useState('latest');
-  const [selectedTags, setSelectedTags] = useState<string[]>([]);
+function tagLabel(tag) {
+  if (typeof tag === "string") return tag;
+  if (tag && typeof tag === "object")
+    return tag.name || tag.label || tag.value || tag.title || "";
+  return "";
+}
 
-  // Get all unique tags
-  const allTags = Array.from(
-    new Set(mockBlogPosts.flatMap((post) => post.tags))
+/*  tag pill  */
+
+function TagPill({ active, children, onClick, className = "" }) {
+  return (
+    <button
+      type="button"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick?.();
+      }}
+      className={[
+        "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition",
+        active
+          ? "bg-blue-600 text-white border-blue-600"
+          : "bg-white text-gray-800 border-gray-200 hover:bg-gray-100",
+        className,
+      ].join(" ")}
+    >
+      {children}
+    </button>
   );
+}
 
-  const filteredPosts = mockBlogPosts.filter((post) => {
-    const matchesSearch =
-      searchQuery === '' ||
-      post.title.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.excerpt.toLowerCase().includes(searchQuery.toLowerCase()) ||
-      post.author.name.toLowerCase().includes(searchQuery.toLowerCase());
+/*  main component  */
 
-    const matchesTags =
-      selectedTags.length === 0 ||
-      selectedTags.some((tag) => post.tags.includes(tag));
+export default function BlogFeed({ onPostClick }) {
+  const navigate = useNavigate();
 
-    return matchesSearch && matchesTags;
+  const [searchTerm, setSearchTerm] = useState("");
+  const [selectedTagKey, setSelectedTagKey] = useState("");
+  const [page, setPage] = useState(1);
+
+  /* -------- fetch posts -------- */
+
+  const { data, isLoading, isError, error } = useQuery({
+    queryKey: ["blogposts-feed"],
+    queryFn: async () => {
+      const res = await api.get("/blogposts", {
+        params: { scope: "public", limit: 1000 },
+      });
+      return res.data;
+    },
+    staleTime: 60_000,
   });
 
-  const toggleTag = (tag: string) => {
-    setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+  /* -------- normalize posts -------- */
+
+  const posts = useMemo(() => {
+    const raw = Array.isArray(data?.data)
+      ? data.data
+      : Array.isArray(data)
+      ? data
+      : [];
+
+    return raw.map((post, index) => {
+      const tags = (Array.isArray(post?.tags) ? post.tags : [])
+        .map(tagLabel)
+        .filter(Boolean);
+
+      return {
+        id: String(post?._id || post?.id || `fallback-${index}`),
+        title: stripHtml(post?.title) || "Untitled",
+        excerpt:
+          stripHtml(post?.excerpt) ||
+          `${stripHtml(post?.content).slice(0, 140)}...`,
+        coverImage:
+          post?.blog_picture || post?.coverImage || FALLBACK_IMAGE,
+        author: post?.author || "Unknown",
+        readingTime: post?.readingTime || 5,
+        publishDate:
+          post?.createdAt || post?.publishDate || new Date().toISOString(),
+        views: post?.views || 0,
+        tags,
+        tagsNorm: tags.map(normTag),
+      };
+    });
+  }, [data]);
+
+  /* -------- collect all tags -------- */
+
+  const allTags = useMemo(() => {
+    const map = new Map();
+
+    posts.forEach((post) => {
+      post.tags.forEach((label) => {
+        const key = normTag(label);
+        if (key && !map.has(key)) {
+          map.set(key, label);
+        }
+      });
+    });
+
+    return Array.from(map.entries()).map(([key, label]) => ({
+      key,
+      label,
+    }));
+  }, [posts]);
+
+  /* -------- reset invalid tag -------- */
+
+  useEffect(() => {
+    if (selectedTagKey && !allTags.some((t) => t.key === selectedTagKey)) {
+      setSelectedTagKey("");
+    }
+  }, [allTags, selectedTagKey]);
+
+  /* -------- reset page on filter change -------- */
+
+  useEffect(() => {
+    setPage(1);
+  }, [searchTerm, selectedTagKey]);
+
+  /* -------- clear filters -------- */
+
+  const clearFilters = () => {
+    setSearchTerm("");
+    setSelectedTagKey("");
+    setPage(1);
+  };
+
+  /* -------- filtering -------- */
+
+  const filteredPosts = useMemo(() => {
+    const q = searchTerm.trim().toLowerCase();
+
+    return posts
+      .slice()
+      .sort((a, b) => new Date(b.publishDate) - new Date(a.publishDate))
+      .filter((post) => {
+        const matchSearch =
+          !q ||
+          post.title.toLowerCase().includes(q) ||
+          post.excerpt.toLowerCase().includes(q);
+
+        const matchTag =
+          !selectedTagKey || post.tagsNorm.includes(selectedTagKey);
+
+        return matchSearch && matchTag;
+      });
+  }, [posts, searchTerm, selectedTagKey]);
+
+  /* -------- pagination -------- */
+
+  const totalPosts = filteredPosts.length;
+  const totalPages = Math.max(1, Math.ceil(totalPosts / PAGE_SIZE));
+
+  // clamp page if totalPages changes
+  useEffect(() => {
+    if (page > totalPages) setPage(totalPages);
+    if (page < 1) setPage(1);
+  }, [page, totalPages]);
+
+  const pagePosts = useMemo(() => {
+    const start = (page - 1) * PAGE_SIZE;
+    return filteredPosts.slice(start, start + PAGE_SIZE);
+  }, [filteredPosts, page]);
+
+  const startIndex = totalPosts === 0 ? 0 : (page - 1) * PAGE_SIZE + 1;
+  const endIndex = Math.min(totalPosts, page * PAGE_SIZE);
+  const remaining = Math.max(0, totalPosts - endIndex);
+
+  // produces array of numbers and "…" markers for pagination
+  function renderPages() {
+    const pages = [];
+    const delta = 2; // how many pages around current to show
+    for (let i = 1; i <= totalPages; i++) {
+      if (
+        i === 1 ||
+        i === totalPages ||
+        (i >= page - delta && i <= page + delta)
+      ) {
+        pages.push(i);
+      } else {
+        if (pages[pages.length - 1] !== "…") pages.push("…");
+      }
+    }
+    return pages;
+  }
+
+  const handlePostClick = (id) => {
+    onPostClick ? onPostClick(id) : navigate(`/blogs/${id}`);
+  };
+
+  /* -------- UI -------- */
+
+  if (isLoading)
+    return <p className="p-6 text-gray-500">Loading blog posts...</p>;
+
+  if (isError)
+    return (
+      <p className="p-6 text-red-600">
+        Failed to load posts: {error?.message}
+      </p>
     );
-  };
-
-  const featuredPost = mockBlogPosts.find((post) => post.featured);
-
-  const containerVariants = {
-    hidden: { opacity: 0 },
-    visible: {
-      opacity: 1,
-      transition: {
-        staggerChildren: 0.1,
-      },
-    },
-  };
-
-  const itemVariants = {
-    hidden: { opacity: 0, y: 20 },
-    visible: {
-      opacity: 1,
-      y: 0,
-      transition: {
-        duration: 0.4,
-      },
-    },
-  };
 
   return (
-    <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-6xl mx-auto">
-        {/* Header */}
-        <div className="flex items-center justify-between mb-8">
-          <div>
-            <h1 className="text-4xl font-bold text-gray-900 mb-2">Community Blog</h1>
-            <p className="text-gray-600">Share your reading journey and insights</p>
-          </div>
-          <Button
-            onClick={onWriteClick}
-            className="bg-blue-600 hover:bg-blue-700 shadow-sm"
-            size="lg"
-          >
-            <Plus className="w-5 h-5 mr-2" />
-            Write a Post
-          </Button>
+    <div className="min-h-screen bg-gray-50 py-10">
+      <BlogHeros />
+
+      <div className="mx-auto max-w-7xl px-4 mt-16">
+        {/* Header + Paragraph */}
+        <div className="max-w-3xl mx-auto text-center mb-10">
+          <h2 className="text-3xl font-extrabold text-gray-900">Our Blog</h2>
+          <p className="mt-3 text-gray-600 text-lg">
+            Explore our latest insights, tutorials, and updates about education technology and online learning.
+          </p>
+          <div className="mt-2 text-sm text-gray-500">Blog posts</div>
         </div>
 
-        {/* Search & Filters */}
-        <Card className="mb-6 shadow-sm">
-          <CardContent className="p-6">
-            <div className="space-y-4">
-              {/* Search bar */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
-                <Input
-                  placeholder="Search by title, tag, or author..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
+        {/* Search */}
+        <div className="mb-6 max-w-xl mx-auto relative">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
+          <Input
+            placeholder="Search articles..."
+            className="pl-9"
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+          />
+        </div>
 
-              {/* Filter tabs */}
-              <div className="flex items-center justify-between flex-wrap gap-4">
-                <Tabs value={selectedFilter} onValueChange={setSelectedFilter}>
-                  <TabsList>
-                    <TabsTrigger value="latest">Latest</TabsTrigger>
-                    <TabsTrigger value="trending">
-                      <TrendingUp className="w-4 h-4 mr-1" />
-                      Trending
-                    </TabsTrigger>
-                    <TabsTrigger value="reviews">Book Reviews</TabsTrigger>
-                    <TabsTrigger value="reflections">Reflections</TabsTrigger>
-                  </TabsList>
-                </Tabs>
-              </div>
-
-              {/* Tag chips */}
-              <div className="flex flex-wrap gap-2">
-                {allTags.map((tag) => (
-                  <Badge
-                    key={tag}
-                    variant={selectedTags.includes(tag) ? 'default' : 'outline'}
-                    className={`cursor-pointer transition-all ${
-                      selectedTags.includes(tag)
-                        ? 'bg-blue-600 hover:bg-blue-700'
-                        : 'hover:bg-gray-100'
-                    }`}
-                    onClick={() => toggleTag(tag)}
-                  >
-                    {tag}
-                  </Badge>
-                ))}
-              </div>
+        {/* Tags */}
+        <div className="mb-10 max-w-xl mx-auto">
+          <div className="flex justify-between mb-3">
+            <div className="flex gap-2 items-center">
+              <Filter className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-semibold">Tags</span>
             </div>
-          </CardContent>
-        </Card>
 
-        {/* Featured Post */}
-        {featuredPost && selectedFilter === 'latest' && (
-          <motion.div
-            initial={{ opacity: 0, y: 20 }}
-            animate={{ opacity: 1, y: 0 }}
-            className="mb-8"
-          >
-            <div className="flex items-center gap-2 mb-3">
-              <Sparkles className="w-5 h-5 text-yellow-500" />
-              <span className="text-sm font-semibold text-gray-700">Featured Post</span>
-            </div>
-            <Card
-              className="overflow-hidden shadow-lg hover:shadow-xl transition-all duration-300 cursor-pointer group"
-              onClick={() => onPostClick(featuredPost.id)}
-            >
-              <div className="relative h-64 overflow-hidden">
-                <img
-                  src={featuredPost.coverImage}
-                  alt={featuredPost.title}
-                  className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                />
-                <div className="absolute top-4 left-4">
-                  <Badge className="bg-yellow-500 text-white hover:bg-yellow-600">
-                    Featured
-                  </Badge>
-                </div>
-              </div>
-              <CardContent className="p-6">
-                <h2 className="text-2xl font-bold text-gray-900 mb-3 group-hover:text-blue-600 transition-colors">
-                  {featuredPost.title}
-                </h2>
-                <p className="text-gray-600 mb-4 line-clamp-2">{featuredPost.excerpt}</p>
+            {(searchTerm || selectedTagKey) && (
+              <Button size="sm" variant="outline" onClick={clearFilters}>
+                Clear filters
+              </Button>
+            )}
+          </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarImage src={featuredPost.author.avatar} />
-                      <AvatarFallback>{featuredPost.author.name[0]}</AvatarFallback>
-                    </Avatar>
-                    <div>
-                      <div className="flex items-center gap-2">
-                        <p className="font-medium text-gray-900">{featuredPost.author.name}</p>
-                        <Badge
-                          variant="outline"
-                          className={
-                            featuredPost.author.role === 'Moderator'
-                              ? 'bg-purple-50 text-purple-700 border-purple-200'
-                              : 'bg-blue-50 text-blue-700 border-blue-200'
-                          }
-                        >
-                          {featuredPost.author.role}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-gray-500">
-                        <span>
-                          {new Date(featuredPost.publishDate).toLocaleDateString('en-US', {
-                            month: 'short',
-                            day: 'numeric',
-                          })}
-                        </span>
-                        <span>•</span>
-                        <span className="flex items-center gap-1">
-                          <Clock className="w-3 h-3" />
-                          {featuredPost.readingTime} min read
-                        </span>
-                      </div>
-                    </div>
-                  </div>
+          <div className="flex flex-wrap gap-2">
+            <TagPill active={!selectedTagKey} onClick={clearFilters}>
+              All
+            </TagPill>
 
-                  <div className="flex items-center gap-4 text-sm text-gray-500">
-                    <span className="flex items-center gap-1">
-                      <Heart className="w-4 h-4" />
-                      {featuredPost.likes}
-                    </span>
-                    <span className="flex items-center gap-1">
-                      <MessageCircle className="w-4 h-4" />
-                      {featuredPost.comments}
-                    </span>
-                  </div>
-                </div>
-
-                <div className="flex flex-wrap gap-2 mt-4">
-                  {featuredPost.tags.map((tag) => (
-                    <Badge key={tag} variant="outline" className="text-xs">
-                      {tag}
-                    </Badge>
-                  ))}
-                </div>
-              </CardContent>
-            </Card>
-          </motion.div>
-        )}
-
-        {/* Blog Posts Grid */}
-        <motion.div
-          className="grid grid-cols-1 md:grid-cols-2 gap-6"
-          variants={containerVariants}
-          initial="hidden"
-          animate="visible"
-        >
-          {filteredPosts
-            .filter((post) => !post.featured)
-            .map((post) => (
-              <motion.div key={post.id} variants={itemVariants}>
-                <Card
-                  className="overflow-hidden shadow-sm hover:shadow-lg transition-all duration-300 cursor-pointer group h-full flex flex-col"
-                  onClick={() => onPostClick(post.id)}
-                >
-                  <div className="relative h-48 overflow-hidden">
-                    <img
-                      src={post.coverImage}
-                      alt={post.title}
-                      className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
-                    />
-                    {post.trending && (
-                      <div className="absolute top-3 left-3">
-                        <Badge className="bg-orange-500 text-white hover:bg-orange-600 flex items-center gap-1">
-                          <TrendingUp className="w-3 h-3" />
-                          Trending
-                        </Badge>
-                      </div>
-                    )}
-                    {post.bookRelated && (
-                      <div className="absolute bottom-3 left-3">
-                        <Badge className="bg-white/90 backdrop-blur-sm text-gray-800 hover:bg-white flex items-center gap-1">
-                          <BookOpen className="w-3 h-3" />
-                          {post.bookRelated}
-                        </Badge>
-                      </div>
-                    )}
-                  </div>
-
-                  <CardContent className="p-5 flex-1 flex flex-col">
-                    <h3 className="text-xl font-bold text-gray-900 mb-2 group-hover:text-blue-600 transition-colors line-clamp-2">
-                      {post.title}
-                    </h3>
-                    <p className="text-gray-600 mb-4 line-clamp-2 flex-1">{post.excerpt}</p>
-
-                    <div className="space-y-3">
-                      <div className="flex items-center gap-3">
-                        <Avatar className="w-8 h-8">
-                          <AvatarImage src={post.author.avatar} />
-                          <AvatarFallback>{post.author.name[0]}</AvatarFallback>
-                        </Avatar>
-                        <div className="flex-1">
-                          <div className="flex items-center gap-2">
-                            <p className="text-sm font-medium text-gray-900">
-                              {post.author.name}
-                            </p>
-                            <Badge
-                              variant="outline"
-                              className={`text-xs ${
-                                post.author.role === 'Moderator'
-                                  ? 'bg-purple-50 text-purple-700 border-purple-200'
-                                  : 'bg-blue-50 text-blue-700 border-blue-200'
-                              }`}
-                            >
-                              {post.author.role}
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2 text-xs text-gray-500">
-                            <span>
-                              {new Date(post.publishDate).toLocaleDateString('en-US', {
-                                month: 'short',
-                                day: 'numeric',
-                              })}
-                            </span>
-                            <span>•</span>
-                            <span className="flex items-center gap-1">
-                              <Clock className="w-3 h-3" />
-                              {post.readingTime} min
-                            </span>
-                          </div>
-                        </div>
-                      </div>
-
-                      <div className="flex items-center justify-between text-sm text-gray-500 pt-2 border-t">
-                        <div className="flex items-center gap-3">
-                          <span className="flex items-center gap-1 hover:text-red-500 transition-colors">
-                            <Heart className="w-4 h-4" />
-                            {post.likes}
-                          </span>
-                          <span className="flex items-center gap-1 hover:text-blue-500 transition-colors">
-                            <MessageCircle className="w-4 h-4" />
-                            {post.comments}
-                          </span>
-                          <span className="flex items-center gap-1">
-                            <Eye className="w-4 h-4" />
-                            {post.views}
-                          </span>
-                        </div>
-                      </div>
-
-                      <div className="flex flex-wrap gap-1.5">
-                        {post.tags.slice(0, 3).map((tag) => (
-                          <Badge key={tag} variant="outline" className="text-xs">
-                            {tag}
-                          </Badge>
-                        ))}
-                      </div>
-                    </div>
-                  </CardContent>
-                </Card>
-              </motion.div>
+            {allTags.map(({ key, label }) => (
+              <TagPill
+                key={key}
+                active={key === selectedTagKey}
+                onClick={() =>
+                  setSelectedTagKey((prev) => (prev === key ? "" : key))
+                }
+              >
+                {label}
+              </TagPill>
             ))}
-        </motion.div>
+          </div>
+        </div>
 
-        {filteredPosts.length === 0 && (
-          <div className="text-center py-16">
-            <BookOpen className="w-16 h-16 text-gray-300 mx-auto mb-4" />
-            <h3 className="text-xl font-semibold text-gray-700 mb-2">No posts found</h3>
-            <p className="text-gray-500">Try adjusting your search or filters</p>
+        {/* Cards */}
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+          {pagePosts.map((post) => {
+            const tags = post.tags || [];
+            const showHorizontal = tags.length > 1; // if more than one, show horizontal
+            return (
+              <Card
+                key={post.id}
+                onClick={() => handlePostClick(post.id)}
+                className="cursor-pointer hover:shadow-xl transition-transform transform hover:-translate-y-1 rounded-2xl overflow-hidden relative bg-white"
+              >
+                <div className="relative">
+                  <img
+                    src={post.coverImage}
+                    alt={post.title}
+                    className="h-48 w-full object-cover"
+                  />
+
+                  {/* Tag overlays using shadcn Badge */}
+                  <div
+                    className={`absolute left-3 top-3 pointer-events-none ${
+                      showHorizontal
+                        ? "flex flex-row items-center gap-2 p-1"
+                        : "flex flex-col p-0"
+                    }`}
+                  >
+                    {tags.slice(0, 3).map((t, i) => (
+                      <Badge
+                        key={i}
+                        className="bg-white/95 text-xs text-gray-800 font-semibold px-2 py-1 shadow-sm"
+                      >
+                        {t}
+                      </Badge>
+                    ))}
+
+                    {tags.length > 3 && (
+                      <Badge className="bg-white/90 text-xs text-gray-600 font-medium px-2 py-1 shadow-sm">
+                        +{tags.length - 3}
+                      </Badge>
+                    )}
+                  </div>
+                </div>
+
+                <CardContent className="p-5">
+                  <h3 className="font-semibold text-lg text-gray-900 mb-2 line-clamp-2">{post.title}</h3>
+                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
+                    {post.excerpt}
+                  </p>
+
+                  <div className="flex items-center gap-3 text-sm text-gray-500">
+                    <div className="inline-flex items-center gap-2">
+                      <Clock className="w-4 h-4" />
+                      <span>{post.readingTime} min</span>
+                    </div>
+
+                    <div className="inline-flex items-center gap-2">
+                      <Eye className="w-4 h-4" />
+                      <span>{post.views}</span>
+                    </div>
+                  </div>
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-xs text-gray-500">By {post.author}</div>
+
+                    {/* Read more with arrow — more prominent and animates on hover */}
+                    <div className="flex items-center text-sm text-blue-600 font-semibold transition-transform group">
+                      <span className="mr-2">Read more</span>
+                      <ChevronRight className="w-4 h-4 transition-transform transform group-hover:translate-x-1" />
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            );
+          })}
+        </div>
+
+        {/* Pagination */}
+        {totalPosts > 0 && (
+          <div className="mt-10 flex flex-col gap-3 items-center">
+            <div className="flex items-center gap-2 flex-wrap justify-center">
+              {renderPages().map((p, idx) =>
+                p === "…" ? (
+                  <span key={`dots-${idx}`} className="px-2 text-gray-500">
+                    …
+                  </span>
+                ) : (
+                  <button
+                    key={p}
+                    type="button"
+                    onClick={() => setPage(p)}
+                    className={`h-10 w-10 rounded-md border text-sm font-semibold transition ${
+                      page === p
+                        ? "bg-blue-600 text-white border-blue-600"
+                        : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"
+                    }`}
+                    aria-current={page === p ? "page" : undefined}
+                  >
+                    {p}
+                  </button>
+                )
+              )}
+
+              <button
+                type="button"
+                onClick={() => setPage((v) => Math.min(totalPages, v + 1))}
+                disabled={page >= totalPages}
+                className="h-10 px-4 rounded-md border bg-white text-gray-800 border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
+              >
+                Next
+              </button>
+            </div>
+
+            <div className="text-sm text-gray-600">
+              Showing {startIndex}-{endIndex} of {totalPosts} posts
+            </div>
+            {remaining > 0 && (
+              <div className="text-sm text-gray-500">
+                {remaining} more posts available
+              </div>
+            )}
           </div>
         )}
       </div>
+      <Footers clubLogoSrc="/jjuclub.jpg" />
     </div>
   );
 }

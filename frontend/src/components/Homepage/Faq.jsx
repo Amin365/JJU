@@ -66,7 +66,7 @@ export default function ScrollFAQAccordion({
   return (
     <div
       ref={containerRef}
-      className={cn("max-w-7xl mt-12 mx-auto text-center py-16 ", className)}
+      className={cn("max-w-4xl mt-12 mx-auto text-center py-16 ", className)}
     >
       <h2 className="text-3xl font-bold mb-2 text-foreground">{title}</h2>
       <p className="text-gray-600 dark:text-gray-200 mb-6">{description}</p>

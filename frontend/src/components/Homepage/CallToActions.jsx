@@ -49,7 +49,7 @@ export default function Example() {
         </h1>
 
         <button
-          className="px-8 py-3 text-white bg-violet-600 hover:bg-violet-700 transition-all rounded-full uppercase text-sm mt-8"
+          className="px-8 py-3 text-white bg-orange-600 hover:bg-orange-700 transition-all rounded-full uppercase text-sm mt-8"
           type="button"
           onClick={() => window.open("https://discord.com/", "_blank")}
         >

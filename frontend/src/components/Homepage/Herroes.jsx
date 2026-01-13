@@ -163,7 +163,7 @@ export default function HeroSection() {
           <CallToaction />
         </div>
         	<div className="relative flex flex-col mt-20 ">
-			<Footers />
+			<Footers clubLogoSrc="/jjuclub.jpg" />
 		</div>
       </main>
     </>

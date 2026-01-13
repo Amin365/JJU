@@ -8,9 +8,9 @@ import {Link} from 'react-router'
 import Features from './Features'
 
 const menuItems = [
+    { name: 'Home', href: '/' },
     { name: 'Features', href: '#link' },
-    { name: 'Solution', href: '#link' },
-    { name: 'Pricing', href: '#link' },
+    { name: 'Blogs', href: '/blogs' },
     { name: 'About', href: '#link' },
 ]
 
@@ -54,7 +54,7 @@ const HeroHeader = () => {
                                 {menuItems.map((item, index) => (
                                     <li key={index}>
                                         <Link
-                                            href={item.href}
+                                            to={item.href}
                                             className="text-muted-foreground hover:text-accent-foreground block duration-150">
                                             <span>{item.name}</span>
                                         </Link>

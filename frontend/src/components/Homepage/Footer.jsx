@@ -6,6 +6,7 @@ import {
   Linkedin,
   Youtube,
   Frame,
+  Circle
 } from "lucide-react";
 
 // Plain JS data (no TypeScript)
@@ -48,16 +49,28 @@ const footerLinks = [
   },
 ];
 
-export default function Footer() {
+export default function Footer({clubLogoSrc}) {
   return (
     <footer className="relative w-full max-w-7xl mx-auto flex flex-col items-center justify-center rounded-t-3xl border-t bg-[radial-gradient(35%_128px_at_50%_0%,theme(backgroundColor.white/8%),transparent)] px-6 py-12 lg:py-16 mt-12">
       <div className="bg-foreground/20 absolute top-0 left-1/2 h-px w-1/3 -translate-x-1/2 -translate-y-1/2 rounded-full blur" />
 
       <div className="grid w-full gap-8 xl:grid-cols-3 xl:gap-8">
         <AnimatedContainer className="space-y-4">
-          <div className="flex items-center gap-2">
-            <Frame className="size-8" />
-            <span className="text-base font-semibold">Reading Club</span>
+          <div className="flex items-center gap-4 col-span-2">
+           
+                {clubLogoSrc ? (
+                  <img
+                    src={clubLogoSrc}
+                    alt="Club logo"
+                    className="w-10 h-10 object-contain rounded-lg"
+                  />
+                ) : (
+                  <Icons.clubLogo className="w-10 h-10 rounded-lg " />
+                )}
+             
+            <span className="text-base font-semibold">
+            
+            Naadiga Akhriska iyo Qoralka ee Jaamacada Jigjiga</span>
           </div>
 
           <p className="text-muted-foreground mt-2 text-sm">
@@ -65,7 +78,7 @@ export default function Footer() {
           </p>
 
           <p className="text-muted-foreground mt-6 text-sm">
-            © {new Date().getFullYear()} Reading Club. All rights reserved.
+            © {new Date().getFullYear()} Naadiga Akhriska iyo Qoralka ee Jaamacada Jigjiga . All rights reserved.
           </p>
         </AnimatedContainer>
 

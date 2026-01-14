@@ -5,7 +5,7 @@ import store from "../store.js";
 
 
 // ✅ Base API URL
-const Api_URL = "http://localhost:5000/api"
+const Api_URL =process.env.NODE_ENV === 'production' ? "https://jju-s5jx.onrender.com/api" : "http://localhost:5000/api"
 
 const api = axios.create({
   baseURL: Api_URL,

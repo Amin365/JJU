@@ -21,6 +21,8 @@ import helmet from "helmet";
 import {xss} from "express-xss-sanitizer";
 import hpp from 'hpp'
 import cookieParser from "cookie-parser";
+
+import path from 'path'
 dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000

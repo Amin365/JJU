@@ -1,9 +1,8 @@
 import axios from "axios";
 import store from "../store.js";
 
-// ✅ Vite way
-const Api_URL =
-  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+const Api_URL = process.env.NODE_ENV === "production" ?"https://jju-stkq.onrender.com/api":"http://localhost:5000/api"
+
 
 const api = axios.create({
   baseURL: Api_URL,

@@ -6,6 +6,7 @@ import React from 'react'
 import { cn } from '@/lib/utils'
 import {Link} from 'react-router'
 import Features from './Features'
+import ModleTogles from '../ModeTogle'
 
 const menuItems = [
     { name: 'Home', href: '/' },
@@ -38,15 +39,19 @@ const HeroHeader = () => {
                                 aria-label="home"
                                 className="flex items-center space-x-2">
                                 {/* <Logo /> */}
+                                <span className="font-bold text-lg">JJU Club Reading</span>
                             </Link>
 
-                            <button
+                          <div className="flex items-center gap-4">
+                          <ModleTogles/>
+                              <button
                                 onClick={() => setMenuState(!menuState)}
                                 aria-label={menuState == true ? 'Close Menu' : 'Open Menu'}
                                 className="relative z-20 -m-2.5 -mr-4 block cursor-pointer p-2.5 lg:hidden">
                                 <Menu className="in-data-[state=active]:rotate-180 in-data-[state=active]:scale-0 in-data-[state=active]:opacity-0 m-auto size-6 duration-200" />
                                 <X className="in-data-[state=active]:rotate-0 in-data-[state=active]:scale-100 in-data-[state=active]:opacity-100 absolute inset-0 m-auto size-6 -rotate-180 scale-0 opacity-0 duration-200" />
                             </button>
+                          </div>
                         </div>
 
                         <div className="absolute inset-0 m-auto hidden size-fit lg:block">
@@ -95,6 +100,10 @@ const HeroHeader = () => {
                                         <span>Sign Up</span>
                                     </Link>
                                 </Button> */}
+                                <div>
+                                <ModleTogles />
+
+                                </div>
                                 <Button
                                     asChild
                                     size="sm"

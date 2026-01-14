@@ -1,11 +1,9 @@
-
 import axios from "axios";
 import store from "../store.js";
 
-
-
-// ✅ Base API URL
-const Api_URL =process.env.NODE_ENV === 'production' ? "https://jju-s5jx.onrender.com/api" : "http://localhost:5000/api"
+// ✅ Vite way
+const Api_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
 
 const api = axios.create({
   baseURL: Api_URL,
@@ -13,8 +11,6 @@ const api = axios.create({
     "Content-Type": "application/json",
   },
 });
-
-
 
 // ✅ Attach token on requests
 api.interceptors.request.use((config) => {

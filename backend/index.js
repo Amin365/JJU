@@ -41,7 +41,29 @@ app.use(cors({
   origin: "http://localhost:5173",
   credentials: true
 }))
-app.use(helmet());
+
+
+// after express app created, before routes:
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: [
+          "'self'",
+          "data:",
+          "https://res.cloudinary.com", // allow Cloudinary
+          "https://i.pravatar.cc",     // allow avatar service
+          "https://res.cloudinary.com", // include any other domains you need
+        ],
+        connectSrc: ["'self'"],
+        frameAncestors: ["'none'"],
+      },
+    },
+  })
+);
 app.use(xss());
 app.use(hpp());
 

@@ -23,6 +23,8 @@ import hpp from 'hpp'
 import cookieParser from "cookie-parser";
 
 import path from 'path'
+import { fileURLToPath } from "url";  
+
 dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000

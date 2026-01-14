@@ -57,6 +57,8 @@ const BookTable = () => {
   });
 
   const books = data?.data ?? [];
+
+  console.log('books',books)
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / limit) : 1);
 

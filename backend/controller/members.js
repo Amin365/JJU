@@ -31,14 +31,15 @@ export const createMember = async (req, res, next) => {
       department,
       student_id,
       study_year,
-      role, // ✅ ADD THIS
+      role, //  ADD THIS
+      Profile_picture
     } = req.body;
 
     if (!first_name || !last_name) {
       return res.status(400).json({ message: "first_name and last_name are required" });
     }
 
-    // ✅ Validate role if provided
+    //  Validate role if provided
     if (role) {
       if (!mongoose.Types.ObjectId.isValid(role)) {
         return res.status(400).json({ message: "Invalid role id" });
@@ -63,7 +64,8 @@ export const createMember = async (req, res, next) => {
       department,
       student_id,
       study_year,
-      role: role || null, // ✅ SAVE ROLE
+      Profile_picture: req.file ? req.file.path : null,
+      role: role || null, //  SAVE ROLE
     });
 
     try {
@@ -87,6 +89,7 @@ export const createMember = async (req, res, next) => {
     return next(err);
   }
 };
+
 
 
 export const getMembers = async (req, res, next) => {
@@ -142,9 +145,31 @@ export const getMembers = async (req, res, next) => {
     const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * perPage;
 
+    // Explicitly select the fields you want returned.
+    // Add any other member fields you need here.
+    const selectFields = [
+      "first_name",
+      "middle_name",
+      "last_name",
+      "email",
+      "phone",
+      "code",
+      "region",
+      "gender",
+      "join_date",
+      "profile_picture",
+      "department",
+      "student_id",
+      "study_year",
+      "status",
+      "createdAt",
+      "_id",
+    ].join(" ");
+
     const [items, total] = await Promise.all([
       Member.find(filter)
-        .populate("role", "role color plural system") // ✅ add this
+        .select(selectFields)
+        .populate("role", "role color plural system")
         .sort(sort)
         .skip(skip)
         .limit(perPage)
@@ -153,8 +178,16 @@ export const getMembers = async (req, res, next) => {
       Member.countDocuments(filter).exec(),
     ]);
 
+    // Optional: map/format join_date to ISO or desired format
+    const mapped = items.map((it) => ({
+      ...it,
+      join_date: it.join_date ? new Date(it.join_date).toISOString() : null,
+      // ensure profile_picture property exists and is null if missing
+      profile_picture: it.profile_picture ?? null,
+    }));
+
     return res.status(200).json({
-      data: items,
+      data: mapped,
       total,
       page: pageNum,
       limit: perPage,
@@ -174,11 +207,15 @@ export const updateMember = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid member id" });
     }
+    
+    if (req.file) {
+      update.Profile_picture = req.file.path;
+    }
 
     const update = { ...req.body };
     if (update._id) delete update._id;
 
-    // ✅ Validate role if client sends it
+    //  Validate role if client sends it
     if (Object.prototype.hasOwnProperty.call(update, "role")) {
       if (update.role) {
         if (!mongoose.Types.ObjectId.isValid(update.role)) {
@@ -200,7 +237,7 @@ export const updateMember = async (req, res, next) => {
         runValidators: true,
         context: "query",
       })
-        .populate("role")   // ✅ populate for UI
+        .populate("role")   //  populate for UI
         .lean()
         .exec();
 
@@ -231,7 +268,7 @@ export const getMemberById = async (req, res, next) => {
     }
 
     const member = await Member.findById(id)
-      .populate("role", "role color plural system") // ✅ add this
+      .populate("role", "role color plural system") //  add this
       .lean()
       .exec();
 
@@ -342,7 +379,7 @@ export const getMembersList = async (req, res, next) => {
 
     if (isSuperAdmin) {
       const members = await Member.find()
-        .select("_id first_name middle_name last_name full_name code email createdAt")
+        .select("_id first_name middle_name last_name full_name code email join_date Profile_picture status region createdAt")
         .sort("-createdAt")
         .lean()
         .exec();

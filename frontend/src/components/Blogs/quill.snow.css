@@ -9,3 +9,26 @@
     transform: translate(-50%,-50%) !important;
     z-index: 1000;
 }
+
+.ql-editor img {
+  display: block;
+  margin: 16px auto;
+  border-radius: 12px;
+  height: auto;
+}
+
+.ql-image-small {
+  max-width: 300px;
+}
+
+.ql-image-medium {
+  max-width: 600px;
+}
+
+.ql-image-large {
+  max-width: 900px;
+}
+
+.ql-image-full {
+  width: 100%;
+}

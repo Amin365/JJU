@@ -74,13 +74,34 @@ const MainHeader = () => {
           </DropdownMenuTrigger>
 
           <DropdownMenuContent align="end" className="w-56 p-2">
-            <DropdownMenuLabel>
-              <div>
-                <h1 className="text-gray-900 font-semibold text-sm">{user?.first_name} {user?.last_name}</h1>
-                {/* <p className="text-xs text-gray-500">{user?.email}</p> */}
-                <p className="text-xs text-gray-500">{roleLabel || "Role"}</p>
-              </div>
-            </DropdownMenuLabel>
+           <DropdownMenuLabel className="p-2">
+  <div className="flex items-center gap-3">
+    {/* User Picture */}
+    <Avatar className="h-10 w-10">
+      <AvatarImage
+        src={
+          data?.user?.avatar ||
+          "https://images.unsplash.com/photo-1495107334309-fcf20504a5ab?q=80&w=1170&auto=format&fit=crop"
+        }
+        alt={user?.first_name}
+      />
+      <AvatarFallback>
+        {user?.first_name?.charAt(0)}
+      </AvatarFallback>
+    </Avatar>
+
+    {/* Name + Role */}
+    <div className="flex flex-col leading-tight">
+      <span className="text-sm font-semibold text-gray-900 dark:text-white">
+        {user?.first_name} {user?.last_name}
+      </span>
+      <span className="text-xs text-gray-500 dark:text-gray-400">
+        {roleLabel || "Role"}
+      </span>
+    </div>
+  </div>
+</DropdownMenuLabel>
+
             <DropdownMenuSeparator />
 
             {user?.role === "admin" && (

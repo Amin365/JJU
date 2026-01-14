@@ -92,6 +92,11 @@ const MemberSchema = new Schema(
       type: Date,
       default: Date.now,
     },
+    Profile_picture: {
+      type: String,
+      trim: true,
+      default: "",
+    },
 
     // optional bookkeeping fields
     isArchived: {

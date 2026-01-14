@@ -17,16 +17,32 @@ import ModeratorRouter from "./routers/ModeratorRouter.js"
 import UserRouter from "./routers/UserRouter.js"
 import BlogRouter from "./routers/BlogRouter.js"
 import CommentRouter from "./routers/CommentRouter.js"
-
+import helmet from "helmet";
+import {xss} from "express-xss-sanitizer";
+import hpp from 'hpp'
+import cookieParser from "cookie-parser";
 dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
 
 app.use(express.json())
+app.use(express.urlencoded({ extended: true }));
+app.use(cookieParser());
 
-app.use(cors(
-  {origin:"http://localhost:5173"}
-))
+// app.use(cors(
+//   {origin:"http://localhost:5173"}
+// ))
+
+app.use(cors({
+  origin: "http://localhost:5173",
+  credentials: true
+}))
+app.use(helmet());
+app.use(xss());
+app.use(hpp());
+
+
+
 
 app.use('/api',AuthRouter)
 
@@ -85,14 +101,21 @@ app.post("/db-alter/sync-seed", async (req, res) => {
   }
 });
 
+if (process.env.NODE_ENV === 'production') {
+  const __dirname = path.dirname(fileURLToPath(import.meta.url));
+  app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
+  app.get(/.*/, (req, res) => {
+    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+  });
+}
 
 
 
 app.use(NotFound)
 app.use(ErrorHandle);
 
-mongoose.connect(process.env.MONGO_URI, )
+mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas : process.env.MONGO_URI)
   .then(() => {
     console.log('✅ Connected to MongoDB successfully')
     // start background scheduler for due/overdue notifications

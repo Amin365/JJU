@@ -384,7 +384,15 @@ export default function MemberDetails() {
               className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-3xl md:text-4xl font-bold text-white ${member.isArchived ? "bg-gray-400" : "bg-slate-700"}`}
               aria-hidden
             >
-              {`${member.first_name?.[0] ?? ""}${member.last_name?.[0] ?? ""}`.toUpperCase()}
+              {member.Profile_picture ? (
+                <img
+                  src={member.Profile_picture}
+                  alt={`${member.first_name} ${member.last_name}`}
+                  className="w-full h-full object-cover rounded-2xl"
+                />
+              ) : (
+                `${member.first_name?.[0] ?? ""}${member.last_name?.[0] ?? ""}`.toUpperCase()
+              )}
             </div>
 
             {/* Main info */}

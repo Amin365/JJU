@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { Search, Clock, Eye, Filter, ChevronRight } from "lucide-react";
 
 import api from "@/app/api/apislice";
-import BlogHeros from "./BlogHero";
+// import BlogHeros from "./BlogHero";
 
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -12,6 +12,8 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge"; // shadcn badge
 
 import Footers from "../Homepage/Footer";
+import BlogHeros from "../Homepage/HeroSections"
+import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 
 /*  constants  */
 
@@ -242,10 +244,13 @@ export default function BlogFeed({ onPostClick }) {
     );
 
   return (
-    <div className="min-h-screen bg-gray-50 py-10">
-      <BlogHeros />
+    <div>
+          <BlogHeros />
 
-      <div className="mx-auto max-w-7xl px-4 mt-16">
+   
+    <div className="min-h-screen py-10">
+
+      <div className="mx-auto max-w-7xl px-4 mt-32">
         {/* Header + Paragraph */}
         <div className="max-w-3xl mx-auto text-center mb-10">
           <h2 className="text-3xl font-extrabold text-gray-900">Our Blog</h2>
@@ -270,8 +275,8 @@ export default function BlogFeed({ onPostClick }) {
         <div className="mb-10 max-w-xl mx-auto">
           <div className="flex justify-between mb-3">
             <div className="flex gap-2 items-center">
-              <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-semibold">Tags</span>
+              {/* <Filter className="w-4 h-4 text-gray-500" />
+              <span className="text-sm font-semibold">Tags</span> */}
             </div>
 
             {(searchTerm || selectedTagKey) && (
@@ -349,7 +354,20 @@ export default function BlogFeed({ onPostClick }) {
                     {post.excerpt}
                   </p>
 
-                  <div className="flex items-center gap-3 text-sm text-gray-500">
+                 
+
+                  <div className="mt-4 flex items-center justify-between">
+                    <div className="text-xs text-gray-500 flex items-center gap-3">
+                    <div>
+                         <Avatar className="w-10 h-10">
+                            <AvatarImage src={post.author?.avatar} />
+                            <AvatarFallback>{post.author?.name?.[0] || "U"}</AvatarFallback>
+                          </Avatar>
+                    </div>
+
+                        <div>
+                             <p>{post.author}</p>
+                              <div className="flex items-center gap-3 text-sm text-gray-500 mt-2">
                     <div className="inline-flex items-center gap-2">
                       <Clock className="w-4 h-4" />
                       <span>{post.readingTime} min</span>
@@ -360,9 +378,10 @@ export default function BlogFeed({ onPostClick }) {
                       <span>{post.views}</span>
                     </div>
                   </div>
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-xs text-gray-500">By {post.author}</div>
+                        </div>
+                   
+                    
+                    </div>
 
                     {/* Read more with arrow — more prominent and animates on hover */}
                     <div className="flex items-center text-sm text-blue-600 font-semibold transition-transform group">
@@ -425,5 +444,6 @@ export default function BlogFeed({ onPostClick }) {
       </div>
       <Footers clubLogoSrc="/jjuclub.jpg" />
     </div>
+     </div>
   );
 }

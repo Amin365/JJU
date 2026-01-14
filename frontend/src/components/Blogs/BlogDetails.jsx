@@ -392,7 +392,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
           <div className="p-4 sm:p-6 md:p-10">
             {post.bookRelated && (
               <div className="mb-6">
-                <Badge className="bg-blue-50 text-blue-700 border-blue-200 hover:bg-blue-100 flex items-center gap-2 w-fit dark:bg-blue-950 dark:text-blue-200 dark:border-blue-900">
+                <Badge className="bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 flex items-center gap-2 w-fit dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900">
                   <BookOpen className="w-4 h-4" />
                   Written after reading {post.bookRelated}
                 </Badge>
@@ -512,7 +512,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                     <div className="flex gap-2">
                       <Button
                         onClick={handleComment}
-                        className="bg-blue-600 hover:bg-blue-700"
+                        className="bg-orange-600 hover:bg-orange-700"
                         disabled={createCommentMutation.isPending}
                       >
                         <Send className="w-4 h-4 mr-2" />
@@ -548,12 +548,12 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                       <div
                         className={`${
                           comment.isPinned || comment.isBestInsight
-                            ? "bg-gradient-to-r from-blue-50 to-indigo-50 border border-blue-200 p-4 rounded-lg dark:from-blue-950 dark:to-indigo-950 dark:border-blue-900"
+                            ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
                             : ""
                         }`}
                       >
                         {comment.isPinned && (
-                          <div className="flex items-center gap-2 text-sm text-blue-700 mb-2 dark:text-blue-300">
+                          <div className="flex items-center gap-2 text-sm text-orange-700 mb-2 dark:text-orange-300">
                             <Pin className="w-4 h-4" />
                             <span className="font-medium">Pinned by moderator</span>
                           </div>
@@ -583,7 +583,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                                 className={`text-xs ${
                                   comment.author?.role === "Moderator"
                                     ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
-                                    : "bg-blue-50 text-blue-700 border-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:border-blue-900"
+                                    : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900"
                                 }`}
                               >
                                 {comment.author?.role || "Member"}
@@ -602,8 +602,8 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                               <button
                                 className={`flex items-center gap-1 transition-colors ${
                                   isLiked
-                                    ? "text-blue-600"
-                                    : "text-gray-500 hover:text-blue-600 dark:text-gray-400"
+                                    ? "text-orange-600"
+                                    : "text-gray-500 hover:text-orange-600 dark:text-gray-400"
                                 }`}
                                 onClick={() => handleCommentLike(comment)}
                                 type="button"
@@ -614,7 +614,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                               </button>
 
                               <button
-                                className="text-gray-500 hover:text-blue-600 transition-colors dark:text-gray-400"
+                                className="text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400"
                                 onClick={() => openReply(comment._id)}
                                 disabled={!user}
                                 type="button"
@@ -648,7 +648,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                                   <Button
                                     onClick={() => submitReply(comment._id)}
                                     disabled={createReplyMutation.isPending}
-                                    className="bg-blue-600 hover:bg-blue-700"
+                                    className="bg-orange-600 hover:bg-orange-700"
                                   >
                                     <Send className="w-4 h-4 mr-2" />
                                     {createReplyMutation.isPending ? "Posting..." : "Reply"}
@@ -731,7 +731,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                       />
                     </div>
                     <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-blue-600 transition-colors mb-1">
+                      <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-orange-600 transition-colors mb-1">
                         {relatedPost.title}
                       </h4>
                       <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
@@ -741,7 +741,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                         {relatedPost.matchingTags.map((tag) => (
                           <Badge
                             key={tag}
-                            className="text-xs bg-blue-100 text-blue-700 hover:bg-blue-200 dark:bg-blue-950 dark:text-blue-200 dark:hover:bg-blue-900"
+                            className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:hover:bg-orange-900"
                           >
                             {tag}
                           </Badge>

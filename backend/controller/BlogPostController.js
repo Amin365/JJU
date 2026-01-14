@@ -1,25 +1,64 @@
 
 import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost.js";
+// import {CleanHtml} from "../utility/cleanHtml.js";
 
-// CREATE (JWT required)
+import cleanHtml from "../utility/cleanHtml.js"
+
 export const createBlogPost = async (req, res) => {
   try {
-    // Normalize user identity from JWT payload (protect middleware attaches full user document)
     const userId = req.user?._id;
-    const nameParts = [req.user?.first_name, req.user?.middle_name, req.user?.last_name]
-      .filter(Boolean)
-      .join(" ");
-    const userName = nameParts || req.user?.username || req.user?.email;
 
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
-    if (!userName) return res.status(400).json({ message: "User name not found in token" });
+    const nameParts = [
+      req.user?.first_name,
+      req.user?.middle_name,
+      req.user?.last_name,
+    ].filter(Boolean);
 
-    const { title, content, tags, blog_picture, relatedBook, status } = req.body;
+    const userName =
+      nameParts.join(" ") || req.user?.username || req.user?.email;
 
-    if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
-    if (!content?.trim()) return res.status(400).json({ message: "Content is required" });
+    if (!userId) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
+    // req.body will be populated by multer for multipart/form-data routes.
+    // Use a local body variable so we can safely reassign `tags`.
+    const body = req.body || {};
+    let { title, content, tags, blog_picture, relatedBook, status } = body;
+
+    // Normalize tags:
+    // - If client sent FormData and appended JSON string: parse it
+    // - If a comma-separated string: split it
+    // - Ensure final value is an array
+    if (typeof tags === "string") {
+      try {
+        const parsed = JSON.parse(tags);
+        if (Array.isArray(parsed)) tags = parsed;
+        else tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
+      } catch {
+        tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
+      }
+    }
+    if (!Array.isArray(tags)) tags = [];
+
+    // If a file was uploaded via multer/cloudinary, the storage usually
+    // attaches the remote URL on req.file.path or req.file.secure_url / req.file.url.
+    const uploaded = req.file;
+    const uploadedImageUrl =
+      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) || null;
+
+    // Prefer uploaded image URL over any blog_picture string sent in body
+    const finalBlogPicture =
+      uploadedImageUrl || (blog_picture && String(blog_picture).trim()) || null;
+
+    // Basic validations
+    if (!title || !String(title).trim()) {
+      return res.status(400).json({ message: "Title is required" });
+    }
+    if (!content || !String(content).trim()) {
+      return res.status(400).json({ message: "Content is required" });
+    }
     if (!Array.isArray(tags) || tags.length === 0) {
       return res.status(400).json({ message: "Tags must be a non-empty array" });
     }
@@ -29,16 +68,20 @@ export const createBlogPost = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
+    // sanitize/clean functions should exist in your codebase
+    const cleanTitle = cleanHtml(title);
+    const cleanContent = cleanHtml(content);
+
     const post = await BlogPost.create({
-      title: title.trim(),
-      content,
-      tags,
-      blog_picture: blog_picture || "",
+      title: cleanTitle,
+      content: cleanContent,
+      tags: tags.map((t) => t.trim()),
       relatedBook: relatedBook || "",
       status: finalStatus,
 
       created_by: userId,
       author: userName,
+      blog_picture: finalBlogPicture,
 
       likes: 0,
       views: 0,
@@ -46,7 +89,10 @@ export const createBlogPost = async (req, res) => {
 
     return res.status(201).json({ data: post });
   } catch (err) {
-    return res.status(500).json({ message: err.message || "Server error" });
+    console.error("createBlogPost error:", err);
+    return res
+      .status(500)
+      .json({ message: err.message || "Server error" });
   }
 };
 
@@ -148,16 +194,19 @@ export const updateBlogPost = async (req, res) => {
     const post = await BlogPost.findById(id);
     if (!post) return res.status(404).json({ message: "Blog post not found" });
 
+    if(req.file){
+        post.blog_picture = req.file.path;
+    }
     // only creator can update
     if (post.created_by && String(post.created_by) !== String(userId)) {
       return res.status(403).json({ message: "You do not have permission to edit this post" });
     }
 
-    const { title, content, tags, blog_picture, relatedBook, status } = req.body;
+    const { title, content, tags, relatedBook, status } = req.body;
 
     if (title !== undefined) post.title = title;
     if (content !== undefined) post.content = content;
-    if (blog_picture !== undefined) post.blog_picture = blog_picture;
+    // if (blog_picture !== undefined) post.blog_picture = blog_picture;
     if (relatedBook !== undefined) post.relatedBook = relatedBook;
 
     if (tags !== undefined) {

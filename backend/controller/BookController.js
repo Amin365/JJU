@@ -19,6 +19,12 @@ export const createBook = async (req, res, next) => {
       return res.status(400).json({ message: "title and BookType are required" });
     }
 
+    const uploaded=req.file
+    const imageUrl =
+      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) ||mundefined;
+
+
+
     // Build model instance and save
     // normalize total/available copies
     // If totalCopies was not provided but availableCopies was, assume totalCopies == availableCopies
@@ -39,7 +45,7 @@ export const createBook = async (req, res, next) => {
       BookType,
       isbn,
       status,
-      book_picture,
+      book_picture: imageUrl,
       totalPages,
       totalCopies: tc,
       availableCopies: Math.max(0, Math.min(av, tc)),
@@ -197,6 +203,11 @@ export const updateBook = async (req, res, next) => {
         runValidators: true,
         context: "query",
       }).exec();
+
+        if (req.file) {
+      const uploaded = req.file;
+      update.book_picture = uploaded.path || uploaded.secure_url || uploaded.url;
+    }
 
       // ensure availableCopies never exceeds totalCopies
       if (updated) {

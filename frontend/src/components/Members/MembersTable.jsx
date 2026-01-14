@@ -23,7 +23,7 @@ import {
   SelectContent,
   SelectItem,
 } from "@/components/ui/select";
-import { Avatar, AvatarFallback } from "@/components/ui/avatar";
+import { Avatar, AvatarFallback,AvatarImage } from "@/components/ui/avatar";
 import ImportExcelModal from "./ImportExcelModel";
 
 
@@ -96,8 +96,11 @@ export default function MemberTable() {
     staleTime: 30_000,
   });
   
+ 
 
   const members = data?.data ?? [];
+
+  console.log("members",members)
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / limit) : 1);
 
@@ -210,11 +213,16 @@ export default function MemberTable() {
               {filteredMembers.map((m) => (
                 <tr key={m._id ?? m.id} onClick={() => handleRowClick(m._id ?? m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
                   <td className="p-4 flex items-center gap-3">
-                    <Avatar className="w-10 h-10">
-                      <AvatarFallback className="bg-gradient-to-br from-orange-500 to-indigo-600 text-white">
-                        {(m.first_name?.[0] ?? "M") + (m.last_name?.[0] ?? "")}
-                      </AvatarFallback>
-                    </Avatar>
+                    {m.Profile_picture ? (
+                      <Avatar className="w-10 h-10 rounded-md">
+                        <AvatarImage src={m.Profile_picture} alt={m.first_name || "Profile"} />
+                        <AvatarFallback>{(m.first_name?.[0] ?? "").toUpperCase()}</AvatarFallback>
+                      </Avatar>
+                    ) : (
+                      <div className={cn("w-10 h-10 rounded-md flex items-center justify-center font-medium text-white shadow-sm bg-gradient-to-br from-orange-500 to-indigo-600")}> 
+                        {(m.first_name?.[0] ?? "").toUpperCase()}
+                      </div>
+                    )}
                     <div>
                       <div className="font-medium">{m.first_name} {m.last_name}</div>
                       <div className="text-xs text-muted-foreground">{m.email || m.phone || "No contact"}</div>

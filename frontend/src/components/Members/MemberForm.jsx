@@ -48,7 +48,6 @@ const MembersForm = () => {
     queryKey: ["roles"],
     queryFn: async () => {
       const resp = await api.get("/roles");
-      // your response is already an array, but keep this safe:
       return resp.data?.data ?? resp.data ?? [];
     },
     staleTime: 30_000,
@@ -62,10 +61,12 @@ const MembersForm = () => {
     }));
   }, [rolesData]);
 
-  // create & update mutations
+  // create & update mutations (expect FormData)
   const createMutation = useMutation({
-    mutationFn: async (payload) => {
-      const resp = await api.post("/members", payload);
+    mutationFn: async (formData) => {
+      const resp = await api.post("/members", formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return resp.data?.data ?? resp.data;
     },
     onSuccess: (data) => {
@@ -77,17 +78,17 @@ const MembersForm = () => {
     },
     onError: (err) => {
       const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to create member";
+        err?.response?.data?.message || err?.message || "Failed to create member";
       toast.error(msg);
       console.error(err);
     },
   });
 
   const updateMutation = useMutation({
-    mutationFn: async ({ id: memberId, payload }) => {
-      const resp = await api.put(`/members/${memberId}`, payload);
+    mutationFn: async ({ id: memberId, formData }) => {
+      const resp = await api.put(`/members/${memberId}`, formData, {
+        headers: { "Content-Type": "multipart/form-data" },
+      });
       return resp.data?.data ?? resp.data;
     },
     onSuccess: (data) => {
@@ -98,9 +99,7 @@ const MembersForm = () => {
     },
     onError: (err) => {
       const msg =
-        err?.response?.data?.message ||
-        err?.message ||
-        "Failed to update member";
+        err?.response?.data?.message || err?.message || "Failed to update member";
       toast.error(msg);
       console.error(err);
     },
@@ -114,6 +113,7 @@ const MembersForm = () => {
     formState: { errors },
     trigger,
     reset,
+    watch,
   } = useForm({
     mode: "onBlur",
     defaultValues: {
@@ -136,6 +136,7 @@ const MembersForm = () => {
       department: "",
       student_id: "",
       study_year: "",
+      profile_picture: "",
 
       // IMPORTANT: role field
       role: "",
@@ -167,6 +168,7 @@ const MembersForm = () => {
         department: m.department || "",
         student_id: m.student_id || "",
         study_year: m.study_year ?? "",
+        profile_picture: m.profile_picture || m.Profile_picture || "",
 
         // IMPORTANT: role could be populated object or string id
         role: m.role?._id || m.role || "",
@@ -194,39 +196,59 @@ const MembersForm = () => {
   };
 
   const onSubmitHandler = async (data) => {
-    const payload = {
-      first_name: data.first_name || undefined,
-      middle_name: data.middle_name || undefined,
-      last_name: data.last_name || undefined,
-      code: data.code || undefined,
-      phone: data.phone || undefined,
-      email: data.email || undefined,
-      date_of_birth: data.date_of_birth
-        ? new Date(data.date_of_birth).toISOString()
-        : undefined,
-      gender: data.gender || undefined,
-      region: data.region || undefined,
-      join_date: data.join_date ? new Date(data.join_date).toISOString() : undefined,
-      notes: data.notes || undefined,
-      emergency_contact: data.emergency_contact || undefined,
-      alt_phone: data.alt_phone || undefined,
-      alt_email: data.alt_email || undefined,
-      status: data.status || undefined,
+    // Build FormData for multipart/form-data (handles profile picture file)
+    const formData = new FormData();
 
-      department: data.department || undefined,
-      student_id: data.student_id || undefined,
-      study_year: data.study_year || undefined,
-
-      // IMPORTANT: send Role ObjectId string
-      role: data.role || null,
+    // Append simple fields (only if present)
+    const appendIfPresent = (key, value) => {
+      if (typeof value === "undefined" || value === null) return;
+      // Avoid appending empty strings
+      if (typeof value === "string" && value.trim() === "") return;
+      formData.append(key, value);
     };
+
+    appendIfPresent("first_name", data.first_name);
+    appendIfPresent("middle_name", data.middle_name);
+    appendIfPresent("last_name", data.last_name);
+    appendIfPresent("code", data.code);
+    appendIfPresent("phone", data.phone);
+    appendIfPresent("email", data.email);
+    appendIfPresent("date_of_birth", data.date_of_birth ? new Date(data.date_of_birth).toISOString() : undefined);
+    appendIfPresent("gender", data.gender);
+    appendIfPresent("region", data.region);
+    appendIfPresent("join_date", data.join_date ? new Date(data.join_date).toISOString() : undefined);
+    appendIfPresent("notes", data.notes);
+    appendIfPresent("emergency_contact", data.emergency_contact);
+    appendIfPresent("alt_phone", data.alt_phone);
+    appendIfPresent("alt_email", data.alt_email);
+    appendIfPresent("status", data.status);
+
+    appendIfPresent("department", data.department);
+    appendIfPresent("student_id", data.student_id);
+    appendIfPresent("study_year", data.study_year);
+
+    // role
+    appendIfPresent("role", data.role || "");
+
+    // profile picture (file input)
+    // react-hook-form returns FileList for file inputs
+    if (data.profile_picture && data.profile_picture.length > 0) {
+      const file = data.profile_picture[0];
+      formData.append("profile_picture", file, file.name);
+    } else {
+      // If editing and no new file was supplied, don't append — server should keep existing
+      // Optionally, if your server expects an explicit URL override, you could append it:
+      // if (isEditMode && fetchedMemberData?.profile_picture) {
+      //   formData.append("profile_picture_url", fetchedMemberData.profile_picture);
+      // }
+    }
 
     try {
       if (isEditMode && activeId) {
-        await updateMutation.mutateAsync({ id: activeId, payload });
+        await updateMutation.mutateAsync({ id: activeId, formData });
         return;
       }
-      await createMutation.mutateAsync(payload);
+      await createMutation.mutateAsync(formData);
     } catch (err) {
       console.error("Member submit error:", err);
     }
@@ -343,6 +365,12 @@ const MembersForm = () => {
     2: ["join_date", "region", "role"], // <-- role required here if you want
     3: [],
   };
+
+  // Watch profile_picture to show preview of newly selected file
+  const watchedProfile = watch("profile_picture");
+  const previewSrc = watchedProfile && watchedProfile.length > 0
+    ? URL.createObjectURL(watchedProfile[0])
+    : fetchedMemberData?.profile_picture || fetchedMemberData?.Profile_picture || null;
 
   const stepComponents = {
     1: (
@@ -478,6 +506,25 @@ const MembersForm = () => {
               </label>
             ))}
           </div>
+
+          {/* Profile picture input + preview */}
+          <div className="mt-6">
+            <label className="block text-sm font-semibold mb-2">Profile picture</label>
+            <input
+              type="file"
+              accept="image/*"
+              {...register("profile_picture")}
+              className="w-full"
+            />
+            {previewSrc && (
+              <img
+                src={previewSrc}
+                alt="profile preview"
+                className="mt-3 w-28 h-28 object-cover rounded-full border border-slate-200"
+              />
+            )}
+            <p className="mt-2 text-xs text-slate-400">Optional: upload a square image for best results.</p>
+          </div>
         </div>
       </div>
     ),
@@ -536,7 +583,7 @@ const MembersForm = () => {
 
         <Card className="min-h-[420px]">
           {isEditMode && isFetchingMember ? (
-            <div className="flex flex-col gap-3 justify-center items-center h-40">
+            <div className="flex flex-col gap-3.justify-center items-center h-40">
               <Loader className="animate-spin text-orange-600" size={36} />
               <p className="text-sm text-slate-500">Loading member details...</p>
             </div>

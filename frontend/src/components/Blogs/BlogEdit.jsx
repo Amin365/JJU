@@ -9,7 +9,6 @@ import api from "@/app/api/apislice";
 
 import { toast } from "sonner";
 
-
 const AVAILABLE_TAGS = [
   "React",
   "JavaScript",
@@ -28,19 +27,25 @@ const AVAILABLE_TAGS = [
   "Future Tech",
 ];
 
-// --- API calls using your api instance ---
+// API helpers detect FormData and set multipart header
 const apiGetBlogById = async (id) => {
   const res = await api.get(`/blogposts/${id}`);
   return res.data.data;
 };
 
 const apiCreateBlog = async (payload) => {
-  const res = await api.post(`/blogposts`, payload);
+  const config = payload instanceof FormData
+    ? { headers: { "Content-Type": "multipart/form-data" } }
+    : undefined;
+  const res = await api.post("/blogposts", payload, config);
   return res.data.data;
 };
 
 const apiUpdateBlog = async ({ id, payload }) => {
-  const res = await api.put(`/blogposts/${id}`, payload);
+  const config = payload instanceof FormData
+    ? { headers: { "Content-Type": "multipart/form-data" } }
+    : undefined;
+  const res = await api.put(`/blogposts/${id}`, payload, config);
   return res.data.data;
 };
 
@@ -51,10 +56,8 @@ const BlogEdit = () => {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
 
-  // Redux user (adjust selector to your store shape)
   const user = useSelector((state) => state.auth?.user);
 
-  // Form state
   const [title, setTitle] = useState("");
   const [content, setContent] = useState("");
   const [selectedTags, setSelectedTags] = useState([]);
@@ -62,33 +65,21 @@ const BlogEdit = () => {
 
   // Image state
   const [featuredImageUrl, setFeaturedImageUrl] = useState("");
-  const [imagePath, setImagePath] = useState(""); // optional
   const [selectedImage, setSelectedImage] = useState(null);
-  const [isUploading, setIsUploading] = useState(false);
 
   const fileInputRef = useRef(null);
   const editorRef = useRef(null);
 
-  // 
-  // Fetch blog post in edit mode
-  // 
-  const {
-    data: post,
-    isLoading,
-    isError,
-    error,
-  } = useQuery({
+  const { data: post, isLoading, isError, error } = useQuery({
     queryKey: ["blogpost", id],
     queryFn: () => apiGetBlogById(id),
     enabled: isEditMode,
   });
 
-  // Hydrate form once post loads
   useEffect(() => {
     if (!isEditMode) return;
     if (!post) return;
 
-    // Permission check (if backend sends created_by populated or raw)
     const ownerId = post.created_by?._id || post.created_by;
     const myId = user?.id || user?._id;
 
@@ -104,18 +95,11 @@ const BlogEdit = () => {
     setFeaturedImageUrl(post.blog_picture || "");
   }, [isEditMode, post, user, navigate]);
 
-  // 
-  // Mutations
-  // 
   const createMutation = useMutation({
     mutationFn: apiCreateBlog,
-    onSuccess: (created) => {
+    onSuccess: () => {
       toast.success("Article created successfully.");
       queryClient.invalidateQueries({ queryKey: ["blogposts"] });
-
-      // If you want to go to edit page after create, uncomment:
-      // navigate(`/blog/edit/${created._id}`);
-
       navigate(-1);
     },
     onError: (err) => {
@@ -129,7 +113,6 @@ const BlogEdit = () => {
       toast.success("Article updated successfully.");
       queryClient.invalidateQueries({ queryKey: ["blogpost", id] });
       queryClient.invalidateQueries({ queryKey: ["blogposts"] });
-      
       navigate(-1);
     },
     onError: (err) => {
@@ -137,11 +120,9 @@ const BlogEdit = () => {
     },
   });
 
-  const isSaving = createMutation.isPending || updateMutation.isPending;
+  const isSaving = createMutation.isLoading || updateMutation.isLoading;
 
-  // 
   // Helpers
-  // 
   const toggleTag = (tag) => {
     setSelectedTags((prev) =>
       prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
@@ -172,45 +153,12 @@ const BlogEdit = () => {
     }
 
     setSelectedImage(file);
-    toast(file.name || "Image selected");
-  };
-
-  const handleUploadImage = async () => {
-    if (!selectedImage) {
-      toast.error("Please select an image first.");
-      return null;
-    }
-
-    if (!user) {
-      toast.error("You must be signed in to upload images.");
-      navigate("/signin");
-      return null;
-    }
-
-    setIsUploading(true);
-    try {
-      const myId = user?.id || user?._id;
-      const { path, url } = await uploadImage(selectedImage, myId);
-
-      setFeaturedImageUrl(url);
-      setImagePath(path);
-
-      setSelectedImage(null);
-      if (fileInputRef.current) fileInputRef.current.value = "";
-
-      toast.success("Image uploaded successfully.");
-
-      return { url, path };
-    } catch (e) {
-      toast.error(e?.message || "Failed to upload image.");
-      throw e;
-    } finally {
-      setIsUploading(false);
-    }
+    // show preview immediately by setting featuredImageUrl to local blob URL (optional)
+    setFeaturedImageUrl(URL.createObjectURL(file));
+    toast.success("Image selected (will be uploaded with the form).");
   };
 
   const handleSave = async (publish) => {
-    // validations
     if (!title.trim()) {
       return toast.error("Please add a title to your article.");
     }
@@ -221,7 +169,7 @@ const BlogEdit = () => {
 
     if (!user) {
       toast.error("You must be signed in to save an article.");
-      navigate("/signin");
+      navigate("/login");
       return;
     }
 
@@ -229,48 +177,44 @@ const BlogEdit = () => {
       return toast.error("Please select at least one tag.");
     }
 
-    let uploadedImageData = null;
+    // If there is a file, send FormData. Must append file under field name "image"
+    // because router uses upload.single("image").
+    const hasFile = Boolean(selectedImage);
+    let payload;
 
-    // If an image is selected but not uploaded yet, ask
-    if (selectedImage) {
-      const shouldUpload = confirm(
-        "You selected an image that hasn't been uploaded yet. Upload it now?"
-      );
-
-      if (shouldUpload) {
-        try {
-          uploadedImageData = await handleUploadImage();
-          await new Promise((r) => setTimeout(r, 50));
-        } catch {
-          return; // toast already shown
-        }
-      } else {
-        const shouldProceed = confirm("Proceed without uploading the image?");
-        if (!shouldProceed) return;
-
-        setSelectedImage(null);
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }
+    if (hasFile) {
+      payload = new FormData();
+      payload.append("title", title);
+      payload.append("content", content);
+      // send tags as JSON string; server will JSON.parse if needed
+      payload.append("tags", JSON.stringify(selectedTags));
+      payload.append("status", publish ? "Published" : "Draft");
+      // field name must match multer: "image"
+      payload.append("image", selectedImage, selectedImage.name);
+    } else {
+      // plain JSON payload — backend supports both JSON and multipart
+      payload = {
+        title,
+        content,
+        tags: selectedTags,
+        blog_picture: featuredImageUrl || "",
+        status: publish ? "Published" : "Draft",
+      };
     }
 
-    const payload = {
-      title,
-      content,
-      tags: selectedTags,
-      blog_picture: uploadedImageData?.url || featuredImageUrl || "",
-      status: publish ? "Published" : "Draft",
-    };
-
-    if (isEditMode) {
-      updateMutation.mutate({ id, payload });
-    } else {
-      createMutation.mutate(payload);
+    try {
+      if (isEditMode) {
+        // updateMutation expects an object { id, payload }
+        updateMutation.mutate({ id, payload });
+      } else {
+        createMutation.mutate(payload);
+      }
+    } catch (err) {
+      console.error(err);
+      toast.error("Failed to save article.");
     }
   };
 
-  // 
-  // UI states
-  // 
   if (isEditMode && isLoading) return <div className="p-6">Loading...</div>;
 
   if (isEditMode && isError) {
@@ -340,9 +284,7 @@ const BlogEdit = () => {
           Featured Image
           <button
             type="button"
-            onClick={() =>
-              toast("Maximum image size allowed is 2MB")
-            }
+            onClick={() => toast("Maximum image size allowed is 2MB")}
             className="ml-2 text-xs text-gray-500 hover:text-gray-700"
           >
             <Info className="inline-block h-4 w-4" />
@@ -360,17 +302,6 @@ const BlogEdit = () => {
                 ref={fileInputRef}
                 className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
               />
-
-              {selectedImage && (
-                <button
-                  type="button"
-                  onClick={handleUploadImage}
-                  disabled={isUploading}
-                  className="px-3 py-2 bg-orange-500 text-white rounded text-sm hover:bg-orange-600 disabled:opacity-50 cursor-pointer"
-                >
-                  {isUploading ? "Uploading..." : "Upload"}
-                </button>
-              )}
             </div>
           </div>
         </div>
@@ -392,7 +323,8 @@ const BlogEdit = () => {
                 type="button"
                 onClick={() => {
                   setFeaturedImageUrl("");
-                  setImagePath("");
+                  setSelectedImage(null);
+                  if (fileInputRef.current) fileInputRef.current.value = "";
                   toast("Image removed from the form.");
                 }}
                 className="text-red-500 text-xs hover:text-red-700"

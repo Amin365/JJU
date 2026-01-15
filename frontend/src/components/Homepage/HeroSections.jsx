@@ -43,7 +43,11 @@ const HeroHeader = () => {
                             </Link>
 
                           <div className="flex items-center gap-4">
-                          <ModleTogles/>
+                          <div className=" md:hidden">
+                          <ModleTogles />
+
+                          </div>
+                          
                               <button
                                 onClick={() => setMenuState(!menuState)}
                                 aria-label={menuState == true ? 'Close Menu' : 'Open Menu'}
@@ -74,7 +78,7 @@ const HeroHeader = () => {
                                     {menuItems.map((item, index) => (
                                         <li key={index}>
                                             <Link
-                                                href={item.href}
+                                                to={item.href}
                                                 className="text-muted-foreground hover:text-accent-foreground block duration-150">
                                                 <span>{item.name}</span>
                                             </Link>

@@ -14,7 +14,7 @@ import { Badge } from "@/components/ui/badge"; // shadcn badge
 import Footers from "../Homepage/Footer";
 import BlogHeros from "../Homepage/HeroSections"
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-
+import Loader from "../Loader"
 /*  constants  */
 
 const FALLBACK_IMAGE =
@@ -234,7 +234,7 @@ export default function BlogFeed({ onPostClick }) {
   /* -------- UI -------- */
 
   if (isLoading)
-    return <p className="p-6 text-gray-500">Loading blog posts...</p>;
+    return <Loader/>;
 
   if (isError)
     return (

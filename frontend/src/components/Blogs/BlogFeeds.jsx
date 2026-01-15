@@ -12,9 +12,9 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge"; // shadcn badge
 
 import Footers from "../Homepage/Footer";
-import BlogHeros from "../Homepage/HeroSections"
+import BlogHeros from "../Homepage/HeroSections";
 import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
-import Loader from "../Loader"
+import Loader from "../Loader";
 /*  constants  */
 
 const FALLBACK_IMAGE =
@@ -61,8 +61,8 @@ function TagPill({ active, children, onClick, className = "" }) {
       className={[
         "inline-flex items-center rounded-full border px-3 py-1 text-xs font-semibold transition",
         active
-          ? "bg-blue-600 text-white border-blue-600"
-          : "bg-white text-gray-800 border-gray-200 hover:bg-gray-100",
+          ? "bg-orange-600 text-white border-orange-600"
+          : "bg-white text-gray-800 border-gray-200 hover:bg-gray-100 dark:bg-gray-800 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700",
         className,
       ].join(" ")}
     >
@@ -233,8 +233,7 @@ export default function BlogFeed({ onPostClick }) {
 
   /* -------- UI -------- */
 
-  if (isLoading)
-    return <Loader/>;
+  if (isLoading) return <Loader />;
 
   if (isError)
     return (
@@ -245,205 +244,199 @@ export default function BlogFeed({ onPostClick }) {
 
   return (
     <div>
-          <BlogHeros />
+      <BlogHeros />
 
-   
-    <div className="min-h-screen py-10">
+      <div className="min-h-screen py-10 bg-gray-50 dark:bg-gray-900">
+        <div className="mx-auto max-w-7xl px-4 mt-32">
+          {/* Header + Paragraph */}
+          <div className="max-w-3xl mx-auto text-center mb-10">
+            <h2 className="text-3xl font-extrabold text-gray-900 dark:text-gray-100">
+              Our Blog
+            </h2>
+            <p className="mt-3 text-gray-600 dark:text-gray-300 text-lg">
+              A place where readers share ideas, explore stories, and discuss books that inspire us.
+            </p>
+          </div>
 
-      <div className="mx-auto max-w-7xl px-4 mt-32">
-        {/* Header + Paragraph */}
-        <div className="max-w-3xl mx-auto text-center mb-10">
-          <h2 className="text-3xl font-extrabold text-gray-900">Our Blog</h2>
-          <p className="mt-3 text-gray-600 text-lg">
-            Explore our latest insights, tutorials, and updates about education technology and online learning.
-          </p>
-          <div className="mt-2 text-sm text-gray-500">Blog posts</div>
-        </div>
+          {/* Search */}
+          <div className="mb-6 max-w-xl mx-auto relative">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400 dark:text-gray-400" />
+            <Input
+              placeholder="Search articles..."
+              className="pl-9 bg-white dark:bg-gray-800 text-gray-900 dark:text-gray-100"
+              value={searchTerm}
+              onChange={(e) => setSearchTerm(e.target.value)}
+            />
+          </div>
 
-        {/* Search */}
-        <div className="mb-6 max-w-xl mx-auto relative">
-          <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-gray-400" />
-          <Input
-            placeholder="Search articles..."
-            className="pl-9"
-            value={searchTerm}
-            onChange={(e) => setSearchTerm(e.target.value)}
-          />
-        </div>
+          {/* Tags */}
+          <div className="mb-10 max-w-xl mx-auto">
+            <div className="flex justify-between mb-3">
+              <div className="flex gap-2 items-center"></div>
 
-        {/* Tags */}
-        <div className="mb-10 max-w-xl mx-auto">
-          <div className="flex justify-between mb-3">
-            <div className="flex gap-2 items-center">
-              {/* <Filter className="w-4 h-4 text-gray-500" />
-              <span className="text-sm font-semibold">Tags</span> */}
+              {(searchTerm || selectedTagKey) && (
+                <Button size="sm" variant="outline" onClick={clearFilters}>
+                  Clear filters
+                </Button>
+              )}
             </div>
 
-            {(searchTerm || selectedTagKey) && (
-              <Button size="sm" variant="outline" onClick={clearFilters}>
-                Clear filters
-              </Button>
-            )}
-          </div>
-
-          <div className="flex flex-wrap gap-2">
-            <TagPill active={!selectedTagKey} onClick={clearFilters}>
-              All
-            </TagPill>
-
-            {allTags.map(({ key, label }) => (
-              <TagPill
-                key={key}
-                active={key === selectedTagKey}
-                onClick={() =>
-                  setSelectedTagKey((prev) => (prev === key ? "" : key))
-                }
-              >
-                {label}
+            <div className="flex flex-wrap gap-2">
+              <TagPill active={!selectedTagKey} onClick={clearFilters}>
+                All
               </TagPill>
-            ))}
+
+              {allTags.map(({ key, label }) => (
+                <TagPill
+                  key={key}
+                  active={key === selectedTagKey}
+                  onClick={() =>
+                    setSelectedTagKey((prev) => (prev === key ? "" : key))
+                  }
+                >
+                  {label}
+                </TagPill>
+              ))}
+            </div>
           </div>
-        </div>
 
-        {/* Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
-          {pagePosts.map((post) => {
-            const tags = post.tags || [];
-            const showHorizontal = tags.length > 1; // if more than one, show horizontal
-            return (
-              <Card
-                key={post.id}
-                onClick={() => handlePostClick(post.id)}
-                className="cursor-pointer hover:shadow-xl transition-transform transform hover:-translate-y-1 rounded-2xl overflow-hidden relative bg-white"
-              >
-                <div className="relative">
-                  <img
-                    src={post.coverImage}
-                    alt={post.title}
-                    className="h-48 w-full object-cover"
-                  />
+          {/* Cards */}
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+            {pagePosts.map((post) => {
+              const tags = post.tags || [];
+              const showHorizontal = tags.length > 1; // if more than one, show horizontal
+              return (
+                <Card
+                  key={post.id}
+                  onClick={() => handlePostClick(post.id)}
+                  className="cursor-pointer hover:shadow-xl transition-transform transform hover:-translate-y-1 rounded-2xl overflow-hidden relative bg-white dark:bg-gray-800"
+                >
+                  <div className="relative">
+                    <img
+                      src={post.coverImage}
+                      alt={post.title}
+                      className="h-48 w-full object-cover"
+                    />
 
-                  {/* Tag overlays using shadcn Badge */}
-                  <div
-                    className={`absolute left-3 top-3 pointer-events-none ${
-                      showHorizontal
-                        ? "flex flex-row items-center gap-2 p-1"
-                        : "flex flex-col p-0"
-                    }`}
-                  >
-                    {tags.slice(0, 3).map((t, i) => (
-                      <Badge
-                        key={i}
-                        className="bg-white/95 text-xs text-gray-800 font-semibold px-2 py-1 shadow-sm"
-                      >
-                        {t}
-                      </Badge>
-                    ))}
+                    {/* Tag overlays using shadcn Badge */}
+                    <div
+                      className={`absolute left-3 top-3 pointer-events-none ${
+                        showHorizontal ? "flex flex-row items-center gap-2 p-1" : "flex flex-col p-0"
+                      }`}
+                    >
+                      {tags.slice(0, 3).map((t, i) => (
+                        <Badge
+                          key={i}
+                          className="bg-white/95 dark:bg-gray-700 text-xs text-gray-800 dark:text-gray-100 font-semibold px-2 py-1 shadow-sm"
+                        >
+                          {t}
+                        </Badge>
+                      ))}
 
-                    {tags.length > 3 && (
-                      <Badge className="bg-white/90 text-xs text-gray-600 font-medium px-2 py-1 shadow-sm">
-                        +{tags.length - 3}
-                      </Badge>
-                    )}
-                  </div>
-                </div>
-
-                <CardContent className="p-5">
-                  <h3 className="font-semibold text-lg text-gray-900 mb-2 line-clamp-2">{post.title}</h3>
-                  <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                    {post.excerpt}
-                  </p>
-
-                 
-
-                  <div className="mt-4 flex items-center justify-between">
-                    <div className="text-xs text-gray-500 flex items-center gap-3">
-                    <div>
-                         <Avatar className="w-10 h-10">
-                            <AvatarImage src={post.author?.avatar} />
-                            <AvatarFallback>{post.author?.name?.[0] || "U"}</AvatarFallback>
-                          </Avatar>
+                      {tags.length > 3 && (
+                        <Badge className="bg-white/90 dark:bg-gray-700 text-xs text-gray-600 dark:text-gray-200 font-medium px-2 py-1 shadow-sm">
+                          +{tags.length - 3}
+                        </Badge>
+                      )}
                     </div>
+                  </div>
+
+                  <CardContent className="p-5">
+                    <h3 className="font-semibold text-lg text-gray-900 dark:text-gray-100 mb-2 line-clamp-2">
+                      {post.title}
+                    </h3>
+                    <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-3">
+                      {post.excerpt}
+                    </p>
+
+                    <div className="mt-4 flex items-center justify-between">
+                      <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3">
+                        <div>
+                          <Avatar className="w-10 h-10">
+                            <AvatarImage src={post.author?.avatar} />
+                            <AvatarFallback className="dark:text-gray-100">
+                              {String(post.author || "U").slice(0, 1).toUpperCase()}
+                            </AvatarFallback>
+                          </Avatar>
+                        </div>
 
                         <div>
-                             <p>{post.author}</p>
-                              <div className="flex items-center gap-3 text-sm text-gray-500 mt-2">
-                    <div className="inline-flex items-center gap-2">
-                      <Clock className="w-4 h-4" />
-                      <span>{post.readingTime} min</span>
-                    </div>
+                          <p className="text-gray-900 dark:text-gray-100">{post.author}</p>
+                          <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-2">
+                            <div className="inline-flex items-center gap-2">
+                              <Clock className="w-4 h-4" />
+                              <span>{post.readingTime} min</span>
+                            </div>
 
-                    <div className="inline-flex items-center gap-2">
-                      <Eye className="w-4 h-4" />
-                      <span>{post.views}</span>
-                    </div>
-                  </div>
+                            <div className="inline-flex items-center gap-2">
+                              <Eye className="w-4 h-4" />
+                              <span>{post.views}</span>
+                            </div>
+                          </div>
                         </div>
-                   
-                    
+                      </div>
+
+                      {/* Read more with arrow — more prominent and animates on hover */}
+                      <div className="flex items-center text-sm text-orange-600 dark:text-orange-400 font-semibold transition-transform group">
+                        <span className="mr-2">Read more</span>
+                        <ChevronRight className="w-4 h-4 transition-transform transform group-hover:translate-x-1" />
+                      </div>
                     </div>
-
-                    {/* Read more with arrow — more prominent and animates on hover */}
-                    <div className="flex items-center text-sm text-blue-600 font-semibold transition-transform group">
-                      <span className="mr-2">Read more</span>
-                      <ChevronRight className="w-4 h-4 transition-transform transform group-hover:translate-x-1" />
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            );
-          })}
-        </div>
-
-        {/* Pagination */}
-        {totalPosts > 0 && (
-          <div className="mt-10 flex flex-col gap-3 items-center">
-            <div className="flex items-center gap-2 flex-wrap justify-center">
-              {renderPages().map((p, idx) =>
-                p === "…" ? (
-                  <span key={`dots-${idx}`} className="px-2 text-gray-500">
-                    …
-                  </span>
-                ) : (
-                  <button
-                    key={p}
-                    type="button"
-                    onClick={() => setPage(p)}
-                    className={`h-10 w-10 rounded-md border text-sm font-semibold transition ${
-                      page === p
-                        ? "bg-blue-600 text-white border-blue-600"
-                        : "bg-white text-gray-800 border-gray-200 hover:bg-gray-50"
-                    }`}
-                    aria-current={page === p ? "page" : undefined}
-                  >
-                    {p}
-                  </button>
-                )
-              )}
-
-              <button
-                type="button"
-                onClick={() => setPage((v) => Math.min(totalPages, v + 1))}
-                disabled={page >= totalPages}
-                className="h-10 px-4 rounded-md border bg-white text-gray-800 border-gray-200 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Next
-              </button>
-            </div>
-
-            <div className="text-sm text-gray-600">
-              Showing {startIndex}-{endIndex} of {totalPosts} posts
-            </div>
-            {remaining > 0 && (
-              <div className="text-sm text-gray-500">
-                {remaining} more posts available
-              </div>
-            )}
+                  </CardContent>
+                </Card>
+              );
+            })}
           </div>
-        )}
+
+          {/* Pagination */}
+          {totalPosts > 0 && (
+            <div className="mt-10 flex flex-col gap-3 items-center">
+              <div className="flex items-center gap-2 flex-wrap justify-center">
+                {renderPages().map((p, idx) =>
+                  p === "…" ? (
+                    <span key={`dots-${idx}`} className="px-2 text-gray-500 dark:text-gray-400">
+                      …
+                    </span>
+                  ) : (
+                    <button
+                      key={p}
+                      type="button"
+                      onClick={() => setPage(p)}
+                      className={`h-10 w-10 rounded-md border text-sm font-semibold transition ${
+                        page === p
+                          ? "bg-orange-600 text-white border-orange-600"
+                          : "bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700"
+                      }`}
+                      aria-current={page === p ? "page" : undefined}
+                    >
+                      {p}
+                    </button>
+                  )
+                )}
+
+                <button
+                  type="button"
+                  onClick={() => setPage((v) => Math.min(totalPages, v + 1))}
+                  disabled={page >= totalPages}
+                  className="h-10 px-4 rounded-md border bg-white dark:bg-gray-800 text-gray-800 dark:text-gray-200 border-gray-200 dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  Next
+                </button>
+              </div>
+
+              <div className="text-sm text-gray-600 dark:text-gray-400">
+                Showing {startIndex}-{endIndex} of {totalPosts} posts
+              </div>
+              {remaining > 0 && (
+                <div className="text-sm text-gray-500 dark:text-gray-400">
+                  {remaining} more posts available
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+        <Footers clubLogoSrc="/jjuclub.jpg" />
       </div>
-      <Footers clubLogoSrc="/jjuclub.jpg" />
     </div>
-     </div>
   );
 }

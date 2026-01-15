@@ -9,18 +9,18 @@ export default function Example() {
       `}</style>
 
       {/* Header */}
-      <div className="mx-auto max-w-5xl px-6 pt-16 text-center">
-        <h2 className="text-balance text-3xl font-semibold text-gray-900 md:text-4xl">
+      <div className="mx-auto max-w-5xl  dark:text-white px-6 pt-16 text-center">
+        <h2 className="text-balance dark:text-white text-3xl font-semibold text-gray-900 md:text-4xl">
           Join Our Community
         </h2>
-        <p className="mt-3 text-sm text-gray-600 md:text-base">
+        <p className="mt-3 dark-text-white text-sm text-gray-600 md:text-base">
           Meet readers, share ideas, and grow your skills together.
         </p>
       </div>
 
       {/* Card (background removed) */}
-      <div className="max-w-5xl md:w-full mx-2 md:mx-auto mt-10 flex flex-col items-center justify-center text-center rounded-2xl p-10 border border-zinc-200 bg-white text-zinc-900">
-        <div className="flex flex-wrap items-center justify-center p-1 rounded-full bg-zinc-50 border border-zinc-200 text-sm">
+      <div className="max-w-5xl  md:w-full mx-2 md:mx-auto mt-10 flex flex-col items-center justify-center text-center rounded-2xl p-10 dark:border-none border border-zinc-200 bg-white dark:bg-gray-800 dark:text-white text-zinc-900">
+        <div className="flex flex-wrap items-center justify-center p-1 rounded-full bg-zinc-50 dark:bg-gray-800 dark:text-white border border-zinc-200 text-sm">
           <div className="flex items-center">
             <img
               className="size-6 md:size-7 rounded-full border-2 border-white"
@@ -39,12 +39,12 @@ export default function Example() {
             />
           </div>
 
-          <p className="-translate-x-2 font-medium text-zinc-700">
+          <p className="-translate-x-2 font-medium dark:text-white text-zinc-700">
             Join community of 1m+ founders
           </p>
         </div>
 
-        <h1 className="text-4xl md:text-5xl md:leading-[60px] font-semibold max-w-xl mt-5">
+        <h1 className="text-4xl dark:text-white md:text-5xl md:leading-[60px] font-semibold max-w-xl mt-5">
           Unlock your next big opportunity.
         </h1>
 

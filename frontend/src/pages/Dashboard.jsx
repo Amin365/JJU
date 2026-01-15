@@ -1,5 +1,4 @@
-
-
+import { Menu } from "lucide-react";
 import {
   Breadcrumb,
   BreadcrumbItem,
@@ -7,18 +6,18 @@ import {
   BreadcrumbList,
   BreadcrumbPage,
   BreadcrumbSeparator,
-} from "@/components/ui/breadcrumb"
-import { Separator } from "@/components/ui/separator"
+} from "@/components/ui/breadcrumb";
+import { Separator } from "@/components/ui/separator";
 import {
   SidebarInset,
   SidebarProvider,
   SidebarTrigger,
-} from "@/components/ui/sidebar"
-import { AppSidebar } from "../components/app-sidebar"
-import { Outlet } from "react-router"
-import { ModeToggle } from "../components/ModeTogle"
-import MainHeader from "../components/ProfileSection"
-import NotificationBell from "../components/NotificationBell"
+} from "@/components/ui/sidebar";
+import { AppSidebar } from "../components/app-sidebar";
+import { Outlet } from "react-router";
+import ModeToggle from "../components/ModeTogle";
+import MainHeader from "../components/ProfileSection";
+import NotificationBell from "../components/NotificationBell";
 
 export default function DashboardPage() {
   return (
@@ -27,20 +26,34 @@ export default function DashboardPage() {
       <SidebarInset>
         {/* Top bar: title + controls */}
         <div className="flex items-center justify-between mt-8 px-4 pt-4 pb-2 lg:px-6">
-          <h1>JJU Club Reading</h1>
-          {/* leftside */}
-          <div className="flex items-center gap-4  mr-12">
+          <div className="flex items-center gap-3">
+            {/* Mobile sidebar toggle */}
+            <SidebarTrigger>
+              <button
+                type="button"
+                className="p-2 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 md:hidden"
+                aria-label="Open menu"
+              >
+                <Menu className="w-5 h-5" />
+              </button>
+            </SidebarTrigger>
+
+            <h1 className="text-lg font-semibold">JJU Club Reading</h1>
+          </div>
+
+          {/* rightside controls */}
+          <div className="flex items-center gap-4 mr-12">
             <NotificationBell />
             <ModeToggle />
             <MainHeader />
           </div>
         </div>
 
-        <div className="flex flex-1 flex-col gap-4  pt-0">
+        <div className="flex flex-1 flex-col gap-4 pt-0">
           <div className="" />
           <Outlet />
         </div>
       </SidebarInset>
     </SidebarProvider>
-  )
+  );
 }

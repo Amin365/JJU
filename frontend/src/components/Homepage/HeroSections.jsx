@@ -1,12 +1,11 @@
-
-// import { Logo } from '@/components/logo'
 import { Menu, X } from 'lucide-react'
 import { Button } from '@/components/ui/button'
 import React from 'react'
 import { cn } from '@/lib/utils'
-import {Link} from 'react-router'
+import { Link } from 'react-router'
 import Features from './Features'
 import ModleTogles from '../ModeTogle'
+import { useSelector } from 'react-redux' // <-- added
 
 const menuItems = [
     { name: 'Home', href: '/' },
@@ -18,6 +17,8 @@ const menuItems = [
 const HeroHeader = () => {
     const [menuState, setMenuState] = React.useState(false)
     const [isScrolled, setIsScrolled] = React.useState(false)
+    const { user } = useSelector(s => s.auth) // <-- ensure selector present
+    
 
     React.useEffect(() => {
         const handleScroll = () => {
@@ -87,33 +88,28 @@ const HeroHeader = () => {
                                 </ul>
                             </div>
                             <div className="flex w-full flex-col space-y-3 sm:flex-row sm:gap-3 sm:space-y-0 md:w-fit">
-                                <Button
-                                    asChild
-                                    variant="outline"
-                                    size="sm"
-                                    className={cn(isScrolled && 'lg:hidden')}>
-                                    <Link to="/login">
-                                        <span>Login</span>
-                                    </Link>
-                                </Button>
-                                {/* <Button
-                                    asChild
-                                    size="sm"
-                                    className={cn(isScrolled && 'lg:hidden')}>
-                                    <Link href="#">
-                                        <span>Sign Up</span>
-                                    </Link>
-                                </Button> */}
-                                <div>
-                                <ModleTogles />
+                                {/* Only show Login when there is no logged-in user */}
+                                {!user && (
+                                  <Button
+                                      asChild
+                                      variant="outline"
+                                      size="sm"
+                                      className={cn(isScrolled && 'lg:hidden')}>
+                                      <Link to="/login">
+                                          <span>Login</span>
+                                      </Link>
+                                  </Button>
+                                )}
 
+                                <div>
+                                  <ModleTogles />
                                 </div>
+
                                 <Button
                                     asChild
                                     size="sm"
-                                            className={cn(isScrolled ? 'lg:inline-flex' : 'hidden')}
-                                            
-                                            >
+                                    className={cn(isScrolled ? 'lg:inline-flex' : 'hidden')}
+                                >
                                     <Link to="#">
                                         <span>Get Started</span>
                                     </Link>
@@ -124,9 +120,7 @@ const HeroHeader = () => {
                 </div>
             </nav>
         </header>
-       
-
     )
 }
 
-export default HeroHeader   
+export default HeroHeader

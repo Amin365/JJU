@@ -10,21 +10,15 @@ import api from "@/app/api/apislice";
 import { toast } from "sonner";
 
 const AVAILABLE_TAGS = [
-  "React",
-  "JavaScript",
-  "CSS",
-  "Tailwind",
-  "Web Development",
-  "Backend",
-  "Frontend",
-  "UI Design",
-  "Performance",
-  "Supabase",
-  "Real-time",
-  "API",
-  "Testing",
-  "TypeScript",
-  "Future Tech",
+  "Saynis",
+  "Taariikh",
+  "Sheeko Faneed",
+  "Suugan",
+  "Technology",
+  "Buug Sookoobid",
+  "Diin",
+  "Arimo Bulsho",
+ 
 ];
 
 // API helpers detect FormData and set multipart header

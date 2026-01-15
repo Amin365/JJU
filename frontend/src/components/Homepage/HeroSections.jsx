@@ -9,7 +9,7 @@ import { useSelector } from 'react-redux' // <-- added
 
 const menuItems = [
     { name: 'Home', href: '/' },
-    { name: 'Features', href: '#link' },
+    { name: 'Dashboard', href: '/dashboard' },
     { name: 'Blogs', href: '/blogs' },
     { name: 'About', href: '#link' },
 ]
@@ -68,8 +68,11 @@ const HeroHeader = () => {
                                             className="text-muted-foreground hover:text-accent-foreground block duration-150">
                                             <span>{item.name}</span>
                                         </Link>
+
                                     </li>
+                                 
                                 ))}
+                                  
                             </ul>
                         </div>
 
@@ -101,7 +104,7 @@ const HeroHeader = () => {
                                   </Button>
                                 )}
 
-                                <div>
+                                <div className="hidden md:block" >
                                   <ModleTogles />
                                 </div>
 

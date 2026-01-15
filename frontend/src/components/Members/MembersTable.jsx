@@ -100,7 +100,6 @@ export default function MemberTable() {
 
   const members = data?.data ?? [];
 
-  console.log("members",members)
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? (totalItems > 0 ? Math.ceil(totalItems / limit) : 1);
 

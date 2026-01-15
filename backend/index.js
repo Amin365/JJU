@@ -56,7 +56,9 @@ app.use(
           "data:",
           "https://res.cloudinary.com", // allow Cloudinary
           "https://i.pravatar.cc",     // allow avatar service
-          "https://res.cloudinary.com", // include any other domains you need
+          "https://res.cloudinary.com",
+"https://images.unsplash.com"          
+          // include any other domains you need
         ],
         connectSrc: ["'self'"],
         frameAncestors: ["'none'"],

@@ -40,7 +40,7 @@ const HeroHeader = () => {
                                 aria-label="home"
                                 className="flex items-center space-x-2">
                                 {/* <Logo /> */}
-                                <span className="font-bold text-lg">JJU Club Reading</span>
+                                <span className="font-bold text-lg">JJU Reading Club</span>
                             </Link>
 
                           <div className="flex items-center gap-4">

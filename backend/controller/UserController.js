@@ -61,7 +61,7 @@ export const createUserFromMember = async (req, res, next) => {
     // 5) return populated
     const populated = await User.findById(user._id)
       .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name email phone code role")
+      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
       .lean()
       .exec();
 
@@ -87,7 +87,7 @@ export const getUserById = async (req, res, next) => {
 
     const user = await User.findById(id)
       .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name email phone code role")
+      .populate("member",  "first_name middle_name last_name Profile_picture full_name email phone Profile_picture code role")
       .lean()
       .exec();
 
@@ -121,7 +121,7 @@ export const getUsers = async (req, res, next) => {
     const [items, total] = await Promise.all([
       User.find(filter)
         .populate("role", "role color plural system")
-        .populate("member", "first_name middle_name last_name full_name email phone code role")
+        .populate("member", "first_name middle_name Profile_picture last_name full_name email phone code role")
         .sort(sort)
         .skip(skip)
         .limit(perPage)
@@ -175,7 +175,7 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
 
     // Query members and filter out those with existing users
     const allMembers = await Member.find(filter)
-      .select("_id first_name middle_name last_name full_name code email createdAt role")
+      .select("_id first_name middle_name last_name Profile_picture full_name code email createdAt role")
       .sort(sort)
       .lean()
       .exec();

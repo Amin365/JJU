@@ -62,10 +62,10 @@ const MemberSchema = new Schema(
       sparse: true,
     },
 
-    date_of_birth: {
-      type: Date,
-      default: null,
-    },
+    // date_of_birth: {
+    //   type: Date,
+    //   default: null,
+    // },
 
     gender: {
       type: String,

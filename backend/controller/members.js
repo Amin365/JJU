@@ -24,7 +24,7 @@ export const createMember = async (req, res, next) => {
       code,
       phone,
       email,
-      date_of_birth,
+      // date_of_birth,
       gender,
       region,
       join_date,
@@ -57,7 +57,7 @@ export const createMember = async (req, res, next) => {
       code,
       phone,
       email,
-      date_of_birth,
+      // date_of_birth,
       gender,
       region,
       join_date,
@@ -477,7 +477,7 @@ export const bulkCreateMembers = async (req, res, next) => {
         region: normalize(raw.region) ? String(raw.region).trim() : "",
         city: normalize(raw.city) ? String(raw.city).trim() : "",
         status: raw.status || undefined,
-        date_of_birth: toDateOrNull(raw.date_of_birth),
+        // date_of_birth: toDateOrNull(raw.date_of_birth),
         join_date: toDateOrNull(raw.join_date) || undefined,
         role: raw.role || undefined, // optional
       };

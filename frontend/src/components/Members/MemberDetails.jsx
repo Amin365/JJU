@@ -23,7 +23,7 @@ import MemberDetailsSkeleton from "./MemberDetialsskleton";
 /* Local Card wrapper (matching the visual style used previously) */
 const Card = ({ children, className = "" }) => (
   <div
-    className={`rounded-2xl shadow-sm border border-slate-200/80 bg-white/90 backdrop-blur-sm ${className}`}
+    className={`rounded-2xl shadow-sm border border-slate-200/80 bg-white/90 backdrop-blur-sm dark:bg-gray-800/80 dark:border-gray-700 ${className}`}
   >
     {children}
   </div>
@@ -32,14 +32,14 @@ const Card = ({ children, className = "" }) => (
 /* Small badge used for status */
 const Badge = ({ status }) => {
   const styles = {
-    Active: "bg-emerald-50 text-emerald-700 border-emerald-200",
-    Inactive: "bg-red-50 text-red-700 border-red-200",
-    Archived: "bg-amber-50 text-amber-700 border-amber-200",
+    Active: "bg-emerald-50 text-emerald-700 border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300",
+    Inactive: "bg-red-50 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300",
+    Archived: "bg-amber-50 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300",
   };
   return (
     <span
       className={`px-2.5 py-0.5 rounded-full text-[11px] font-semibold border tracking-wide uppercase ${
-        styles[status] || "bg-gray-100 text-gray-700 border-gray-200"
+        styles[status] || "bg-gray-100 text-gray-700 border-gray-200 dark:bg-gray-700/40 dark:text-gray-200"
       }`}
     >
       {status}
@@ -49,7 +49,7 @@ const Badge = ({ status }) => {
 
 /* small pill helper */
 const Pill = ({ icon: Icon, label }) => (
-  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200">
+  <span className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[11px] font-medium bg-slate-50 text-slate-600 border border-slate-200 dark:bg-gray-700/40 dark:text-gray-200 dark:border-gray-600">
     {Icon && <Icon size={13} />} {label}
   </span>
 );
@@ -256,7 +256,6 @@ export default function MemberDetails() {
       return;
     }
 
-
     setEmailBody("");
     setIsEmailModalOpen(true);
   };
@@ -283,14 +282,12 @@ export default function MemberDetails() {
   };
 
   if (isLoading) {
-    return  <MemberDetailsSkeleton/>
-    
-   
+    return <MemberDetailsSkeleton />;
   }
 
   if (isError || !member) {
     return (
-      <div className="p-8 text-center text-red-600">
+      <div className="p-8 text-center text-red-600 dark:text-red-400">
         Error: {error?.response?.data?.message || error?.message || "Member not found"}
       </div>
     );
@@ -304,34 +301,34 @@ export default function MemberDetails() {
       <div className="flex items-center gap-4 mb-6">
         <button
           onClick={() => navigate(-1)}
-          className="p-2 rounded-xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors"
+          className="p-2 rounded-xl hover:bg-slate-100 border border-transparent hover:border-slate-200 transition-colors dark:hover:bg-gray-700/60 dark:hover:border-gray-600"
           aria-label="Back"
         >
-          <ArrowLeft size={20} className="text-slate-600" />
+          <ArrowLeft size={20} className="text-slate-600 dark:text-gray-200" />
         </button>
 
         <div className="flex-1">
           <div className="flex items-center gap-3">
-            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 tracking-tight">
+            <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-gray-100 tracking-tight">
               Member Profile
             </h1>
 
             {(member.isArchived || member.isRecordArchived) && (
-              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide">
+              <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[11px] font-semibold bg-amber-50 text-amber-700 border border-amber-200 uppercase tracking-wide dark:bg-amber-900/30 dark:text-amber-300">
                 <ShieldCheck size={12} /> Archived
               </span>
             )}
           </div>
 
-          <div className="mt-2 flex items-center flex-wrap gap-3 text-xs text-slate-500">
+          <div className="mt-2 flex items-center flex-wrap gap-3 text-xs text-slate-500 dark:text-slate-400">
             <div>
-              Code: <span className="font-semibold text-slate-700">{member.code || "—"}</span>
+              Code: <span className="font-semibold text-slate-700 dark:text-gray-100">{member.code || "—"}</span>
             </div>
 
             <div className="flex items-center gap-2">
               <button
                 onClick={(e) => { e.stopPropagation(); copyToClipboard(member._id ?? member.id, "Member ID"); }}
-                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100"
+                className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100 dark:bg-gray-700/40 dark:border-gray-600 dark:hover:bg-gray-700/30"
                 title="Copy Member ID"
               >
                 <Clipboard size={14} /> Copy ID
@@ -343,24 +340,16 @@ export default function MemberDetails() {
         <div className="flex flex-wrap gap-2 justify-end">
           <button
             onClick={openEmailModal}
-            className="px-3 py-1.5 md:px-4 md:py-2 bg-white/80 text-slate-700 rounded-xl flex items-center gap-2 text-xs md:text-sm font-medium border border-slate-200 hover:bg-slate-50"
+            className="px-3 py-1.5 md:px-4 md:py-2 bg-white/80 text-slate-700 rounded-xl flex items-center gap-2 text-xs md:text-sm font-medium border border-slate-200 hover:bg-slate-50 dark:bg-gray-800/70 dark:text-gray-100 dark:border-gray-700 dark:hover:bg-gray-700/60"
             title="Send email"
           >
             <Mail size={16} /> {member.email ? "Send Email" : "No email"}
           </button>
 
-          {/* <button
-            onClick={() => { if (member.phone) window.location.href = `tel:${member.phone}`; }}
-            className="px-3 py-1.5 md:px-4 md:py-2 bg-white/80 text-slate-700 rounded-xl flex items-center gap-2 text-xs md:text-sm font-medium border border-slate-200 hover:bg-slate-50"
-            title="Call"
-          >
-            <Phone size={16} /> {member.phone ? "Call" : "No phone"}
-          </button> */}
-
           <button
             onClick={handleDeleteCheck}
             disabled={isOperationLoading}
-            className="px-3 py-1.5 md:px-4 md:py-2 text-red-600 hover:bg-red-50 rounded-xl text-xs md:text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 border border-red-100"
+            className="px-3 py-1.5 md:px-4 md:py-2 text-red-600 hover:bg-red-50 rounded-xl text-xs md:text-sm font-medium flex items-center gap-2 transition-colors disabled:opacity-50 border border-red-100 dark:hover:bg-red-900/30 dark:border-red-800"
           >
             <Trash2 size={16} /> Delete
           </button>
@@ -375,13 +364,13 @@ export default function MemberDetails() {
       </div>
 
       {/* Redesigned Profile Header Card */}
-      <Card className="mb-6 relative overflow-hidden border-0 ring-1 ring-slate-200">
-        <div className="h-32 bg-gradient-to-r from-orange-500 via-orange-500 to-orange-700" />
+      <Card className="mb-6 relative overflow-hidden border-0 ring-1 ring-slate-200 dark:ring-gray-700">
+        <div className="h-32 bg-gradient-to-r from-orange-500 via-orange-500 to-orange-700 dark:from-orange-600 dark:to-orange-800" />
         <div className="px-6 md:px-8 pb-7">
           <div className="flex flex-col md:flex-row items-start md:items-center -mt-12 gap-5 md:gap-6">
             {/* Avatar */}
             <div
-              className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-3xl md:text-4xl font-bold text-white ${member.isArchived ? "bg-gray-400" : "bg-slate-700"}`}
+              className={`w-24 h-24 md:w-28 md:h-28 rounded-2xl border-4 border-white shadow-xl flex items-center justify-center text-3xl md:text-4xl font-bold text-white ${member.isArchived ? "bg-gray-400 dark:bg-gray-600" : "bg-slate-700 dark:bg-slate-600"}`}
               aria-hidden
             >
               {member.Profile_picture ? (
@@ -399,28 +388,26 @@ export default function MemberDetails() {
             <div className="flex-1 min-w-0 mt-15">
               <div className="flex items-start justify-between gap-4">
                 <div className="min-w-0">
-                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900 truncate">
+                  <h2 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-gray-100 truncate">
                     {member.first_name} {member.middle_name ? `${member.middle_name} ` : ""}{member.last_name}
                   </h2>
 
-                  <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600">
+                  <div className="mt-2 flex flex-wrap items-center gap-3 text-sm text-slate-600 dark:text-slate-400">
                     {member.department && (
-                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border">
+                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border dark:bg-gray-700/40 dark:text-gray-100 dark:border-gray-600">
                         <strong className="text-xs">Dept:</strong> {member.department}
                       </span>
                     )}
 
                     {member.study_year && (
-                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border">
+                      <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-slate-50 text-slate-700 border dark:bg-gray-700/40 dark:text-gray-100 dark:border-gray-600">
                         <strong className="text-xs">Year:</strong> {member.study_year}
                       </span>
                     )}
 
-                    <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200">
+                    <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300">
                       {member.status || "Active"}
                     </span>
-
-                   
                   </div>
                 </div>
 
@@ -429,7 +416,7 @@ export default function MemberDetails() {
                   <button
                     onClick={handleArchiveRestoreToggle}
                     disabled={isOperationLoading}
-                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs md:text-sm font-medium transition-colors disabled:opacity-60"
+                    className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl border border-slate-300 text-slate-700 hover:bg-slate-50 text-xs md:text-sm font-medium transition-colors disabled:opacity-60 dark:border-gray-600 dark:text-gray-100 dark:hover:bg-gray-700/40"
                   >
                     {isOperationLoading ? <Loader2 size={16} className="animate-spin" /> : (member.isArchived || member.isRecordArchived ? <><Archive size={16} /> Restore</> : <><Archive size={16} /> Archive</>)}
                   </button>
@@ -437,7 +424,6 @@ export default function MemberDetails() {
               </div>
 
               {/* secondary row: code & copy */}
-             
             </div>
           </div>
         </div>
@@ -449,27 +435,27 @@ export default function MemberDetails() {
         <div className="lg:col-span-2 space-y-6">
           {/* Personal Info */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Users size={20} className="text-orange-500" /> Personal Information
             </h3>
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 text-sm">
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Full Name</label>
-                <p className="text-slate-800 font-medium mt-1">{member.first_name} {member.middle_name} {member.last_name}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Full Name</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.first_name} {member.middle_name} {member.last_name}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Gender</label>
-                <p className="text-slate-800 font-medium mt-1">{member.gender || "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Gender</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.gender || "N/A"}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Member Code</label>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Member Code</label>
                 <div className="flex items-center gap-2 mt-1">
-                  <p className="text-slate-800 font-medium">{member.code}</p>
+                  <p className="text-slate-800 dark:text-gray-100 font-medium">{member.code}</p>
                   <button
                     onClick={() => copyToClipboard(member.code, "Member Code")}
-                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100"
+                    className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100 dark:bg-gray-700/40 dark:border-gray-600 dark:hover:bg-gray-700/30"
                   >
                     <Clipboard size={14} /> Copy
                   </button>
@@ -477,54 +463,54 @@ export default function MemberDetails() {
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Emergency Contact</label>
-                <p className="text-slate-800 font-medium mt-1">{member.emergency_contact || "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Emergency Contact</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.emergency_contact || "N/A"}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Date of Birth</label>
-                <div className="flex items-center gap-2 mt-1 text-slate-800 font-medium">
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Date of Birth</label>
+                <div className="flex items-center gap-2 mt-1 text-slate-800 dark:text-gray-100 font-medium">
                   <Calendar size={16} /> {formatDate(member.date_of_birth)}
                 </div>
               </div>
 
               <div className="sm:col-span-2">
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Region</label>
-                <p className="text-slate-800 font-medium mt-1">{member.region || "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Region</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.region || "N/A"}</p>
               </div>
             </div>
           </Card>
 
           {/* Membership & Education */}
           <Card className="p-6">
-            <h3 className="text-lg font-semibold text-slate-800 mb-4 flex items-center gap-2">
+            <h3 className="text-lg font-semibold text-slate-800 dark:text-gray-100 mb-4 flex items-center gap-2">
               <Calendar size={20} className="text-orange-500" /> Membership & Education
             </h3>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-y-6 gap-x-6 text-sm">
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Join Date</label>
-                <p className="text-slate-800 font-medium mt-1">{formatDate(member.join_date)}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Join Date</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{formatDate(member.join_date)}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Department</label>
-                <p className="text-slate-800 font-medium mt-1">{member.department || "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Department</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.department || "N/A"}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Student / Member ID</label>
-                <p className="text-slate-800 font-medium mt-1">{member.student_id || "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Student / Member ID</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.student_id || "N/A"}</p>
               </div>
 
               <div>
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Study Year</label>
-                <p className="text-slate-800 font-medium mt-1">{member.study_year ? `${member.study_year}${member.study_year === "1" ? "st" : member.study_year === "2" ? "nd" : member.study_year === "3" ? "rd" : "th"} year` : "N/A"}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Study Year</label>
+                <p className="text-slate-800 dark:text-gray-100 font-medium mt-1">{member.study_year ? `${member.study_year}${member.study_year === "1" ? "st" : member.study_year === "2" ? "nd" : member.study_year === "3" ? "rd" : "th"} year` : "N/A"}</p>
               </div>
 
               <div className="sm:col-span-2 pt-2">
-                <label className="text-[11px] font-semibold text-slate-400 uppercase tracking-wider">Notes</label>
-                <p className="text-slate-700 mt-1">{member.notes || "No notes provided."}</p>
+                <label className="text-[11px] font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider">Notes</label>
+                <p className="text-slate-700 dark:text-gray-200 mt-1">{member.notes || "No notes provided."}</p>
               </div>
             </div>
           </Card>
@@ -534,30 +520,30 @@ export default function MemberDetails() {
         <div className="space-y-6">
           {/* Contact */}
           <Card className="p-6">
-            <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-4">Contact Methods</h3>
+            <h3 className="text-xs font-semibold text-slate-400 dark:text-slate-400 uppercase tracking-wider mb-4">Contact Methods</h3>
             <div className="space-y-3 text-sm">
-              <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 dark:hover:bg-gray-700/30 dark:hover:border-gray-600">
+                <div className="w-10 h-10 rounded-full bg-orange-100 text-orange-600 flex items-center justify-center shrink-0 dark:bg-orange-900/20 dark:text-orange-300">
                   <Mail size={18} />
                 </div>
                 <div>
-                  <p className="font-medium text-slate-900">{member.email || "No email set"}</p>
-                  <p className="text-xs text-slate-500">Official Email</p>
+                  <p className="font-medium text-slate-900 dark:text-gray-100">{member.email || "No email set"}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Official Email</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100">
-                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0">
+              <div className="flex items-center gap-3 p-3 rounded-xl hover:bg-slate-50 transition-colors border border-transparent hover:border-slate-100 dark:hover:bg-gray-700/30 dark:hover:border-gray-600">
+                <div className="w-10 h-10 rounded-full bg-emerald-100 text-emerald-600 flex items-center justify-center shrink-0 dark:bg-emerald-900/20 dark:text-emerald-300">
                   <Phone size={18} />
                 </div>
                 <div>
-                  <p className="font-medium text-slate-900">{member.phone || "No phone set"}</p>
-                  <p className="text-xs text-slate-500">Primary Phone</p>
+                  <p className="font-medium text-slate-900 dark:text-gray-100">{member.phone || "No phone set"}</p>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">Primary Phone</p>
                 </div>
                 {member.phone && (
                   <div className="ml-auto flex gap-2">
-                    <a href={`tel:${member.phone}`} className="text-xs px-2 py-1 rounded-md border bg-white">Call</a>
-                    <button onClick={() => copyToClipboard(member.phone, "Phone")} className="text-xs px-2 py-1 rounded-md border bg-white inline-flex items-center gap-1"><Clipboard size={14} />Copy</button>
+                    <a href={`tel:${member.phone}`} className="text-xs px-2 py-1 rounded-md border bg-white dark:bg-gray-800/60">Call</a>
+                    <button onClick={() => copyToClipboard(member.phone, "Phone")} className="text-xs px-2 py-1 rounded-md border bg-white dark:bg-gray-800/60 inline-flex items-center gap-1"><Clipboard size={14} />Copy</button>
                   </div>
                 )}
               </div>
@@ -567,19 +553,19 @@ export default function MemberDetails() {
           {/* Metadata */}
           <Card className="p-6">
             <div className="flex items-center justify-between mb-5">
-              <h3 className="font-semibold text-sm flex items-center gap-2">
+              <h3 className="font-semibold text-sm flex items-center gap-2 text-slate-800 dark:text-gray-100">
                 <Clock size={16} /> Metadata
               </h3>
             </div>
 
             <div className="space-y-3 text-sm">
               <div>
-                <label className="text-[11px] text-slate-400 uppercase tracking-wider">Created</label>
-                <div className="font-mono mt-1">{formatDate(member.createdAt)}</div>
+                <label className="text-[11px] text-slate-400 dark:text-slate-400 uppercase tracking-wider">Created</label>
+                <div className="font-mono mt-1 text-slate-800 dark:text-gray-100">{formatDate(member.createdAt)}</div>
               </div>
               <div>
-                <label className="text-[11px] text-slate-400 uppercase tracking-wider">Last Updated</label>
-                <div className="font-mono mt-1">{formatDate(member.updatedAt)}</div>
+                <label className="text-[11px] text-slate-400 dark:text-slate-400 uppercase tracking-wider">Last Updated</label>
+                <div className="font-mono mt-1 text-slate-800 dark:text-gray-100">{formatDate(member.updatedAt)}</div>
               </div>
             </div>
           </Card>
@@ -589,20 +575,20 @@ export default function MemberDetails() {
       {/* Confirmation Dialog (simple centered modal) */}
       {isDialogOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full mx-4 overflow-hidden border border-slate-200 dark:bg-gray-800 dark:border-gray-700">
             <div className="p-6">
               <div className="flex items-center justify-between mb-3">
-                <h3 className={`text-base md:text-lg font-bold ${dialogConfig.type === "danger" ? "text-red-600" : "text-slate-800"}`}>
+                <h3 className={`text-base md:text-lg font-bold ${dialogConfig.type === "danger" ? "text-red-600 dark:text-red-400" : "text-slate-800 dark:text-gray-100"}`}>
                   {dialogConfig.title}
                 </h3>
-                <button onClick={() => setIsDialogOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close dialog">
+                <button onClick={() => setIsDialogOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:hover:text-white" aria-label="Close dialog">
                   <X size={18} />
                 </button>
               </div>
-              <p className="text-sm text-slate-600 leading-relaxed mb-6">{dialogConfig.message}</p>
+              <p className="text-sm text-slate-600 dark:text-slate-300 leading-relaxed mb-6">{dialogConfig.message}</p>
 
               <div className="flex gap-3 justify-end">
-                <button onClick={() => setIsDialogOpen(false)} className="px-4 py-2 text-xs text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200">
+                <button onClick={() => setIsDialogOpen(false)} className="px-4 py-2 text-xs text-slate-600 hover:bg-slate-100 rounded-xl border border-slate-200 dark:text-slate-200 dark:hover:bg-gray-700/30">
                   Cancel
                 </button>
 
@@ -622,41 +608,41 @@ export default function MemberDetails() {
       {/* Email Modal */}
       {isEmailModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden border border-slate-200">
+          <div className="bg-white rounded-2xl shadow-2xl max-w-2xl w-full mx-4 overflow-hidden border border-slate-200 dark:bg-gray-800 dark:border-gray-700">
             <div className="p-6">
               <div className="flex items-start justify-between gap-4">
                 <div>
-                  <h3 className="text-lg font-semibold">Send Email to {member.first_name} {member.last_name}</h3>
-                  <p className="text-xs text-slate-500 mt-1">Recipient: <span className="font-mono">{member.email}</span></p>
+                  <h3 className="text-lg font-semibold text-slate-900 dark:text-gray-100">Send Email to {member.first_name} {member.last_name}</h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">Recipient: <span className="font-mono">{member.email}</span></p>
                 </div>
-                <button onClick={() => setIsEmailModalOpen(false)} className="text-slate-400 hover:text-slate-600" aria-label="Close email dialog">
+                <button onClick={() => setIsEmailModalOpen(false)} className="text-slate-400 hover:text-slate-600 dark:text-slate-300 dark:hover:text-white" aria-label="Close email dialog">
                   <X size={18} />
                 </button>
               </div>
 
               <div className="mt-4">
-                <label className="text-sm font-medium text-slate-700">Subject</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-gray-200">Subject</label>
                 <input
                   value={emailSubject}
                   onChange={(e) => setEmailSubject(e.target.value)}
-                  className="w-full mt-2 px-3 py-2 rounded-md border border-slate-200"
+                  className="w-full mt-2 px-3 py-2 rounded-md border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-900/70 dark:text-gray-100"
                   placeholder="Email subject"
                 />
               </div>
 
               <div className="mt-4">
-                <label className="text-sm font-medium text-slate-700">Message</label>
+                <label className="text-sm font-medium text-slate-700 dark:text-gray-200">Message</label>
                 <textarea
                   value={emailBody}
                   onChange={(e) => setEmailBody(e.target.value)}
                   rows={8}
-                  className="w-full mt-2 px-3 py-2 rounded-md border border-slate-200"
+                  className="w-full mt-2 px-3 py-2 rounded-md border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-900/70 dark:text-gray-100"
                   placeholder="Write your message here..."
                 />
               </div>
 
               <div className="mt-4 flex justify-end gap-3">
-                <button onClick={() => setIsEmailModalOpen(false)} className="px-4 py-2 rounded-md border">Cancel</button>
+                <button onClick={() => setIsEmailModalOpen(false)} className="px-4 py-2 rounded-md border bg-white dark:bg-gray-800/70">Cancel</button>
                 <button
                   onClick={submitEmail}
                   disabled={sendEmailMutation?.isLoading}

@@ -49,6 +49,9 @@ const UsersTable = () => {
     keepPreviousData: true,
     staleTime: 30_000,
   });
+
+
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status }) => {
       const res = await api.patch(`/users/${id}/status`, { status });
@@ -97,7 +100,7 @@ const UsersTable = () => {
     });
   }, [users, searchTerm]);
 
-  const handleRowClick = (id) => navigate(`/dashboard/users/${id}`);
+  // const handleRowClick = (id) => navigate(`/dashboard/users/${id}`);
 
   const handlePageChange = (newPage) => {
     if (!isLoading && !isFetching && newPage >= 1 && newPage <= totalPages) {
@@ -167,18 +170,28 @@ const UsersTable = () => {
                 return (
                   <tr
                     key={u._id || u.id}
-                    onClick={() => handleRowClick(u._id || u.id)}
+                    // onClick={() => handleRowClick(u._id || u.id)}
                     className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors"
                   >
-                    <td className="p-4 flex items-center gap-3">
-                      <div className="w-10 h-10 rounded-md flex items-center justify-center font-medium text-white shadow-sm bg-gradient-to-br from-orange-500 to-indigo-600">
-                        {(fullName?.[0] ?? u.username?.[0] ?? "U").toUpperCase()}
+                    <td className="colSpan={3}  p-4 flex items-center gap-3">
+                      <div className="w-10 h-10 rounded flex items-center justify-center font-medium text-white shadow-sm bg-gradient-to-br from-orange-500 to-indigo-600">
+  {u.member?.Profile_picture ? (
+    <img
+      src={u.member.Profile_picture}
+      alt={fullName}
+      className="w-full h-full object-cover rounded"
+    />
+  ) : (
+    <span className="font-medium rounded  text-white bg-gradient-to-br from-orange-500 to-indigo-600 w-full h-full flex items-center justify-center">
+      {fullName?.charAt(0)?.toUpperCase() || "U"}
+    </span>
+  )}
                       </div>
                       <div>
-                        <div className="font-medium text-slate-800 dark:text-white">{fullName || "—"}</div>
-                        <div className="text-xs text-slate-500 dark:text-gray-300">
+                        <p className="font-medium text-slate-800 dark:text-white">{fullName || "—"}</p>
+                        <p className="text-xs text-slate-500 dark:text-gray-300">
                           Member: {u.member ? "Linked" : "Not linked"}
-                        </div>
+                        </p>
                       </div>
                     </td>
 

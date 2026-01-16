@@ -123,7 +123,7 @@ const MembersForm = () => {
       code: "",
       phone: "",
       email: "",
-      date_of_birth: "",
+      // date_of_birth: "",
       gender: "Male",
       region: "",
       join_date: "",
@@ -155,7 +155,7 @@ const MembersForm = () => {
         code: m.code || "",
         phone: m.phone || "",
         email: m.email || "",
-        date_of_birth: m.date_of_birth ? m.date_of_birth.split?.("T")[0] : "",
+        // date_of_birth: m.date_of_birth ? m.date_of_birth.split?.("T")[0] : "",
         gender: m.gender || "Male",
         region: m.region || "",
         join_date: m.join_date ? m.join_date.split?.("T")[0] : "",
@@ -213,7 +213,7 @@ const MembersForm = () => {
     appendIfPresent("code", data.code);
     appendIfPresent("phone", data.phone);
     appendIfPresent("email", data.email);
-    appendIfPresent("date_of_birth", data.date_of_birth ? new Date(data.date_of_birth).toISOString() : undefined);
+    // appendIfPresent("date_of_birth", data.date_of_birth ? new Date(data.date_of_birth).toISOString() : undefined);
     appendIfPresent("gender", data.gender);
     appendIfPresent("region", data.region);
     appendIfPresent("join_date", data.join_date ? new Date(data.join_date).toISOString() : undefined);
@@ -406,7 +406,7 @@ const MembersForm = () => {
           }}
         />
         <Field label="Phone Number" name="phone" type="tel" />
-        <Field label="Date of Birth" name="date_of_birth" type="date" />
+        // <Field label="Date of Birth" name="date_of_birth" type="date" />
         <Field label="Region" name="region" />
       </div>
     ),

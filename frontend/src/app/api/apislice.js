@@ -1,7 +1,9 @@
 import axios from "axios";
 import store from "../store.js";
 
-const Api_URL = process.env.NODE_ENV === "production" ?"https://jju-stkq.onrender.com/api":"http://localhost:5000/api"
+const Api_URL = process.env.NODE_ENV === "production"
+  ? "http://143.110.140.138/api"
+  : "http://localhost:5000/api";
 
 
 const api = axios.create({

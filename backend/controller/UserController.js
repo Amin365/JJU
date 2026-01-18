@@ -2,6 +2,8 @@ import mongoose from "mongoose";
 import User from "../models/user.js";
 
 import Member from "../models/Members.js";
+import bcrypt from "bcryptjs";
+
 
 export const createUserFromMember = async (req, res, next) => {
   try {
@@ -228,3 +230,124 @@ export const updateUserStatus = async (req, res, next) => {
     return next(err);
   }
 };
+
+
+
+// ... existing controllers ...
+
+
+// Existing controllers...
+
+// Get current user's profile
+export const getProfile = async (req, res, next) => {
+  try {
+    const user = await User.findById(req.user._id)
+      .populate("role", "role color plural system")
+      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
+      .lean()
+      .exec();
+
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ data: user });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Update current user's profile
+export const updateProfile = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { name, bio, phone } = req.body || {};
+    const profilePicture = req.file ? req.file.path : undefined;
+
+    const updateData = {};
+    if (name) {
+      const [firstName, ...lastNameParts] = name.split(' ');
+      updateData.first_name = firstName || '';
+      updateData.last_name = lastNameParts.join(' ') || '';
+    }
+    if (bio !== undefined) updateData.Bio = bio;
+    if (phone !== undefined) updateData.phone = phone;
+    if (profilePicture) updateData.profile_picture = profilePicture;
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No fields to update" });
+    }
+
+    const updatedUser = await User.findByIdAndUpdate(
+      userId,
+      updateData,
+      { new: true }
+    )
+      .populate("role", "role color plural system")
+      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
+      .lean()
+      .exec();
+
+    if (!updatedUser) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ data: updatedUser });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Change current user's password
+// Change current user's password
+export const changePassword = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+    const { currentPassword, newPassword, confirmPassword } = req.body;
+
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "All password fields are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "New password and confirmation do not match" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "New password must be at least 6 characters" });
+    }
+
+    const user = await User.findById(userId);
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const isMatch = await user.matchPassword(currentPassword);
+    if (!isMatch) {
+      return res.status(400).json({ message: "Current password is incorrect" });
+    }
+
+    // Hash the new password
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    // Update only the password field to avoid full validation
+    await User.findByIdAndUpdate(userId, { password: hashedPassword });
+
+    return res.status(200).json({ message: "Password changed successfully" });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Delete current user's account
+export const deleteAccount = async (req, res, next) => {
+  try {
+    const userId = req.user._id;
+
+    const deletedUser = await User.findByIdAndDelete(userId);
+    if (!deletedUser) return res.status(404).json({ message: "User not found" });
+
+    return res.status(200).json({ message: "Account deleted successfully" });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// Existing controllers...
+
+// ... existing controllers ...

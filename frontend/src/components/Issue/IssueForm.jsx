@@ -76,7 +76,7 @@ const IssueCreateForm = () => {
       // Ensure header notifications refresh immediately
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Book issued successfully!");
-      navigate("/dashboard/issues"); // table page
+      navigate(1); // table page
     },
     onError: (err) => {
       const msg = err?.response?.data?.message || "Failed to issue book";

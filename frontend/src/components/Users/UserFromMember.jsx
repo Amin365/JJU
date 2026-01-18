@@ -13,7 +13,8 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 
 const fetchMembers = async () => {
-  const res = await api.get("/members", { params: { page: 1, limit: 500, sort: "first_name" } });
+  // Updated to call the /available_members endpoint, which already excludes members with user accounts
+  const res = await api.get("/available_members", { params: { page: 1, limit: 500, sort: "first_name" } });
   return res.data;
 };
 
@@ -59,12 +60,12 @@ const CreateUserForm = () => {
   const [step, setStep] = useState(1);
 
   const { data: membersResp, isLoading: isLoadingMembers } = useQuery({
-    queryKey: ["members", "user-create"],
+    queryKey: ["available_members", "user-create"],  // Updated query key to reflect the new endpoint
     queryFn: fetchMembers,
     staleTime: 30_000,
   });
 
-const members = useMemo(() => {
+  const members = useMemo(() => {
     if (Array.isArray(membersResp?.data)) return membersResp.data;
     if (Array.isArray(membersResp)) return membersResp;
     return [];
@@ -231,7 +232,7 @@ const members = useMemo(() => {
                               const fullName =
                                 m.full_name ||
                                 [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(" ");
-                              const label = `${fullName} — ${m.email || "no email"} — ${m.code || ""}`;
+                              const label = `${fullName}`;
                               return (
                                 <SelectItem key={m._id} value={m._id}>
                                   {label}

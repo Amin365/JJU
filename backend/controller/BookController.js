@@ -21,7 +21,7 @@ export const createBook = async (req, res, next) => {
 
     const uploaded=req.file
     const imageUrl =
-      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) ||mundefined;
+      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) || null;
 
 
 

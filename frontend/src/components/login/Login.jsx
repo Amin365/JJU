@@ -23,7 +23,7 @@ import { useDispatch, useSelector } from "react-redux"
 import { useNavigate } from "react-router"
 import { setAuth } from "../../app/AuthSlice"
 import { extractErrorMessages } from "../../../../backend/utility/Globalerror"
-
+import {enableNotifications} from "../../lib/notifications"
 export function LoginForm({ className, ...props }) {
   const [error, setError] = useState(null)
   const navigate = useNavigate()
@@ -38,14 +38,27 @@ export function LoginForm({ className, ...props }) {
       const response = await api.post("/auth/login", data)
       return response.data
     },
-    onSuccess: (data) => {
-      if (data?.token) {
-        dispatch(setAuth({ user: data.user, token: data.token }))
-        toast.success("Login successful")
-        // navigate where appropriate
-        navigate("/dashboard") 
-      }
-    },
+    // onSuccess: (data) => {
+    //   if (data?.token) {
+    //     dispatch(setAuth({ user: data.user, token: data.token }))
+    //     toast.success("Login successful")
+    //     enableNotifications(); 
+    //     // navigate where appropriate
+    //     navigate("/dashboard") 
+    //   }
+    // },
+    onSuccess: async (data) => {
+  if (data?.token) {
+    dispatch(setAuth({ user: data.user, token: data.token }))
+    toast.success("Login successful")
+
+    // ✅ pass token
+    await enableNotifications(data.token)
+
+    navigate("/dashboard")
+  }
+}
+,
     onError: (error) => {
       toast.error("Login failed")
       try {

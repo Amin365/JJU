@@ -117,12 +117,7 @@ const data = {
       icon: StickyNote,
    
     },
-    {
-      title: "Settings",
-      url: "/test",
-      icon: Settings2,
-     
-    },
+  
   ],
 
 }

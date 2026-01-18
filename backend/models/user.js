@@ -11,6 +11,8 @@ const userSchema = new mongoose.Schema(
     password: { type: String, required: true },
     member_id: { type: String, unique: true, trim: true },
     status: { type: String, enum: ['Active', 'Inactive', 'pending'], default: 'Active' },
+    Bio:{type:String, required:false},
+    profile_picture:{type:String,  default: ""},
 
     //  Role reference (1-to-Many)
     role: {

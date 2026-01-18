@@ -65,7 +65,7 @@ const MainHeader = () => {
             <Avatar className="cursor-pointer h-8 w-8">
               <AvatarImage
                 src={
-                  "https://images.unsplash.com/photo-1495107334309-fcf20504a5ab?q=80&w=1170&auto=format&fit=crop&ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D"
+                  user.profile_picture
                 }
                 alt={user?.name}
               />
@@ -80,7 +80,7 @@ const MainHeader = () => {
     <Avatar className="h-10 w-10">
       <AvatarImage
         src={
-          data?.user?.avatar ||
+          user?.profile_picture ||
           "https://images.unsplash.com/photo-1495107334309-fcf20504a5ab?q=80&w=1170&auto=format&fit=crop"
         }
         alt={user?.first_name}

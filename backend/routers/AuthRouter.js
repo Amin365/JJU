@@ -16,6 +16,7 @@ AuthRouter.post("/auth/logout", logout);
 
 
 AuthRouter.get("/auth/me", protect, GetProfile);
+
 AuthRouter.post('/users',createUserFromMember)
 AuthRouter.get("/users/:id", getUserById);
 AuthRouter.get("/users", getUsers);

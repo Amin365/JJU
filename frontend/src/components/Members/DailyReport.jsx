@@ -283,8 +283,8 @@ export default function DailyReadingReport() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-12  md:gap-6">
-          <Card className="shadow-sm  md:w-70 w-50 ">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-20  md:gap-6">
+          <Card className="shadow-sm  md:w-65 w-50 ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-orange-600" />
@@ -294,7 +294,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-70 w-50">
+          <Card className="shadow-sm md:w-65 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-orange-600" />
@@ -305,7 +305,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-70 w-50">
+          <Card className="shadow-sm md:w-65 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Clock className="w-4 h-4  text-orange-600" />
@@ -315,7 +315,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-70 w-50">
+          <Card className="shadow-sm md:w-65 w-50">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Flame className="w-4 h-4 text-orange-600" />
@@ -326,7 +326,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-70 hidden lg:block ">
+          <Card className="shadow-sm md:w-65 hidden lg:block ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="w-4 h-4 text-orange-600" />

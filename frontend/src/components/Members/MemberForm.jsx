@@ -392,7 +392,7 @@ const MembersForm = () => {
           options={[
             { value: "Male", label: "Male" },
             { value: "Female", label: "Female" },
-            { value: "Other", label: "Other" },
+            // { value: "Other", label: "Other" },
           ]}
           validation={{ required: "Gender is required." }}
         />

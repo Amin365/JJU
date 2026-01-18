@@ -114,7 +114,7 @@ const MainHeader = () => {
             )}
 
             <DropdownMenuItem asChild>
-              <Link to="/profile" className="flex items-center gap-2 py-1.5 text-sm">
+              <Link to="/dashboard/profile" className="flex items-center gap-2 py-1.5 text-sm">
                 <User2Icon className="size-4 text-gray-600" />
                 Profile
               </Link>

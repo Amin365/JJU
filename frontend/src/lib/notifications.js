@@ -6,16 +6,21 @@ export async function enableNotifications(token) {
 
   const reg = await navigator.serviceWorker.register("/sw.js");
 
-  const sub = await reg.pushManager.subscribe({
-    userVisibleOnly: true,
-    applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
-  });
+  // Check existing subscription
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) {
+    sub = await reg.pushManager.subscribe({
+      userVisibleOnly: true,
+      applicationServerKey: import.meta.env.VITE_VAPID_PUBLIC_KEY
+    });
+  }
 
+  // Send to backend
   await fetch("/api/push/subscribe", {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      Authorization: `Bearer ${token}`   // ✅ VERY IMPORTANT
+      Authorization: `Bearer ${token}`
     },
     body: JSON.stringify(sub)
   });

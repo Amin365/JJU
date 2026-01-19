@@ -521,24 +521,29 @@ const MembersForm = () => {
   return (
     <div className="min-h-screen py-8 px-4">
       <div className="max-w-4xl mx-auto animate-in fade-in duration-500">
-        <div className="flex justify-between items-start mb-10">
-          <div>
-            <h1 className="text-3xl md:text-4xl font-extrabold text-slate-900 tracking-tight">
-              {isEditMode ? "Update Member" : "New Member Registration"}
-            </h1>
-            <p className="mt-2 text-sm text-slate-500 max-w-xl">
-              Capture personal, membership and education details in a guided flow.
-            </p>
-          </div>
+       <div className="flex justify-between items-start mb-10 gap-4">
+  <div>
+    <h1 className="text-xl md:text-4xl font-extrabold text-slate-900 dark:text-white tracking-tight whitespace-nowrap">
+      {isEditMode ? "Update Member" : "New Member Registration"}
+    </h1>
 
-          <button
-            type="button"
-            onClick={() => navigate("/dashboard/members")}
-            className="flex items-center gap-2 md:p-2.5 px-4 py-2 bg-white/80 text-slate-600 shadow-lg hover:bg-slate-100 rounded-xl border border-slate-200/70 transition-all text-xs md:text-sm font-semibold"
-          >
-            <ChevronLeft size={18} /> <span>Back to List</span>
-          </button>
-        </div>
+    <p className="mt-2 text-sm text-slate-500 max-w-xl">
+      Capture personal, membership and education details in a guided flow.
+    </p>
+  </div>
+
+  <button
+    type="button"
+    onClick={() => navigate("/dashboard/members")}
+    className="flex items-center gap-2 px-4 py-2.5 bg-white/80 text-slate-600 
+    shadow-lg hover:bg-slate-100 rounded-xl border border-slate-200/70 
+    transition-all text-xs md:text-sm font-semibold whitespace-nowrap"
+  >
+    <ChevronLeft size={18} />
+    <span>Back to List</span>
+  </button>
+</div>
+
 
         <div className="flex justify-between items-center mb-10">
           {[
@@ -595,48 +600,59 @@ const MembersForm = () => {
 
               {stepComponents[step]}
 
-              <div className="flex justify-between mt-10 pt-6 border-t border-slate-200/70">
-                {step > 1 ? (
-                  <button
-                    type="button"
-                    onClick={prevStep}
-                    disabled={isProcessing}
-                    className="px-5 py-2.5 border border-slate-300 text-slate-700 text-sm md:text-base font-semibold rounded-xl hover:bg-slate-100/80 transition-colors flex items-center gap-2 shadow-sm disabled:opacity-60"
-                  >
-                    <ChevronLeft size={18} /> Previous
-                  </button>
-                ) : (
-                  <div />
-                )}
+             <div className="flex justify-between mt-10 pt-6 border-t border-slate-200/70">
+  {step > 1 ? (
+    <button
+      type="button"
+      onClick={prevStep}
+      disabled={isProcessing}
+      className="px-5 py-2.5 border border-slate-300 text-slate-700 text-sm md:text-base 
+      font-semibold rounded-xl hover:bg-slate-100/80 transition-colors 
+      flex items-center gap-2 shadow-sm disabled:opacity-60 whitespace-nowrap"
+    >
+      <ChevronLeft size={18} />
+      Previous
+    </button>
+  ) : (
+    <div />
+  )}
 
-                {step < 3 ? (
-                  <button
-                    type="button"
-                    onClick={(e) => nextStep(e, stepFields[step])}
-                    disabled={isProcessing}
-                    className="px-6 py-2.5 bg-orange-600 text-white text-sm md:text-base font-semibold rounded-xl hover:bg-orange-700 transition-colors flex items-center gap-2 shadow-lg disabled:opacity-60"
-                  >
-                    Next Step <ChevronRight size={18} />
-                  </button>
-                ) : (
-                  <button
-                    type="submit"
-                    disabled={isProcessing}
-                    className="px-7 py-2.5 bg-emerald-600 text-white text-sm md:text-base font-semibold rounded-xl hover:bg-emerald-700 transition-colors flex items-center gap-2 shadow-lg shadow-emerald-300/60 disabled:opacity-60"
-                  >
-                    {isProcessing ? (
-                      <>
-                        <Loader size={18} className="animate-spin" /> Processing...
-                      </>
-                    ) : (
-                      <>
-                        <Save size={18} />
-                        {isEditMode ? "Update Member" : "Finalize & Save"}
-                      </>
-                    )}
-                  </button>
-                )}
-              </div>
+  {step < 3 ? (
+    <button
+      type="button"
+      onClick={(e) => nextStep(e, stepFields[step])}
+      disabled={isProcessing}
+      className="px-6 py-2.5 bg-orange-600 text-white text-sm md:text-base 
+      font-semibold rounded-xl hover:bg-orange-700 transition-colors 
+      flex items-center gap-2 shadow-lg disabled:opacity-60 whitespace-nowrap"
+    >
+      Next Step
+      <ChevronRight size={18} />
+    </button>
+  ) : (
+    <button
+      type="submit"
+      disabled={isProcessing}
+      className="px-7 py-2.5 bg-emerald-600 text-white text-sm md:text-base 
+      font-semibold rounded-xl hover:bg-emerald-700 transition-colors 
+      flex items-center gap-2 shadow-lg shadow-emerald-300/60 
+      disabled:opacity-60 whitespace-nowrap"
+    >
+      {isProcessing ? (
+        <>
+          <Loader size={18} className="animate-spin" />
+          Processing...
+        </>
+      ) : (
+        <>
+          <Save size={18} />
+          {isEditMode ? "Update Member" : "Finalize & Save"}
+        </>
+      )}
+    </button>
+  )}
+</div>
+
             </form>
           )}
         </Card>

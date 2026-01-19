@@ -283,7 +283,7 @@ export default function DailyReadingReport() {
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-20  md:gap-6">
+        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-16  md:gap-8">
           <Card className="shadow-sm  md:w-65 w-50 ">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
@@ -339,7 +339,7 @@ export default function DailyReadingReport() {
         </div>
 
         {/* Progress */}
-        <Card className="shadow-sm ">
+        <Card className="shadow-sm w-full ">
           <CardContent className="p-6">
             <div className="space-y-3">
               <div className="flex items-center justify-between">

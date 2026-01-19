@@ -257,25 +257,40 @@ export default function MemberTable() {
         </div>
 
         {/* Pagination */}
-        <div className="flex justify-between items-center p-4 border-t border-border bg-card">
-          <p className="text-sm text-muted-foreground">
-            {totalItems === 0 ? "Showing 0 results" : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
-          </p>
+      <div className="flex justify-between items-center p-4 border-t border-border bg-card gap-4">
+  <p className="text-sm md:block hidden text-muted-foreground whitespace-nowrap">
+    {totalItems === 0
+      ? "Showing 0 results"
+      : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
+  </p>
 
-          <div className="flex gap-2">
-            <Button size="sm" onClick={() => handlePageChange(currentPage - 1)} disabled={currentPage === 1 || isLoading || isFetching}>
-              <ChevronLeft size={16} /> Previous
-            </Button>
+  <div className="flex items-center ml-12 gap-2 whitespace-nowrap">
+    <Button
+      size="sm"
+      onClick={() => handlePageChange(currentPage - 1)}
+      disabled={currentPage === 1 || isLoading || isFetching}
+      className="flex items-center gap-1 whitespace-nowrap"
+    >
+      <ChevronLeft size={16} />
+      Previous
+    </Button>
 
-            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground">
-              {currentPage} / {totalPages}
-            </span>
+    <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground whitespace-nowrap">
+      {currentPage} / {totalPages}
+    </span>
 
-            <Button size="sm" onClick={() => handlePageChange(currentPage + 1)} disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}>
-              Next <ChevronRight size={16} />
-            </Button>
-          </div>
-        </div>
+    <Button
+      size="sm"
+      onClick={() => handlePageChange(currentPage + 1)}
+      disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
+      className="flex items-center gap-1 whitespace-nowrap"
+    >
+      Next
+      <ChevronRight size={16} />
+    </Button>
+  </div>
+</div>
+
       </Card>
 
       <ImportExcelModal isOpen={showmodelExcel} onClose={()=>setModelExcell(false)}/>

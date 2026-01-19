@@ -259,7 +259,7 @@ const UsersTable = () => {
           </table>
         </div>
 
-        <div className="flex justify-between items-center p-4 border-t border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900">
+        {/* <div className="flex justify-between items-center p-4 border-t border-slate-200 dark:border-gray-700 bg-white dark:bg-gray-900">
           <p className="text-sm text-slate-500 dark:text-gray-400">
             {totalItems === 0 ? "Showing 0 results" : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
           </p>
@@ -283,6 +283,40 @@ const UsersTable = () => {
               disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
             >
               Next <ChevronRight size={16} />
+            </Button>
+          </div>
+        </div> */}
+
+         <div className="flex justify-between items-center p-4 border-t border-border bg-card gap-4">
+          <p className="text-sm md:block hidden text-muted-foreground whitespace-nowrap">
+            {totalItems === 0
+              ? "Showing 0 results"
+              : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
+          </p>
+        
+          <div className="flex items-center ml-12 gap-2 whitespace-nowrap">
+            <Button
+              size="sm"
+              onClick={() => handlePageChange(currentPage - 1)}
+              disabled={currentPage === 1 || isLoading || isFetching}
+              className="flex items-center gap-1 whitespace-nowrap"
+            >
+              <ChevronLeft size={16} />
+              Previous
+            </Button>
+        
+            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground whitespace-nowrap">
+              {currentPage} / {totalPages}
+            </span>
+        
+            <Button
+              size="sm"
+              onClick={() => handlePageChange(currentPage + 1)}
+              disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
+              className="flex items-center gap-1 whitespace-nowrap"
+            >
+              Next
+              <ChevronRight size={16} />
             </Button>
           </div>
         </div>

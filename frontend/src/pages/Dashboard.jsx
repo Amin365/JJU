@@ -38,11 +38,11 @@ export default function DashboardPage() {
               </button>
             </SidebarTrigger>
 
-            <h1 className="text-lg font-semibold">JJU Club Reading</h1>
+            <h1 className=" md:text-lg text-base font-semibold">JJU Club Reading</h1>
           </div>
 
           {/* rightside controls */}
-          <div className="flex items-center gap-4 mr-12">
+          <div className="flex items-center gap-4  md:mr-12">
             <NotificationBell />
             <ModeToggle />
             <MainHeader />

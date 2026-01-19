@@ -260,51 +260,73 @@ export const ReminderEmail = async (req, res) => {
     }
 
     if (issue.status === "Returned") {
-      return res.status(400).json({
-        message: "Book already returned",
-      });
+      return res.status(400).json({ message: "Book already returned" });
     }
 
-    const memberEmail = issue.member?.email;
-    if (!memberEmail) {
-      return res.status(400).json({
-        message: "Member has no email",
-      });
+    const email = issue.member?.email;
+    if (!email) {
+      return res.status(400).json({ message: "Member has no email" });
     }
 
     const memberName = issue.member?.first_name || "Member";
     const bookTitle = issue.book?.title || "the book";
+    const appName = process.env.APP_NAME || "Library Management";
 
-    // ✅ SEND DIRECTLY
-    await sendMail({
-      to: memberEmail,
+    // 📧 Send email in background (non-blocking)
+    sendMail({
+      to: email,
       subject: "📕 Book Return Reminder",
       text: `Dear ${memberName},
 
-This is a reminder that the book "${bookTitle}" is still borrowed.
-Please return it as soon as possible.
+This is a reminder that the book "${bookTitle}" you borrowed has not yet been returned.
+
+Please return it at your earliest convenience.
 
 Regards,
-${process.env.APP_NAME}`,
+${appName}`,
       html: `
-        <p>Dear <strong>${memberName}</strong>,</p>
-        <p>This is a reminder that the book:</p>
-        <p><strong>"${bookTitle}"</strong></p>
-        <p>is still borrowed. Please return it as soon as possible.</p>
-        <br/>
-        <p>Regards,<br/>${process.env.APP_NAME}</p>
+        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
+          <p>Dear <strong>${memberName}</strong>,</p>
+
+          <p>
+            We hope this message finds you well.
+          </p>
+
+          <p>
+            This is a gentle reminder that the book
+            <strong>"${bookTitle}"</strong> borrowed from our library
+            has not yet been returned.
+          </p>
+
+          <p>
+            Kindly return the book at your earliest convenience to avoid
+            any inconvenience or penalties.
+          </p>
+
+          <p>
+            If you have already returned the book, please disregard this message.
+          </p>
+
+          <br />
+
+          <p>
+            Best regards,<br />
+            <strong>${appName}</strong>
+          </p>
+        </div>
       `,
+    }).catch((err) => {
+      console.error("📧 Background email failed:", err.message);
     });
 
+    //  Immediate response (prevents nginx 504)
     return res.json({
-      message: "Reminder email sent successfully",
+      message: "Reminder email queued successfully",
     });
 
   } catch (err) {
-    console.error("❌ ReminderEmail error:", err); // 🔥 IMPORTANT
-    return res.status(500).json({
-      message: err.message || "Failed to send reminder",
-    });
+    console.error("❌ ReminderEmail error:", err);
+    return res.status(500).json({ message: "Failed to send reminder" });
   }
 };
 

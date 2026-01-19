@@ -54,10 +54,16 @@ const IssuesTable = () => {
   );
 };
 
+const sendReminderMutation = useMutation({
+  mutationFn: (id) => api.post(`/issue/${id}/send-reminder`),
+  onSuccess: () => toast.success("Reminder email sent"),
+  onError: (err) => toast.error(err?.response?.data?.message || "Failed"),
+});
+
 
 
   const issues = data?.data ?? [];
-console.log('data',issues);
+
 
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? Math.max(1, Math.ceil((totalItems || 0) / limit));
@@ -188,16 +194,8 @@ console.log('data',issues);
   <Button
     size="sm"
     variant="outline"
-    onClick={async () => {
-      try {
-        await api.post(`/issue/${it._id}/send-reminder`);
-        toast.success("Reminder email sent");
-      } catch (err) {
-        toast.error(
-          err?.response?.data?.message || "Failed to send reminder"
-        );
-      }
-    }}
+      onClick={() => sendReminderMutation.mutate(it._id)}
+  
     className="text-red-600 hover:text-red-700"
   >
     <Book className="w-4 h-4 mr-1" />

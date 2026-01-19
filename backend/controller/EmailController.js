@@ -73,42 +73,48 @@ export const sendMemberEmail = async (req, res, next) => {
     }
 
     const finalSubject = subject || `Message from ${APP_NAME || "the team"}`;
-
     const finalText =
       text ||
-      `Hello ${member.first_name ?? ""},
-
-This message was sent by ${APP_NAME || "the team"}.
-
-Regards,
-${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
-
+      `Hello ${member.first_name ?? ""},\n\nThis message was sent by ${
+        APP_NAME || "the team"
+      }.\n\nRegards,\n${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
     const finalHtml =
       html ||
       `<p>Hello ${member.first_name ?? ""},</p>
-       <p>This message was sent by <strong>${APP_NAME || "the team"}</strong>.</p>
+       <p>This message was sent by <strong>${
+         APP_NAME || "the team"
+       }</strong>.</p>
        <p>Regards,<br/>${EMAIL_FROM_NAME || APP_NAME || "Team"}</p>`;
 
-    // Send the email
-    const info = await sendMail({
-      to: recipient,
-      subject: finalSubject,
-      text: finalText,
-      html: finalHtml,
+    // 🔥 Respond IMMEDIATELY before sending email
+    res.status(200).json({
+      message: "Email queued successfully",
     });
 
-    return res.status(200).json({
-      message: "Email sent successfully",
-      messageId: info.messageId,
+    // ⚡ Send email in background
+    setImmediate(async () => {
+      try {
+        const info = await sendMail({
+          to: recipient,
+          subject: finalSubject,
+          text: finalText,
+          html: finalHtml,
+        });
+        console.log("📧 Email sent successfully:", info.messageId);
+      } catch (err) {
+        console.error("❌ Background email failed:", err.message);
+      }
     });
 
   } catch (err) {
     console.error("❌ sendMemberEmail error:", err);
-    if (res.headersSent) return next(err);
-    return res.status(500).json({
-      message: err.message || "Failed to send email",
-    });
+    if (!res.headersSent) {
+      return res.status(500).json({
+        message: err.message || "Failed to send email",
+      });
+    }
   }
 };
+
 
 export default { sendMemberEmail, sendMail };

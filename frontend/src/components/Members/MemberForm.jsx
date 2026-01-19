@@ -141,10 +141,16 @@ const MembersForm = () => {
     },
   });
 
+  // State for current profile picture URL (for edit mode preview)
+  const [currentProfilePicture, setCurrentProfilePicture] = useState(null);
+
   // populate form when editing
   useEffect(() => {
     if (isEditMode && fetchedMemberData) {
       const m = fetchedMemberData;
+
+      // Set current profile picture for preview
+      setCurrentProfilePicture(m.profile_picture || m.Profile_picture || null);
 
       reset({
         first_name: m.first_name || "",
@@ -164,7 +170,7 @@ const MembersForm = () => {
         department: m.department || "",
         student_id: m.student_id || "",
         study_year: m.study_year ?? "",
-        profile_picture: m.profile_picture || m.Profile_picture || "",
+        // Do NOT set profile_picture here to avoid string value in file input
 
         // IMPORTANT: role could be populated object or string id
         role: m.role?._id || m.role || "",
@@ -175,6 +181,7 @@ const MembersForm = () => {
   const resetFormAfterSuccess = () => {
     reset();
     setStep(1);
+    setCurrentProfilePicture(null); // Reset the preview state
     setTimeout(() => {
       navigate("/dashboard/members");
     }, 1000);
@@ -364,7 +371,7 @@ const MembersForm = () => {
   const watchedProfile = watch("profile_picture");
   const previewSrc = watchedProfile && watchedProfile.length > 0
     ? URL.createObjectURL(watchedProfile[0])
-    : fetchedMemberData?.profile_picture || fetchedMemberData?.Profile_picture || null;
+    : currentProfilePicture;
 
   const stepComponents = {
     1: (

@@ -4,38 +4,29 @@ import Member from "../models/Members.js";
 
 dotenv.config();
 
-// Validate config early
-const {
-  BREVO_EMAIL,
-  BREVO_SMTP_KEY,
-  EMAIL_FROM_NAME,
-  APP_NAME
-} = process.env;
+// Destructure environment variables
+const { GMAIL_USER, GMAIL_PASS, EMAIL_FROM_NAME, APP_NAME } = process.env;
 
-if (!BREVO_EMAIL || !BREVO_SMTP_KEY) {
-  console.warn("⚠️ Missing BREVO_EMAIL or BREVO_SMTP_KEY in environment");
+if (!GMAIL_USER || !GMAIL_PASS) {
+  console.warn("⚠️ Missing GMAIL_USER or GMAIL_PASS in environment");
 }
 
-console.log("SMTP KEY exists:", !!process.env.BREVO_SMTP_KEY);
-console.log("SMTP KEY starts with xsmtpsib:", process.env.BREVO_SMTP_KEY?.startsWith("xsmtpsib-"));
-
-//  Brevo SMTP transporter
+// Gmail SMTP transporter
 const transporter = nodemailer.createTransport({
-  host: "smtp-relay.sendinblue.com", // alternative
-  port: 587,
-  secure: false,
+  host: "smtp.gmail.com",
+  port: 587, // TLS port
+  secure: false, // false for TLS
   auth: {
-    user: "apikey",
-    pass: process.env.BREVO_SMTP_KEY,
+    user: GMAIL_USER,
+    pass: GMAIL_PASS, // App password
   },
-  tls: { rejectUnauthorized: false },
+  tls: { rejectUnauthorized: false }, // optional for dev
 });
 
 // Verify connection
-transporter.verify().then(
-  () => console.log(" Brevo SMTP is ready"),
-  (err) => console.warn("⚠️ Brevo SMTP verify failed:", err?.message)
-);
+transporter.verify()
+  .then(() => console.log("✅ Gmail SMTP is ready"))
+  .catch((err) => console.warn("⚠️ Gmail SMTP verify failed:", err.message));
 
 /**
  * sendMail utility
@@ -44,7 +35,7 @@ export async function sendMail({ to, subject, text, html }) {
   if (!to) throw new Error("Missing 'to' address");
 
   const fromName = EMAIL_FROM_NAME || APP_NAME || "No Reply";
-  const from = `"${fromName}" <${BREVO_EMAIL}>`;
+  const from = `"${fromName}" <${GMAIL_USER}>`;
 
   const info = await transporter.sendMail({
     from,
@@ -81,8 +72,7 @@ export const sendMemberEmail = async (req, res, next) => {
       return res.status(400).json({ message: "Member has no email" });
     }
 
-    const finalSubject =
-      subject || `Message from ${APP_NAME || "the team"}`;
+    const finalSubject = subject || `Message from ${APP_NAME || "the team"}`;
 
     const finalText =
       text ||
@@ -99,6 +89,7 @@ ${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
        <p>This message was sent by <strong>${APP_NAME || "the team"}</strong>.</p>
        <p>Regards,<br/>${EMAIL_FROM_NAME || APP_NAME || "Team"}</p>`;
 
+    // Send the email
     const info = await sendMail({
       to: recipient,
       subject: finalSubject,

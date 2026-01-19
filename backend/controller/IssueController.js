@@ -5,6 +5,7 @@ import Member from "../models/Members.js"; // adjust if your actual file is Memb
 import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
+import { sendMemberEmail,sendMail } from "../controller/EmailController.js";
 
 export const IssueCreate = async (req, res, next) => {
   try {
@@ -241,3 +242,72 @@ export const getMyIssues = async (req, res, next) => {
     return next(err);
   }
 };
+// POST /issue/:id/send-reminder
+
+
+
+export const ReminderEmail = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    const issue = await Issue.findById(id)
+      .populate("member")
+      .populate("book")
+      .lean();
+
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
+    }
+
+    if (issue.status === "Returned") {
+      return res.status(400).json({
+        message: "Book already returned",
+      });
+    }
+
+    const memberEmail = issue.member?.email;
+    if (!memberEmail) {
+      return res.status(400).json({
+        message: "Member has no email",
+      });
+    }
+
+    const memberName = issue.member?.first_name || "Member";
+    const bookTitle = issue.book?.title || "the book";
+
+    // ✅ SEND DIRECTLY
+    await sendMail({
+      to: memberEmail,
+      subject: "📕 Book Return Reminder",
+      text: `Dear ${memberName},
+
+This is a reminder that the book "${bookTitle}" is still borrowed.
+Please return it as soon as possible.
+
+Regards,
+${process.env.APP_NAME}`,
+      html: `
+        <p>Dear <strong>${memberName}</strong>,</p>
+        <p>This is a reminder that the book:</p>
+        <p><strong>"${bookTitle}"</strong></p>
+        <p>is still borrowed. Please return it as soon as possible.</p>
+        <br/>
+        <p>Regards,<br/>${process.env.APP_NAME}</p>
+      `,
+    });
+
+    return res.json({
+      message: "Reminder email sent successfully",
+    });
+
+  } catch (err) {
+    console.error("❌ ReminderEmail error:", err); // 🔥 IMPORTANT
+    return res.status(500).json({
+      message: err.message || "Failed to send reminder",
+    });
+  }
+};
+
+
+
+

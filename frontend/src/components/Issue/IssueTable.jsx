@@ -18,6 +18,7 @@ const fetchIssues = async ({ queryKey }) => {
   return res.data ?? { data: [], total: 0, page: 1, totalPages: 0, limit };
 };
 
+
 const formatDate = (dateStr) => (dateStr ? new Date(dateStr).toLocaleDateString() : "—");
 
 const statusClass = (status) => {
@@ -41,7 +42,23 @@ const IssuesTable = () => {
     staleTime: 20_000,
   });
 
+  const isDueTomorrow = (returnDate) => {
+  if (!returnDate) return false;
+
+  const today = new Date();
+  const tomorrow = new Date(today);
+  tomorrow.setDate(today.getDate() + 1);
+
+  return (
+    new Date(returnDate).toDateString() === tomorrow.toDateString()
+  );
+};
+
+
+
   const issues = data?.data ?? [];
+console.log('data',issues);
+
   const totalItems = data?.total ?? 0;
   const totalPages = data?.totalPages ?? Math.max(1, Math.ceil((totalItems || 0) / limit));
 
@@ -135,21 +152,66 @@ const IssuesTable = () => {
                     </td>
 
                     <td className="p-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {it.status !== "Returned" && (
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            onClick={() => markReturned.mutate(it._id)}
-                            disabled={markReturned.isPending}
-                            className="text-emerald-600 hover:text-emerald-700"
-                          >
-                            <CheckCircle2 className="w-4 h-4 mr-1" />
-                            Mark Returned
-                          </Button>
-                        )}
-                      </div>
-                    </td>
+  <div className="flex justify-end gap-2">
+    {it.status !== "Returned" && (
+      <>
+        <Button
+          size="sm"
+          variant="outline"
+          onClick={() => markReturned.mutate(it._id)}
+          disabled={markReturned.isPending}
+          className="text-emerald-600 hover:text-emerald-700"
+        >
+          <CheckCircle2 className="w-4 h-4 mr-1" />
+          Mark Returned
+        </Button>
+
+        {/* Quick Action: Send Reminder */}
+        {/* <Button
+          size="sm"
+          variant="outline"
+          onClick={async () => {
+            try {
+              await api.post(`/issue/${it._id}/send-reminder`);
+              toast.success("Reminder email sent");
+            } catch (err) {
+              toast.error(err?.response?.data?.message || "Failed to send reminder");
+            }
+          }}
+          className="text-red-600 hover:text-red-700"
+        >
+          <Book className="w-4 h-4 mr-1" />
+          Send Reminder
+        </Button> */}
+
+        {isDueTomorrow(it.returnDate) && it.status !== "Returned" && (
+  <Button
+    size="sm"
+    variant="outline"
+    onClick={async () => {
+      try {
+        await api.post(`/issue/${it._id}/send-reminder`);
+        toast.success("Reminder email sent");
+      } catch (err) {
+        toast.error(
+          err?.response?.data?.message || "Failed to send reminder"
+        );
+      }
+    }}
+    className="text-red-600 hover:text-red-700"
+  >
+    <Book className="w-4 h-4 mr-1" />
+    Send Reminder
+  </Button>
+)}
+
+      </>
+    )}
+  </div>
+</td>
+
+
+                  
                   </tr>
                 );
               })}

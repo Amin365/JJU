@@ -52,7 +52,7 @@ export async function sendMail({ to, subject, text, html }) {
  * Express controller
  * POST /members/:id/send-email
  */
-export const sendMemberEmail = async (req, res, next) => {
+export const sendMemberEmail = async (req, res) => {
   try {
     const { id } = req.params;
     const { subject, text, html, to: overrideTo } = req.body ?? {};
@@ -78,6 +78,7 @@ export const sendMemberEmail = async (req, res, next) => {
       `Hello ${member.first_name ?? ""},\n\nThis message was sent by ${
         APP_NAME || "the team"
       }.\n\nRegards,\n${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
+
     const finalHtml =
       html ||
       `<p>Hello ${member.first_name ?? ""},</p>
@@ -86,35 +87,28 @@ export const sendMemberEmail = async (req, res, next) => {
        }</strong>.</p>
        <p>Regards,<br/>${EMAIL_FROM_NAME || APP_NAME || "Team"}</p>`;
 
-    // 🔥 Respond IMMEDIATELY before sending email
-    res.status(200).json({
-      message: "Email queued successfully",
+    // ✅ Send email immediately and wait for completion
+    const info = await sendMail({
+      to: recipient,
+      subject: finalSubject,
+      text: finalText,
+      html: finalHtml,
     });
 
-    // ⚡ Send email in background
-    setImmediate(async () => {
-      try {
-        const info = await sendMail({
-          to: recipient,
-          subject: finalSubject,
-          text: finalText,
-          html: finalHtml,
-        });
-        console.log("📧 Email sent successfully:", info.messageId);
-      } catch (err) {
-        console.error("❌ Background email failed:", err.message);
-      }
+    // Respond after email is sent
+    return res.status(200).json({
+      message: "Email sent successfully",
+      messageId: info.messageId,
     });
 
   } catch (err) {
     console.error("❌ sendMemberEmail error:", err);
-    if (!res.headersSent) {
-      return res.status(500).json({
-        message: err.message || "Failed to send email",
-      });
-    }
+    return res.status(500).json({
+      message: err.message || "Failed to send email",
+    });
   }
 };
+
 
 
 export default { sendMemberEmail, sendMail };

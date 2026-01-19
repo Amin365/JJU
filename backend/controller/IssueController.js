@@ -270,62 +270,29 @@ export const ReminderEmail = async (req, res) => {
 
     const memberName = issue.member?.first_name || "Member";
     const bookTitle = issue.book?.title || "the book";
-    const appName = process.env.APP_NAME || "Library Management";
 
-    // ✅ RESPOND FIRST (THIS PREVENTS 504)
-    res.json({
-      message: "Reminder email queued successfully",
+    // ✅ Send email immediately
+    await sendMail({
+      to: email,
+      subject: "📕 Book Return Reminder",
+      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`,
+      html: `
+        <p>Dear <strong>${memberName}</strong>,</p>
+        <p>We hope this message finds you well.</p>
+        <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed has not yet been returned.</p>
+        <p>Please return it at your earliest convenience to avoid any inconvenience.</p>
+        <br/>
+        <p>Best regards,<br/><strong>${process.env.APP_NAME}</strong></p>
+      `
     });
 
-    // 🔥 Run AFTER response is sent
-    setImmediate(async () => {
-      try {
-        await sendMail({
-          to: email,
-          subject: "📕 Book Return Reminder",
-          text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`,
-           html: `
-        <div style="font-family: Arial, sans-serif; color: #333; line-height: 1.6;">
-          <p>Dear <strong>${memberName}</strong>,</p>
-
-          <p>
-            We hope this message finds you well.
-          </p>
-
-          <p>
-            This is a gentle reminder that the book
-            <strong>"${bookTitle}"</strong> borrowed from our library
-            has not yet been returned.
-          </p>
-
-          <p>
-            Kindly return the book at your earliest convenience to avoid
-            any inconvenience or penalties.
-          </p>
-
-          <p>
-            If you have already returned the book, please disregard this message.
-          </p>
-
-          <br />
-
-          <p>
-            Best regards,<br />
-            <strong>${appName}</strong>
-          </p>
-        </div>
-      `,
-        });
-      } catch (err) {
-        console.error("📧 Reminder email failed:", err.message);
-      }
+    return res.json({
+      message: "Reminder email sent successfully",
     });
 
   } catch (err) {
     console.error("❌ ReminderEmail error:", err);
-    if (!res.headersSent) {
-      return res.status(500).json({ message: "Failed to send reminder" });
-    }
+    return res.status(500).json({ message: "Failed to send reminder" });
   }
 };
 

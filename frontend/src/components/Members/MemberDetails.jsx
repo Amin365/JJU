@@ -139,24 +139,24 @@ export default function MemberDetails() {
   });
 
   // Mutation to send email via backend endpoint
-  const sendEmailMutation = useMutation({
-    mutationFn: async (payload) => {
-      // POST /members/:id/send-email
-      const res = await api.post(`/members/${routeId}/send-email`, payload);
-      return res.data;
-    },
-    onMutate: () => {
-      toast("Sending email...");
-    },
-    onSuccess: () => {
-      toast.success("Email sent successfully");
-      setIsEmailModalOpen(false);
-    },
-    onError: (err) => {
-      const msg = err?.response?.data?.message || err?.message || "Failed to send email";
-      toast.error(msg);
-    },
-  });
+ const sendEmailMutation = useMutation({
+  mutationFn: async (payload) => {
+    const res = await api.post(`/members/${routeId}/send-email`, payload);
+    return res.data;
+  },
+  onMutate: () => {
+    toast("Sending email...");
+  },
+  onSuccess: () => {
+    toast.success("Email queued successfully");
+    setIsEmailModalOpen(false);
+  },
+  onError: (err) => {
+    const msg = err?.response?.data?.message || err?.message || "Failed to send email";
+    toast.error(msg);
+  },
+});
+
 
   const handleEdit = () => {
     if (!member?._id && !member?.id) return;
@@ -260,26 +260,22 @@ export default function MemberDetails() {
     setIsEmailModalOpen(true);
   };
 
-  const submitEmail = async () => {
-    if (!member?.email) {
-      toast.error("Member has no email");
-      return;
-    }
-    if (!emailSubject.trim() && !emailBody.trim()) {
-      toast.error("Enter a subject or message");
-      return;
-    }
+ const submitEmail = async () => {
+  if (!member?.email) {
+    toast.error("Member has no email");
+    return;
+  }
+  if (!emailSubject.trim() && !emailBody.trim()) {
+    toast.error("Enter a subject or message");
+    return;
+  }
 
-    try {
-      await sendEmailMutation.mutateAsync({
-        subject: emailSubject,
-        text: emailBody,
-        html: emailBody ? `<p>${emailBody.replace(/\n/g, "<br/>")}</p>` : undefined,
-      });
-    } catch (err) {
-      // handled in mutation callbacks
-    }
-  };
+  sendEmailMutation.mutate({
+    subject: emailSubject,
+    text: emailBody,
+    html: emailBody ? `<p>${emailBody.replace(/\n/g, "<br/>")}</p>` : undefined,
+  });
+};
 
   if (isLoading) {
     return <MemberDetailsSkeleton />;

@@ -8,25 +8,27 @@ import { sendMail } from "../controller/EmailController.js";
  * Calculate number of days between two dates (ignoring hours)
  */
 function daysBetweenDates(a, b) {
-  // Use local year/month/date only to ignore hours
   const da = new Date(a.getUTCFullYear(), a.getUTCMonth(), a.getUTCDate());
   const db = new Date(b.getUTCFullYear(), b.getUTCMonth(), b.getUTCDate());
   const diffMs = da - db;
-  return Math.floor(diffMs / (1000 * 60 * 60 * 24)); // floor ensures diff in full days
+  return Math.floor(diffMs / (1000 * 60 * 60 * 24));
 }
 
 /**
  * Build email content based on kind
  */
-function buildEmail(kind, bookTitle) {
+function buildEmail(kind, memberName, bookTitle) {
   if (kind === "overdue") {
     return {
       subject: "📕 Book Overdue",
-      text: `Your borrowed book "${bookTitle}" is overdue. Please return it immediately.`,
+      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is overdue. Please return it immediately.`,
       html: `
-        <h3>Book Overdue</h3>
-        <p>Your borrowed book <strong>"${bookTitle}"</strong> is overdue.</p>
-        <p>Please return it immediately.</p>
+        <p>Dear <strong>${memberName}</strong>,</p>
+        <p>We hope this message finds you well.</p>
+        <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed is overdue.</p>
+        <p>Please return it at your earliest convenience to avoid any inconvenience.</p>
+        <br/>
+        <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
       `,
     };
   }
@@ -34,11 +36,14 @@ function buildEmail(kind, bookTitle) {
   if (kind === "due-soon") {
     return {
       subject: "📘 Book Due Tomorrow",
-      text: `Your borrowed book "${bookTitle}" is due tomorrow.`,
+      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is due tomorrow.`,
       html: `
-        <h3>Book Due Tomorrow</h3>
-        <p>Your borrowed book <strong>"${bookTitle}"</strong> is due tomorrow.</p>
+        <p>Dear <strong>${memberName}</strong>,</p>
+        <p>We hope this message finds you well.</p>
+        <p>This is a friendly reminder that the book <strong>"${bookTitle}"</strong> you borrowed is due tomorrow.</p>
         <p>Please make sure to return it on time.</p>
+        <br/>
+        <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
       `,
     };
   }
@@ -54,73 +59,88 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
     try {
       const now = new Date();
 
+      // Get all active issued books
       const activeIssues = await Issue.find({ status: "Issued" })
         .select("_id member returnDate book")
         .populate("book", "title")
         .lean()
         .exec();
 
-      for (const iss of activeIssues) {
-        const due = new Date(iss.returnDate);
-        const diff = daysBetweenDates(due, now);
-
-        let kind = null;
-        if (diff === 1) kind = "due-soon";      // due tomorrow
-        if (diff <= 0) kind = "overdue";        // overdue
-        if (!kind) continue;
-
-        const memberUser = await User.findOne({ member: iss.member })
-          .select("_id email")
-          .lean();
-
-        if (!memberUser?._id) continue;
-
-        // Prevent duplicate notification/email
-        const exists = await Notification.exists({
-          user: memberUser._id,
-          "meta.issue": iss._id,
-          "meta.kind": kind,
-        });
-        if (exists) continue;
-
-        // Create notification
-        const notif = await Notification.create({
-          user: memberUser._id,
-          title: kind === "overdue" ? "Book overdue" : "Book due soon",
-          message:
-            kind === "overdue"
-              ? `Your borrowed book "${iss.book?.title}" is overdue.`
-              : `Your borrowed book "${iss.book?.title}" is due tomorrow.`,
-          type: kind === "overdue" ? "error" : "warning",
-          meta: { issue: iss._id, kind },
-        });
-
-        // Send push notification
-        try {
-          await sendPushToUser(memberUser._id, {
-            title: notif.title,
-            body: notif.message,
-          });
-        } catch (pushErr) {
-          console.error("Push send failed:", pushErr.message);
-        }
-
-        // Send Gmail email
-        if (memberUser.email) {
+      // Send notifications/emails in parallel
+      await Promise.allSettled(
+        activeIssues.map(async (iss) => {
           try {
-            const email = buildEmail(kind, iss.book?.title);
-            await sendMail({
-              to: memberUser.email,
-              subject: email.subject,
-              text: email.text,
-              html: email.html,
+            const due = new Date(iss.returnDate);
+            const diff = daysBetweenDates(due, now);
+
+            let kind = null;
+            if (diff === 1) kind = "due-soon";
+            if (diff <= 0) kind = "overdue";
+            if (!kind) return;
+
+            // Get member user info
+            const memberUser = await User.findOne({ member: iss.member })
+              .select("_id email first_name last_name")
+              .lean();
+
+            if (!memberUser?._id) return;
+
+            const memberName = `${memberUser.first_name || "Member"} ${memberUser.last_name || ""}`.trim();
+            const bookTitle = iss.book?.title || "the book";
+
+            // Prevent duplicate notifications/email
+            const exists = await Notification.exists({
+              user: memberUser._id,
+              "meta.issue": iss._id,
+              "meta.kind": kind,
             });
-            console.log(`✅ Email sent to ${memberUser.email} for "${iss.book?.title}" (${kind})`);
-          } catch (mailErr) {
-            console.error("Email send failed:", mailErr.message);
+            if (exists) return;
+
+            // Create notification
+            await Notification.create({
+              user: memberUser._id,
+              title: kind === "overdue" ? "Book overdue" : "Book due soon",
+              message:
+                kind === "overdue"
+                  ? `Your borrowed book "${bookTitle}" is overdue.`
+                  : `Your borrowed book "${bookTitle}" is due tomorrow.`,
+              type: kind === "overdue" ? "error" : "warning",
+              meta: { issue: iss._id, kind, sentAt: now },
+            });
+
+            // Send push notification
+            try {
+              await sendPushToUser(memberUser._id, {
+                title: kind === "overdue" ? "Book overdue" : "Book due soon",
+                body:
+                  kind === "overdue"
+                    ? `Your borrowed book "${bookTitle}" is overdue.`
+                    : `Your borrowed book "${bookTitle}" is due tomorrow.`,
+              });
+            } catch (pushErr) {
+              console.error(`Push send failed for ${memberName}:`, pushErr.message);
+            }
+
+            // Send email via Resend
+            if (memberUser.email) {
+              try {
+                const emailContent = buildEmail(kind, memberName, bookTitle);
+                await sendMail({
+                  to: memberUser.email,
+                  subject: emailContent.subject,
+                  text: emailContent.text,
+                  html: emailContent.html,
+                });
+                console.log(`✅ Email sent to ${memberUser.email} for "${bookTitle}" (${kind})`);
+              } catch (mailErr) {
+                console.error(`Email send failed for ${memberName}:`, mailErr.message);
+              }
+            }
+          } catch (issueErr) {
+            console.error("Issue processing error:", issueErr.message);
           }
-        }
-      }
+        })
+      );
     } catch (e) {
       console.error("Scheduler error:", e);
     }

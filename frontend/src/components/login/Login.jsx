@@ -4,7 +4,6 @@ import { Button } from "@/components/ui/button"
 import {
   Card,
   CardContent,
-  CardDescription,
   CardHeader,
   CardTitle,
 } from "@/components/ui/card"
@@ -23,42 +22,32 @@ import { useDispatch, useSelector } from "react-redux"
 import { useNavigate } from "react-router"
 import { setAuth } from "../../app/AuthSlice"
 import { extractErrorMessages } from "../../../../backend/utility/Globalerror"
-import {enableNotifications} from "../../lib/notifications"
+import { enableNotifications } from "../../lib/notifications"
+
+// 👇 Import Lucide Loader icon
+import { Loader2 } from "lucide-react"
+
 export function LoginForm({ className, ...props }) {
   const [error, setError] = useState(null)
   const navigate = useNavigate()
   const dispatch = useDispatch()
 
-  const { register, handleSubmit, formState: { errors }, setValue } = useForm()
+  const { register, handleSubmit, formState: { errors } } = useForm()
   const { user, token } = useSelector((state) => state.auth)
 
-  // Accepts an "identifier" (email or username) + password
   const loginMutation = useMutation({
     mutationFn: async (data) => {
       const response = await api.post("/auth/login", data)
       return response.data
     },
-    // onSuccess: (data) => {
-    //   if (data?.token) {
-    //     dispatch(setAuth({ user: data.user, token: data.token }))
-    //     toast.success("Login successful")
-    //     enableNotifications(); 
-    //     // navigate where appropriate
-    //     navigate("/dashboard") 
-    //   }
-    // },
     onSuccess: async (data) => {
-  if (data?.token) {
-    dispatch(setAuth({ user: data.user, token: data.token }))
-    toast.success("Login successful")
-
-    // ✅ pass token
-    await enableNotifications(data.token)
-
-    navigate("/dashboard")
-  }
-}
-,
+      if (data?.token) {
+        dispatch(setAuth({ user: data.user, token: data.token }))
+        toast.success("Login successful")
+        await enableNotifications(data.token)
+        navigate("/dashboard")
+      }
+    },
     onError: (error) => {
       toast.error("Login failed")
       try {
@@ -72,7 +61,6 @@ export function LoginForm({ className, ...props }) {
 
   const onSubmit = (data) => {
     setError(null)
-    // data shape: { identifier: "...", password: "..." }
     loginMutation.mutate(data)
   }
 
@@ -81,9 +69,6 @@ export function LoginForm({ className, ...props }) {
       <Card className="py-12">
         <CardHeader>
           <CardTitle className="text-center">Login to your account</CardTitle>
-          {/* <CardDescription className="text-center">
-            Enter your email or username and password to login to your account
-          </CardDescription> */}
 
           {error && (
             <div className="p-3 bg-destructive/10 text-destructive text-sm rounded-md text-center mt-4">
@@ -112,9 +97,7 @@ export function LoginForm({ className, ...props }) {
               </Field>
 
               <Field>
-                <div className="flex items-center">
-                  <FieldLabel htmlFor="password">Password</FieldLabel>
-                </div>
+                <FieldLabel htmlFor="password">Password</FieldLabel>
                 <Input
                   id="password"
                   type="password"
@@ -130,7 +113,14 @@ export function LoginForm({ className, ...props }) {
               </Field>
 
               <Field>
-                <Button type="submit" disabled={loginMutation.isLoading}>
+                <Button
+                  type="submit"
+                  disabled={loginMutation.isLoading}
+                  className="flex items-center justify-center gap-2"
+                >
+                  {loginMutation.isLoading && (
+                    <Loader2 className="animate-spin h-5 w-5 text-white" />
+                  )}
                   {loginMutation.isLoading ? "Logging in..." : "Login"}
                 </Button>
               </Field>

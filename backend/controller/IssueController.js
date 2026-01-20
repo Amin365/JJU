@@ -246,10 +246,18 @@ export const getMyIssues = async (req, res, next) => {
 
 
 
+// import { sendMail } from "./sendMailController.js"; // import the Resend-based sendMail
+// import Issue from "../models/Issue.js";
+
+/**
+ * ReminderEmail Controller using Resend
+ * POST /issues/:id/reminder
+ */
 export const ReminderEmail = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Load issue with member and book info
     const issue = await Issue.findById(id)
       .populate("member")
       .populate("book")
@@ -271,30 +279,39 @@ export const ReminderEmail = async (req, res) => {
     const memberName = issue.member?.first_name || "Member";
     const bookTitle = issue.book?.title || "the book";
 
-    // ✅ Send email immediately
+    // Default plain text
+    const text = `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`;
+
+    // Default HTML
+    const html = `
+      <p>Dear <strong>${memberName}</strong>,</p>
+      <p>We hope this message finds you well.</p>
+      <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed has not yet been returned.</p>
+      <p>Please return it at your earliest convenience to avoid any inconvenience.</p>
+      <br/>
+      <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
+    `;
+
+    // ✅ Send email using Resend
     await sendMail({
       to: email,
       subject: "📕 Book Return Reminder",
-      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`,
-      html: `
-        <p>Dear <strong>${memberName}</strong>,</p>
-        <p>We hope this message finds you well.</p>
-        <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed has not yet been returned.</p>
-        <p>Please return it at your earliest convenience to avoid any inconvenience.</p>
-        <br/>
-        <p>Best regards,<br/><strong>${process.env.APP_NAME}</strong></p>
-      `
+      text,
+      html,
     });
 
-    return res.json({
+    return res.status(200).json({
       message: "Reminder email sent successfully",
     });
 
   } catch (err) {
     console.error("❌ ReminderEmail error:", err);
-    return res.status(500).json({ message: "Failed to send reminder" });
+    return res.status(500).json({
+      message: err.message || "Failed to send reminder",
+    });
   }
 };
+
 
 
 

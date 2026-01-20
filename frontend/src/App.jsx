@@ -35,6 +35,7 @@ const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
 const BlogFeeds=lazy(()=>import('./components/Blogs/BlogFeeds'));
 const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 const Profile = lazy(() => import("./components/Users/UserProfile"));
+const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
 
 function App() {
   return (
@@ -88,6 +89,7 @@ function App() {
   <Route path="blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
   <Route path="blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogTable /></Suspense>} />
   <Route path="profile" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Profile /></Suspense>} />
+  <Route path="id-card/:memberId" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IDcard /></Suspense>} />
         </Route>
       </Routes>
 

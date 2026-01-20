@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { motion } from "framer-motion";
+import { useNavigate } from "react-router";
 import {
   User,
   Mail,
@@ -28,21 +29,25 @@ import { toast } from "sonner";
 import { useSelector } from "react-redux";
 // import api from "../lib/api/CleintApi";
 import api from "@/app/api/apislice";
+import PVCIDCard from "../IDcard/PVCIDCard";
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
   const { user: reduxUser } = useSelector((state) => state.auth);
   const queryClient = useQueryClient();
 
   // Fetch current user profile from API
-  const { data: user } = useQuery({
+  const { data: user, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
       const res = await api.get('/profile');
       return res.data.data || res.data;
     },
-    initialData: reduxUser, // Use Redux as initial data
+    // initialData: reduxUser, // Use Redux as initial data
     staleTime: 5 * 60 * 1000,
   });
+
+  console.log('users data', user);
 
   const [editMode, setEditMode] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
@@ -181,6 +186,10 @@ export default function ProfilePage() {
     onError: (err) => toast.error(err.response?.data?.message || "Failed to change password."),
   });
 
+  if (isLoading) {
+    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+  }
+
   return (
     <div className="min-h-screen p-6 bg-gray-50 dark:bg-slate-900 text-gray-800 dark:text-gray-100 flex items-center justify-center">
       <motion.div
@@ -252,6 +261,9 @@ export default function ProfilePage() {
             <CardTitle className="text-2xl font-semibold">Profile Details</CardTitle>
             <div className="flex items-center gap-3">
               {/* <ModeToggle /> */}
+              <Button onClick={() => navigate(`/dashboard/id-card/${user?.member._id}`)} variant="outline" className="rounded-xl">
+                View ID Card
+              </Button>
               {!editMode ? (
                 <Button onClick={() => setEditMode(true)} className="rounded-xl flex gap-2">
                   <Edit size={16} /> Edit Profile
@@ -409,6 +421,20 @@ export default function ProfilePage() {
           </motion.div>
         </div>
       )}
+
+      {/* Preview ID Card */}
+      <div className="fixed bottom-6 right-6 z-50">
+        {/* <PVCIDCard
+          employeeName={`${user?.member?.first_name || ''} ${user?.member?.middle_name || ''} ${user?.member?.last_name || ''}`.trim()}
+          department={user?.member?.department || ''}
+          employeeId={user?.member?.code || ''}
+          photoUrl={user?.member?.Profile_picture || ''}
+          validFrom={user?.member?.join_date?.split("T")[0] || ''}
+          validUntil="2027-01-01"
+          erpCode={user?.member?.student_id || ''}
+          accessLevel={user?.member?.status || ''}
+        /> */}
+      </div>
     </div>
   );
 }

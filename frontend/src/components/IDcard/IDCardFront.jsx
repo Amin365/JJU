@@ -5,9 +5,9 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Building2 } from "lucide-react";
 
 export function IDCardFront({
-  companyName = "JJU CLUB READING",
+  companyName = "JJU  READING CLUB",
   employeeName = "Employee Name",
-  jobTitle = "Job Title",
+//   jobTitle = "Job Title",
   department = "Department",
   employeeId = "00000",
   photoUrl,
@@ -68,7 +68,7 @@ export function IDCardFront({
         <div className="flex justify-between items-center flex-1">
           <div className="flex flex-col text-[10px] font-mono text-blue-600 gap-[1px]">
             <span>Name: {employeeName}</span>
-            <span>Job: {jobTitle}</span>
+            {/* <span>Job: {jobTitle}</span> */}
             <span>Dept: {department}</span>
             <span>ID: {employeeId}</span>
           </div>

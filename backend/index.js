@@ -40,10 +40,10 @@ app.use(cors(
 }
 ))
 
-// app.use(cors({
-//   origin: "http://64.225.119.153",
-//   credentials: true
-// }))
+app.use(cors({
+  origin: "https://jjureadingclub.live",
+  credentials: true
+}))
 
 
 // after express app created, before routes:

@@ -24,11 +24,12 @@ import cookieParser from "cookie-parser";
 
 import path from 'path'
 import { fileURLToPath } from "url";  
+import Mpesarouter from "./routers/MpesRouter.js"
 
 dotenv.config()
 const app = express()
 const PORT = process.env.PORT || 5000
-
+app.set("trust proxy", 1);
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
@@ -89,7 +90,7 @@ app.use('/api',NotificationRouter)
 app.use('/api',UserRouter)
 app.use('/api',BlogRouter)
 app.use('/api/blogposts', CommentRouter)
-
+app.use('/api',Mpesarouter)
 
 app.post("/sync-and-migration", async (req, res) => {
   try {

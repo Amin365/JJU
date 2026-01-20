@@ -1,5 +1,5 @@
 import React, { useRef, useState } from "react"
-import html2canvas from "html2canvas"
+import domtoimage from 'dom-to-image-more'
 import jsPDF from "jspdf"
 import { Button } from "@/components/ui/button"
 import { IDCardFront } from "./IDCardFront"
@@ -18,7 +18,8 @@ import { useSelector } from "react-redux"
 export default function PVCIDCard() {
     const{user}=useSelector((state)=>state.auth)
 
-  const cardRef = useRef(null)
+  const frontRef = useRef(null)
+  const backRef = useRef(null)
   const [activeTab, setActiveTab] = useState("front")
   const { memberId } = useParams()
   const { data: member, isLoading, isError } = useQuery({
@@ -29,45 +30,72 @@ export default function PVCIDCard() {
     },
     enabled: !!memberId,
   })
-console.log("Member Data:", member)
+
   if (isLoading) return <p>Loading card...</p>
   if (isError) return <p>Failed to load member</p>
   if (!member) return <p>No member data</p>
 
-  const fullName = `${member.first_name} ${member.middle_name} ${member.last_name}`
+  const fullName = [member.first_name, member.middle_name, member.last_name].filter(Boolean).join(' ')
+  const cardRef = activeTab === 'front' ? frontRef : backRef
 
   // IMAGE DOWNLOAD
   const downloadImage = async () => {
-    const canvas = await html2canvas(cardRef.current, {
-      scale: 3,
-      backgroundColor: "#ffffff",
-    })
-    const link = document.createElement("a")
-    link.download = "id-card.png"
-    link.href = canvas.toDataURL("image/png")
-    link.click()
+    try {
+      const blob = await domtoimage.toBlob(cardRef.current, { bgcolor: '#ffffff' })
+      const url = URL.createObjectURL(blob)
+      const link = document.createElement("a")
+      link.download = "id-card.png"
+      link.href = url
+      link.click()
+      URL.revokeObjectURL(url)
+    } catch (error) {
+      console.error("Error downloading image:", error)
+    }
   }
 
   // PDF DOWNLOAD (PVC SIZE)
   const downloadPDF = async () => {
-    const canvas = await html2canvas(cardRef.current, {
-      scale: 3,
-      backgroundColor: "#ffffff",
-    })
+    try {
+      const dataUrl = await domtoimage.toPng(cardRef.current, { bgcolor: '#ffffff' })
+      const pdf = new jsPDF({
+        orientation: "landscape",
+        unit: "mm",
+        format: [85.6, 53.98],
+      })
 
-    const imgData = canvas.toDataURL("image/png")
-    const pdf = new jsPDF({
-      orientation: "landscape",
-      unit: "mm",
-      format: [85.6, 53.98],
-    })
-
-    pdf.addImage(imgData, "PNG", 0, 0, 85.6, 53.98)
-    pdf.save("id-card.pdf")
+      pdf.addImage(dataUrl, "PNG", 0, 0, 85.6, 53.98)
+      pdf.save("id-card.pdf")
+    } catch (error) {
+      console.error("Error downloading PDF:", error)
+    }
   }
 
   return (
     <div className="flex flex-col  items-center gap-6 w-full max-w-xl mx-auto">
+
+      {/* HIDDEN FULL-SIZE CARDS FOR DOWNLOAD (clean version without overlay) */}
+      <div style={{ position: 'absolute', left: '-9999px' }}>
+        <div ref={frontRef}>
+          <IDCardFront
+            employeeName={fullName}
+            department={member.department}
+            employeeId={member.code}
+            photoUrl={user.profile_picture || member.Profile_picture || ""}
+            validFrom={member.join_date?.split("T")[0]}
+            validUntil="2027-01-01"
+            erpCode={member.student_id}
+            companyLogo={null} // Adjust if needed
+            noOverlay={true} // Disable overlay for clean download
+          />
+        </div>
+        <div ref={backRef}>
+          <IDCardBack
+            companyAddress={member.region}
+            supportEmail={member.email}
+            supportPhone={member.phone}
+          />
+        </div>
+      </div>
 
       {/* TABS */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
@@ -79,21 +107,19 @@ console.log("Member Data:", member)
         {/* FRONT SIDE */}
         <TabsContent value="front">
           <div
-            ref={cardRef}
             className="flex justify-center p-6 bg-gray-100 rounded-lg"
              style={{ backgroundColor: "#ffffff" }}
           >
             <div className="scale-[0.75] origin-top-left">
               <IDCardFront
                 employeeName={fullName}
-                // jobTitle={`Year ${member.study_year} Student`}
                 department={member.department}
                 employeeId={member.code}
                 photoUrl={user.profile_picture|| member.Profile_picture || ""}
                 validFrom={member.join_date?.split("T")[0]}
                 validUntil="2027-01-01"
                 erpCode={member.student_id}
-                accessLevel={member.status}
+                companyLogo={null} // Adjust if needed
               />
             </div>
           </div>
@@ -102,8 +128,8 @@ console.log("Member Data:", member)
         {/* BACK SIDE */}
         <TabsContent value="back">
           <div
-            ref={cardRef}
-            className="flex justify-center p-6  rounded-lg"
+            className="flex justify-center p-6 rounded-lg"
+            style={{ backgroundColor: "#ffffff" }}
           >
             <div className="scale-[0.75] origin-top-left">
               <IDCardBack

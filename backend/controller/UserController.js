@@ -243,7 +243,7 @@ export const getProfile = async (req, res, next) => {
   try {
     const user = await User.findById(req.user._id)
       .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
+      .populate("member", "first_name middle_name last_name full_name Profile_picture email student_id department join_date phone code role")
       .lean()
       .exec();
 

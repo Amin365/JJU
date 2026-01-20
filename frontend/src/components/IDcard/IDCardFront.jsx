@@ -15,6 +15,7 @@ export function IDCardFront({
   validUntil = "N/A",
   erpCode = "ERP",
   companyLogo,
+  noOverlay = false,  // New prop to disable overlay for clean downloads
 }) {
   const fullBarcodeValue = useMemo(() => {
     const base = `${employeeId}`;
@@ -35,12 +36,14 @@ export function IDCardFront({
         bg-white
       "
     >
-      {/* Background effect */}
-      <div
-        className="pointer-events-none absolute inset-0 opacity-30
-        bg-[linear-gradient(45deg,rgba(59,130,246,0.15)_25%,transparent_25%,transparent_75%,rgba(59,130,246,0.15)_75%)]
-        bg-[length:20px_20px]"
-      />
+      {/* Background effect - conditionally rendered */}
+      {!noOverlay && (
+        <div
+          className="pointer-events-none absolute inset-0 opacity-30
+          bg-[linear-gradient(45deg,rgba(59,130,246,0.15)_25%,transparent_25%,transparent_75%,rgba(59,130,246,0.15)_75%)]
+          bg-[length:20px_20px]"
+        />
+      )}
 
       <div className="absolute -top-12 -right-12 w-24 h-24 rounded-full bg-blue-100 opacity-50" />
 

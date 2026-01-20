@@ -258,7 +258,7 @@ export default function ProfilePage() {
         {/* RIGHT SIDE */}
         <Card className="md:col-span-2 rounded-2xl shadow-md dark:bg-slate-800">
           <CardHeader className="flex justify-between items-center">
-            <CardTitle className="text-2xl font-semibold">Profile Details</CardTitle>
+            <CardTitle className="text-2xl font-semibold hidden md:block">Profile Details</CardTitle>
             <div className="flex items-center gap-3">
               {/* <ModeToggle /> */}
               <Button onClick={() => navigate(`/dashboard/id-card/${user?.member._id}`)} variant="outline" className="rounded-xl">

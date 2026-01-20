@@ -7,6 +7,7 @@ import { IDCardBack } from "./IDCardBack"
 import api from "@/app/api/apislice"
 import { useQuery } from "@tanstack/react-query"
 import { useParams } from "react-router"
+
 import {
   Tabs,
   TabsContent,
@@ -14,6 +15,7 @@ import {
   TabsTrigger,
 } from "@/components/ui/tabs"
 import { useSelector } from "react-redux"
+import Loader from "../Loader"
 
 export default function PVCIDCard() {
     const{user}=useSelector((state)=>state.auth)
@@ -31,7 +33,7 @@ export default function PVCIDCard() {
     enabled: !!memberId,
   })
 
-  if (isLoading) return <p>Loading card...</p>
+  if (isLoading) return <Loader />
   if (isError) return <p>Failed to load member</p>
   if (!member) return <p>No member data</p>
 

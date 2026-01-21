@@ -140,9 +140,9 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   const description = post.content
     ? post.content.replace(/<[^>]*>/g, "").substring(0, 150) + "..."
     : "";
-  const imageUrl = post.coverImage.startsWith("http")
-    ? post.coverImage
-    : `${window.location.origin}${post.coverImage}`;
+  const imageUrl = post.blog_picture.startsWith("http")
+    ? post.blog_picture
+    : `${window.location.origin}${post.blog_picture}`;
 
   // Related posts
   const { data: listResponse } = useQuery({
@@ -325,7 +325,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
         <meta property="og:image" content={imageUrl} />
         <meta property="og:url" content={window.location.href} />
         <meta property="og:type" content="article" />
-        <meta property="og:site_name" content="Your Website Name" /> {/* Replace with your actual site name */}
+        <meta property="og:site_name" content="https://jjureadingclub.live" /> {/* Replace with your actual site name */}
         <meta name="twitter:card" content="summary_large_image" />
         <meta name="twitter:title" content={post.title || "Blog Post"} />
         <meta name="twitter:description" content={description} />

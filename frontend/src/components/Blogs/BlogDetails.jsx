@@ -140,7 +140,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   const description = post.content
     ? post.content.replace(/<[^>]*>/g, "").substring(0, 150) + "..."
     : "";
-  const imageUrl = post.blog_picture.startsWith("http")
+  const imageUrl = post.blog_picture
     ? post.blog_picture
     : `${window.location.origin}${post.blog_picture}`;
 

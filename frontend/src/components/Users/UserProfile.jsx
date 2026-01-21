@@ -25,11 +25,13 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
+
 // import { ModeToggle } from "@/components/mode-toggle";
 import { useSelector } from "react-redux";
 // import api from "../lib/api/CleintApi";
 import api from "@/app/api/apislice";
 import PVCIDCard from "../IDcard/PVCIDCard";
+import Loader from "../Loader";
 
 export default function ProfilePage() {
   const navigate = useNavigate();
@@ -187,7 +189,7 @@ export default function ProfilePage() {
   });
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center">Loading...</div>;
+    return <Loader />;
   }
 
   return (
@@ -259,43 +261,50 @@ export default function ProfilePage() {
         <Card className="md:col-span-2 rounded-2xl shadow-md dark:bg-slate-800">
           <CardHeader className="flex justify-between items-center">
             <CardTitle className="text-2xl font-semibold hidden md:block">Profile Details</CardTitle>
-            <div className="flex items-center gap-3">
-              {/* <ModeToggle /> */}
-              <Button onClick={() => navigate(`/dashboard/id-card/${user?.member._id}`)} variant="outline" className="rounded-xl">
-                View ID Card
-              </Button>
-              {!editMode ? (
-                <Button onClick={() => setEditMode(true)} className="rounded-xl flex gap-2">
-                  <Edit size={16} /> Edit Profile
-                </Button>
-              ) : (
-                <div className="flex gap-2">
-                  <Button
-                    onClick={() => updateMutation.mutate(tempData)}
-                    className="rounded-xl flex gap-2"
-                    disabled={updateMutation.isPending}
-                  >
-                    <Save size={16} />
-                    {updateMutation.isPending ? "Saving..." : "Save"}
-                  </Button>
-                  <Button
-                    variant="outline"
-                    onClick={() => {
-                      setTempData({
-                        name: user?.first_name + ' ' + (user?.last_name || ''),
-                        bio: user?.Bio || '',
-                        phone: user?.phone || '',
-                        profile: user?.profile_picture || '',
-                      });
-                      setEditMode(false);
-                    }}
-                    className="rounded-xl flex gap-2"
-                  >
-                    <X size={16} /> Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
+           <div className="flex items-center gap-3">
+  {!editMode && (
+    <Button
+      onClick={() => navigate(`/dashboard/id-card/${user?.member._id}`)}
+      variant="outline"
+      className="rounded-xl"
+    >
+      View ID Card
+    </Button>
+  )}
+
+  {!editMode ? (
+    <Button onClick={() => setEditMode(true)} className="rounded-xl flex gap-2">
+      <Edit size={16} /> Edit Profile
+    </Button>
+  ) : (
+    <div className="flex gap-2">
+      <Button
+        onClick={() => updateMutation.mutate(tempData)}
+        className="rounded-xl flex gap-2"
+        disabled={updateMutation.isPending}
+      >
+        <Save size={16} />
+        {updateMutation.isPending ? "Saving..." : "Save"}
+      </Button>
+      <Button
+        variant="outline"
+        onClick={() => {
+          setTempData({
+            name: user?.first_name + ' ' + (user?.last_name || ''),
+            bio: user?.Bio || '',
+            phone: user?.phone || '',
+            profile: user?.profile_picture || '',
+          });
+          setEditMode(false);
+        }}
+        className="rounded-xl flex gap-2"
+      >
+        <X size={16} /> Cancel
+      </Button>
+    </div>
+  )}
+</div>
+
           </CardHeader>
 
           <CardContent className="space-y-6">

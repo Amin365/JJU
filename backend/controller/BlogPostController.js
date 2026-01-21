@@ -180,6 +180,9 @@ export const getBlogPostById = async (req, res) => {
   }
 };
 
+
+
+
 // UPDATE (JWT required, only owner)
 export const updateBlogPost = async (req, res) => {
   try {

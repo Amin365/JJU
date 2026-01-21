@@ -5,6 +5,7 @@ import { useSelector } from "react-redux";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { motion } from "framer-motion";
+import { Helmet } from "react-helmet-async"; // Add this import (install react-helmet-async if not already)
 import {
   Heart,
   MessageCircle,
@@ -134,6 +135,14 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       bookRelated: postResponse?.relatedBook || "",
     };
   }, [postResponse, postId, comments.length]);
+
+  // Prepare meta tags data
+  const description = post.content
+    ? post.content.replace(/<[^>]*>/g, "").substring(0, 150) + "..."
+    : "";
+  const imageUrl = post.coverImage.startsWith("http")
+    ? post.coverImage
+    : `${window.location.origin}${post.coverImage}`;
 
   // Related posts
   const { data: listResponse } = useQuery({
@@ -308,9 +317,23 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   const handleRelated = (id) => onRelatedPostClick?.(id);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-      {/* Header */}
-      {/* <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 sticky top-0 z-10 shadow-sm">
+    <>
+      <Helmet>
+        <title>{post.title || "Blog Post"}</title>
+        <meta property="og:title" content={post.title || "Blog Post"} />
+        <meta property="og:description" content={description} />
+        <meta property="og:image" content={imageUrl} />
+        <meta property="og:url" content={window.location.href} />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="Your Website Name" /> {/* Replace with your actual site name */}
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content={post.title || "Blog Post"} />
+        <meta name="twitter:description" content={description} />
+        <meta name="twitter:image" content={imageUrl} />
+      </Helmet>
+      <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
+        {/* Header */}
+        {/* <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 sticky top-0 z-10 shadow-sm">
         <div className="max-w-7xl mx-auto px-4 py-4">
           <div className="flex items-center justify-between gap-3">
             <Button variant="ghost" onClick={onBack}>
@@ -321,449 +344,449 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
         </div>
       </div> */}
 
-      <div className="max-w-6xl mx-auto px-0 sm:px-4 mt-12  py-6 sm:py-8">
-        {/* ARTICLE ONLY (no sidebar / no grid) */}
-        <motion.article
-          initial={{ opacity: 0, y: 20 }}
-          animate={{ opacity: 1, y: 0 }}
-          className="bg-white dark:bg-gray-900 rounded-none sm:rounded-lg shadow-none sm:shadow-sm overflow-hidden"
-        >
-          {/* Cover image with overlay actions */}
-          <div className="relative w-full h-80 sm:h-96 overflow-hidden">
-            <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
+        <div className="max-w-6xl mx-auto px-0 sm:px-4 mt-12  py-6 sm:py-8">
+          {/* ARTICLE ONLY (no sidebar / no grid) */}
+          <motion.article
+            initial={{ opacity: 0, y: 20 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white dark:bg-gray-900 rounded-none sm:rounded-lg shadow-none sm:shadow-sm overflow-hidden"
+          >
+            {/* Cover image with overlay actions */}
+            <div className="relative w-full h-80 sm:h-96 overflow-hidden">
+              <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
 
-            {/* overlay gradient (transparent low) */}
-            <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
+              {/* overlay gradient (transparent low) */}
+              <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
 
-            {/* overlay buttons on top of picture */}
-            <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={onBack}
-                  className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                >
-                  <ArrowLeft className="w-4 h-4 mr-1" />
-                  Back
-                </Button>
+              {/* overlay buttons on top of picture */}
+              <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={onBack}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+                  >
+                    <ArrowLeft className="w-4 h-4 mr-1" />
+                    Back
+                  </Button>
 
-                <span className="text-xs text-white/90 flex items-center gap-1">
-                  <Eye className="w-4 h-4" />
-                  {post.views}
-                </span>
-              </div>
+                  <span className="text-xs text-white/90 flex items-center gap-1">
+                    <Eye className="w-4 h-4" />
+                    {post.views}
+                  </span>
+                </div>
 
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleLike}
-                  className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                >
-                  <Heart className={`w-4 h-4 mr-1 ${liked ? "fill-white" : ""}`} />
-                  {likeCount}
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleLike}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+                  >
+                    <Heart className={`w-4 h-4 mr-1 ${liked ? "fill-white" : ""}`} />
+                    {likeCount}
+                  </Button>
 
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleBookmark}
-                  className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                  title="Bookmark"
-                >
-                  <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-white" : ""}`} />
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleBookmark}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+                    title="Bookmark"
+                  >
+                    <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-white" : ""}`} />
+                  </Button>
 
-                <Button
-                  size="sm"
-                  variant="secondary"
-                  onClick={handleShare}
-                  className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                  title="Share"
-                >
-                  <Share2 className="w-4 h-4" />
-                </Button>
+                  <Button
+                    size="sm"
+                    variant="secondary"
+                    onClick={handleShare}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+                    title="Share"
+                  >
+                    <Share2 className="w-4 h-4" />
+                  </Button>
+                </div>
               </div>
             </div>
-          </div>
 
-          {/* Post body */}
-          <div className="p-4 sm:p-6 md:p-10">
-            {post.bookRelated && (
-              <div className="mb-6">
-                <Badge className="bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 flex items-center gap-2 w-fit dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900">
-                  <BookOpen className="w-4 h-4" />
-                  Written after reading {post.bookRelated}
-                </Badge>
-              </div>
-            )}
-
-            <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
-              {post.title}
-            </h1>
-
-            <div className="flex items-center gap-4 mb-8 pb-8 border-b dark:border-gray-800">
-              <Avatar className="w-14 h-14">
-                <AvatarImage src={post.author.avatar} />
-                <AvatarFallback>{post.author.name?.[0] || "U"}</AvatarFallback>
-              </Avatar>
-
-              <div className="flex-1">
-                <div className="flex items-center gap-2 mb-1">
-                  <p className="font-semibold text-gray-900 dark:text-gray-100">{post.author.name}</p>
-                  <Badge
-                    variant="outline"
-                    className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
-                  >
-                    {post.author.role}
+            {/* Post body */}
+            <div className="p-4 sm:p-6 md:p-10">
+              {post.bookRelated && (
+                <div className="mb-6">
+                  <Badge className="bg-orange-50 text-orange-700 border-orange-200 hover:bg-orange-100 flex items-center gap-2 w-fit dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900">
+                    <BookOpen className="w-4 h-4" />
+                    Written after reading {post.bookRelated}
                   </Badge>
                 </div>
+              )}
 
-                <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                  <span>
-                    {new Date(post.publishDate).toLocaleDateString("en-US", {
-                      month: "long",
-                      day: "numeric",
-                      year: "numeric",
-                    })}
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <Clock className="w-3 h-3" />
-                    {post.readingTime} min read
-                  </span>
-                  <span>•</span>
-                  <span className="flex items-center gap-1">
-                    <MessageCircle className="w-3 h-3" />
-                    {post.comments} comments
-                  </span>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
+                {post.title}
+              </h1>
+
+              <div className="flex items-center gap-4 mb-8 pb-8 border-b dark:border-gray-800">
+                <Avatar className="w-14 h-14">
+                  <AvatarImage src={post.author.avatar} />
+                  <AvatarFallback>{post.author.name?.[0] || "U"}</AvatarFallback>
+                </Avatar>
+
+                <div className="flex-1">
+                  <div className="flex items-center gap-2 mb-1">
+                    <p className="font-semibold text-gray-900 dark:text-gray-100">{post.author.name}</p>
+                    <Badge
+                      variant="outline"
+                      className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                    >
+                      {post.author.role}
+                    </Badge>
+                  </div>
+
+                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
+                    <span>
+                      {new Date(post.publishDate).toLocaleDateString("en-US", {
+                        month: "long",
+                        day: "numeric",
+                        year: "numeric",
+                      })}
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      {post.readingTime} min read
+                    </span>
+                    <span>•</span>
+                    <span className="flex items-center gap-1">
+                      <MessageCircle className="w-3 h-3" />
+                      {post.comments} comments
+                    </span>
+                  </div>
                 </div>
               </div>
-            </div>
 
-            {/* Content */}
-            <div
-              className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words ${
-                showFullContent ? "" : "max-h-[520px] overflow-hidden"
-              }`}
-            >
-              {post.content && post.content.includes("<") ? (
-                <div dangerouslySetInnerHTML={{ __html: post.content }} />
-              ) : (
-                post.content.split("\n\n").map((paragraph, index) => (
-                  <p key={index} className="mb-6 leading-relaxed break-words whitespace-pre-wrap">
-                    {paragraph}
-                  </p>
-                ))
-              )}
-
-              {!showFullContent && (
-                <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
-              )}
-            </div>
-
-            <div className="mt-4">
-              <Button variant="outline" onClick={() => setShowFullContent((v) => !v)}>
-                {showFullContent ? "Show less" : "Read full post"}
-              </Button>
-            </div>
-
-            <div className="flex flex-wrap gap-2 mt-12 pt-8 border-t dark:border-gray-800">
-              {post.tags.map((tag) => (
-                <Badge key={tag} variant="outline" className="text-sm">
-                  {tag}
-                </Badge>
-              ))}
-            </div>
-          </div>
-        </motion.article>
-
-        {/* Comments Section */}
-        <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 dark:text-gray-100">
-              <MessageCircle className="w-5 h-5" />
-              Comments ({comments.length})
-            </CardTitle>
-          </CardHeader>
-
-          <CardContent className="space-y-6">
-            {!user ? (
-              <>
-                {loginCta}
-                <Separator className="dark:bg-gray-800" />
-              </>
-            ) : (
-              <>
-                {!showCommentForm ? (
-                  <Button variant="outline" className="w-full" onClick={() => setShowCommentForm(true)}>
-                    <MessageCircle className="w-4 h-4 mr-2" />
-                    Add a comment
-                  </Button>
+              {/* Content */}
+              <div
+                className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words ${
+                  showFullContent ? "" : "max-h-[520px] overflow-hidden"
+                }`}
+              >
+                {post.content && post.content.includes("<") ? (
+                  <div dangerouslySetInnerHTML={{ __html: post.content }} />
                 ) : (
-                  <div className="space-y-3">
-                    <Textarea
-                      placeholder="Share your thoughts..."
-                      value={commentText}
-                      onChange={(e) => setCommentText(e.target.value)}
-                      rows={3}
-                    />
-                    <div className="flex gap-2">
-                      <Button
-                        onClick={handleComment}
-                        className="bg-orange-600 hover:bg-orange-700"
-                        disabled={createCommentMutation.isPending}
-                      >
-                        <Send className="w-4 h-4 mr-2" />
-                        {createCommentMutation.isPending ? "Posting..." : "Post Comment"}
-                      </Button>
-                      <Button variant="outline" onClick={() => setShowCommentForm(false)}>
-                        Cancel
-                      </Button>
-                    </div>
-                  </div>
+                  post.content.split("\n\n").map((paragraph, index) => (
+                    <p key={index} className="mb-6 leading-relaxed break-words whitespace-pre-wrap">
+                      {paragraph}
+                    </p>
+                  ))
                 )}
 
-                <Separator className="dark:bg-gray-800" />
-              </>
-            )}
+                {!showFullContent && (
+                  <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
+                )}
+              </div>
 
-            <div className="space-y-6">
-              {commentsLoading ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400">Loading comments...</div>
-              ) : commentsError ? (
-                <div className="text-sm text-red-600">
-                  Failed to load comments: {commentsErr?.response?.data?.message || commentsErr?.message || "Unknown"}
-                </div>
-              ) : comments.length === 0 ? (
-                <div className="text-sm text-gray-500 dark:text-gray-400">No comments yet.</div>
-              ) : (
-                comments.map((comment) => {
-                  const displayLikes = commentLikes[comment._id] ?? (comment.likes || 0);
-                  const isLiked = !!commentLikedByMe[comment._id];
+              <div className="mt-4">
+                <Button variant="outline" onClick={() => setShowFullContent((v) => !v)}>
+                  {showFullContent ? "Show less" : "Read full post"}
+                </Button>
+              </div>
 
-                  return (
-                    <div key={comment._id}>
-                      <div
-                        className={`${
-                          comment.isPinned || comment.isBestInsight
-                            ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
-                            : ""
-                        }`}
-                      >
-                        {comment.isPinned && (
-                          <div className="flex items-center gap-2 text-sm text-orange-700 mb-2 dark:text-orange-300">
-                            <Pin className="w-4 h-4" />
-                            <span className="font-medium">Pinned by moderator</span>
-                          </div>
-                        )}
-
-                        {comment.isBestInsight && (
-                          <div className="flex items-center gap-2 text-sm text-purple-700 mb-2 dark:text-purple-300">
-                            <Sparkles className="w-4 h-4" />
-                            <span className="font-medium">Best Insight</span>
-                          </div>
-                        )}
-
-                        <div className="flex gap-3">
-                          <Avatar className="w-10 h-10">
-                            <AvatarImage src={comment.author?.avatar} />
-                            <AvatarFallback>{comment.author?.name?.[0] || "U"}</AvatarFallback>
-                          </Avatar>
-
-                          <div className="flex-1">
-                            <div className="flex items-center gap-2 mb-1">
-                              <span className="font-medium text-gray-900 dark:text-gray-100">
-                                {comment.author?.name || "Unknown"}
-                              </span>
-
-                              <Badge
-                                variant="outline"
-                                className={`text-xs ${
-                                  comment.author?.role === "Moderator"
-                                    ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
-                                    : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900"
-                                }`}
-                              >
-                                {comment.author?.role || "Member"}
-                              </Badge>
-
-                              <span className="text-sm text-gray-500 dark:text-gray-400">
-                                {timeAgo(comment.createdAt)}
-                              </span>
-                            </div>
-
-                            <p className="text-gray-700 dark:text-gray-200 mb-2 break-words">
-                              {comment.content}
-                            </p>
-
-                            <div className="flex items-center gap-3 text-sm">
-                              <button
-                                className={`flex items-center gap-1 transition-colors ${
-                                  isLiked
-                                    ? "text-orange-600"
-                                    : "text-gray-500 hover:text-orange-600 dark:text-gray-400"
-                                }`}
-                                onClick={() => handleCommentLike(comment)}
-                                type="button"
-                                disabled={toggleCommentLikeMutation.isPending}
-                              >
-                                <ThumbsUp className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
-                                <span>{displayLikes}</span>
-                              </button>
-
-                              <button
-                                className="text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400"
-                                onClick={() => openReply(comment._id)}
-                                disabled={!user}
-                                type="button"
-                              >
-                                Reply
-                              </button>
-
-                              <button
-                                className="text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 dark:text-gray-400"
-                                type="button"
-                              >
-                                <Flag className="w-3 h-3" />
-                                Report
-                              </button>
-                            </div>
-
-                            {user && activeReplyCommentId === comment._id && (
-                              <div className="mt-3 space-y-2">
-                                <Textarea
-                                  placeholder="Write a reply..."
-                                  rows={2}
-                                  value={replyTextByCommentId[comment._id] || ""}
-                                  onChange={(e) =>
-                                    setReplyTextByCommentId((prev) => ({
-                                      ...prev,
-                                      [comment._id]: e.target.value,
-                                    }))
-                                  }
-                                />
-                                <div className="flex gap-2">
-                                  <Button
-                                    onClick={() => submitReply(comment._id)}
-                                    disabled={createReplyMutation.isPending}
-                                    className="bg-orange-600 hover:bg-orange-700"
-                                  >
-                                    <Send className="w-4 h-4 mr-2" />
-                                    {createReplyMutation.isPending ? "Posting..." : "Reply"}
-                                  </Button>
-                                  <Button variant="outline" onClick={() => setActiveReplyCommentId(null)}>
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-
-                      {Array.isArray(comment.replies) && comment.replies.length > 0 && (
-                        <div className="ml-12 mt-4 space-y-4">
-                          {comment.replies.map((reply) => (
-                            <div key={reply._id} className="flex gap-3">
-                              <Avatar className="w-8 h-8">
-                                <AvatarImage src={reply.author?.avatar} />
-                                <AvatarFallback>{reply.author?.name?.[0] || "U"}</AvatarFallback>
-                              </Avatar>
-                              <div className="flex-1">
-                                <div className="flex items-center gap-2 mb-1">
-                                  <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
-                                    {reply.author?.name || "Unknown"}
-                                  </span>
-                                  <Badge
-                                    variant="outline"
-                                    className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
-                                  >
-                                    {reply.author?.role || "Member"}
-                                  </Badge>
-                                  <span className="text-xs text-gray-500 dark:text-gray-400">
-                                    {timeAgo(reply.createdAt)}
-                                  </span>
-                                </div>
-
-                                <p className="text-sm text-gray-700 dark:text-gray-200 break-words">
-                                  {reply.content}
-                                </p>
-                              </div>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-                    </div>
-                  );
-                })
-              )}
+              <div className="flex flex-wrap gap-2 mt-12 pt-8 border-t dark:border-gray-800">
+                {post.tags.map((tag) => (
+                  <Badge key={tag} variant="outline" className="text-sm">
+                    {tag}
+                  </Badge>
+                ))}
+              </div>
             </div>
-          </CardContent>
-        </Card>
+          </motion.article>
 
-        {/* MOVED: Similar Topics BELOW comments (no sidebar, no grid) */}
-        {relatedPosts.length > 0 && (
+          {/* Comments Section */}
           <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
-              <CardTitle className="text-lg flex items-center gap-2 dark:text-gray-100">
-                <Sparkles className="w-5 h-5 text-purple-600" />
-                Similar Topics You May Like
+              <CardTitle className="flex items-center gap-2 dark:text-gray-100">
+                <MessageCircle className="w-5 h-5" />
+                Comments ({comments.length})
               </CardTitle>
-              <p className="text-sm text-gray-600 dark:text-gray-400">Based on shared tags</p>
             </CardHeader>
 
-            <CardContent className="space-y-4">
-              {relatedPosts.map((relatedPost) => (
-                <motion.div
-                  key={relatedPost.id}
-                  whileHover={{ scale: 1.01 }}
-                  className="group cursor-pointer"
-                  onClick={() => handleRelated(relatedPost.id)}
-                >
-                  <div className="flex gap-3">
-                    <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
-                      <img
-                        src={relatedPost.coverImage}
-                        alt={relatedPost.title}
-                        className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+            <CardContent className="space-y-6">
+              {!user ? (
+                <>
+                  {loginCta}
+                  <Separator className="dark:bg-gray-800" />
+                </>
+              ) : (
+                <>
+                  {!showCommentForm ? (
+                    <Button variant="outline" className="w-full" onClick={() => setShowCommentForm(true)}>
+                      <MessageCircle className="w-4 h-4 mr-2" />
+                      Add a comment
+                    </Button>
+                  ) : (
+                    <div className="space-y-3">
+                      <Textarea
+                        placeholder="Share your thoughts..."
+                        value={commentText}
+                        onChange={(e) => setCommentText(e.target.value)}
+                        rows={3}
                       />
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-orange-600 transition-colors mb-1">
-                        {relatedPost.title}
-                      </h4>
-                      <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
-                        By {relatedPost.author} • {relatedPost.readingTime} min
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {relatedPost.matchingTags.map((tag) => (
-                          <Badge
-                            key={tag}
-                            className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:hover:bg-orange-900"
-                          >
-                            {tag}
-                          </Badge>
-                        ))}
+                      <div className="flex gap-2">
+                        <Button
+                          onClick={handleComment}
+                          className="bg-orange-600 hover:bg-orange-700"
+                          disabled={createCommentMutation.isPending}
+                        >
+                          <Send className="w-4 h-4 mr-2" />
+                          {createCommentMutation.isPending ? "Posting..." : "Post Comment"}
+                        </Button>
+                        <Button variant="outline" onClick={() => setShowCommentForm(false)}>
+                          Cancel
+                        </Button>
                       </div>
                     </div>
-                  </div>
-                  <Separator className="mt-4 dark:bg-gray-800" />
-                </motion.div>
-              ))}
+                  )}
 
-              <Button variant="outline" className="w-full">
-                Show More Related Posts
-                <ChevronRight className="w-4 h-4 ml-1" />
-              </Button>
+                  <Separator className="dark:bg-gray-800" />
+                </>
+              )}
+
+              <div className="space-y-6">
+                {commentsLoading ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">Loading comments...</div>
+                ) : commentsError ? (
+                  <div className="text-sm text-red-600">
+                    Failed to load comments: {commentsErr?.response?.data?.message || commentsErr?.message || "Unknown"}
+                  </div>
+                ) : comments.length === 0 ? (
+                  <div className="text-sm text-gray-500 dark:text-gray-400">No comments yet.</div>
+                ) : (
+                  comments.map((comment) => {
+                    const displayLikes = commentLikes[comment._id] ?? (comment.likes || 0);
+                    const isLiked = !!commentLikedByMe[comment._id];
+
+                    return (
+                      <div key={comment._id}>
+                        <div
+                          className={`${
+                            comment.isPinned || comment.isBestInsight
+                              ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
+                              : ""
+                          }`}
+                        >
+                          {comment.isPinned && (
+                            <div className="flex items-center gap-2 text-sm text-orange-700 mb-2 dark:text-orange-300">
+                              <Pin className="w-4 h-4" />
+                              <span className="font-medium">Pinned by moderator</span>
+                            </div>
+                          )}
+
+                          {comment.isBestInsight && (
+                            <div className="flex items-center gap-2 text-sm text-purple-700 mb-2 dark:text-purple-300">
+                              <Sparkles className="w-4 h-4" />
+                              <span className="font-medium">Best Insight</span>
+                            </div>
+                          )}
+
+                          <div className="flex gap-3">
+                            <Avatar className="w-10 h-10">
+                              <AvatarImage src={comment.author?.avatar} />
+                              <AvatarFallback>{comment.author?.name?.[0] || "U"}</AvatarFallback>
+                            </Avatar>
+
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2 mb-1">
+                                <span className="font-medium text-gray-900 dark:text-gray-100">
+                                  {comment.author?.name || "Unknown"}
+                                </span>
+
+                                <Badge
+                                  variant="outline"
+                                  className={`text-xs ${
+                                    comment.author?.role === "Moderator"
+                                      ? "bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                                      : "bg-orange-50 text-orange-700 border-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:border-orange-900"
+                                  }`}
+                                >
+                                  {comment.author?.role || "Member"}
+                                </Badge>
+
+                                <span className="text-sm text-gray-500 dark:text-gray-400">
+                                  {timeAgo(comment.createdAt)}
+                                </span>
+                              </div>
+
+                              <p className="text-gray-700 dark:text-gray-200 mb-2 break-words">
+                                {comment.content}
+                              </p>
+
+                              <div className="flex items-center gap-3 text-sm">
+                                <button
+                                  className={`flex items-center gap-1 transition-colors ${
+                                    isLiked
+                                      ? "text-orange-600"
+                                      : "text-gray-500 hover:text-orange-600 dark:text-gray-400"
+                                  }`}
+                                  onClick={() => handleCommentLike(comment)}
+                                  type="button"
+                                  disabled={toggleCommentLikeMutation.isPending}
+                                >
+                                  <ThumbsUp className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
+                                  <span>{displayLikes}</span>
+                                </button>
+
+                                <button
+                                  className="text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400"
+                                  onClick={() => openReply(comment._id)}
+                                  disabled={!user}
+                                  type="button"
+                                >
+                                  Reply
+                                </button>
+
+                                <button
+                                  className="text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 dark:text-gray-400"
+                                  type="button"
+                                >
+                                  <Flag className="w-3 h-3" />
+                                  Report
+                                </button>
+                              </div>
+
+                              {user && activeReplyCommentId === comment._id && (
+                                <div className="mt-3 space-y-2">
+                                  <Textarea
+                                    placeholder="Write a reply..."
+                                    rows={2}
+                                    value={replyTextByCommentId[comment._id] || ""}
+                                    onChange={(e) =>
+                                      setReplyTextByCommentId((prev) => ({
+                                        ...prev,
+                                        [comment._id]: e.target.value,
+                                      }))
+                                    }
+                                  />
+                                  <div className="flex gap-2">
+                                    <Button
+                                      onClick={() => submitReply(comment._id)}
+                                      disabled={createReplyMutation.isPending}
+                                      className="bg-orange-600 hover:bg-orange-700"
+                                    >
+                                      <Send className="w-4 h-4 mr-2" />
+                                      {createReplyMutation.isPending ? "Posting..." : "Reply"}
+                                    </Button>
+                                    <Button variant="outline" onClick={() => setActiveReplyCommentId(null)}>
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          </div>
+                        </div>
+
+                        {Array.isArray(comment.replies) && comment.replies.length > 0 && (
+                          <div className="ml-12 mt-4 space-y-4">
+                            {comment.replies.map((reply) => (
+                              <div key={reply._id} className="flex gap-3">
+                                <Avatar className="w-8 h-8">
+                                  <AvatarImage src={reply.author?.avatar} />
+                                  <AvatarFallback>{reply.author?.name?.[0] || "U"}</AvatarFallback>
+                                </Avatar>
+                                <div className="flex-1">
+                                  <div className="flex items-center gap-2 mb-1">
+                                    <span className="font-medium text-gray-900 dark:text-gray-100 text-sm">
+                                      {reply.author?.name || "Unknown"}
+                                    </span>
+                                    <Badge
+                                      variant="outline"
+                                      className="text-xs bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
+                                    >
+                                      {reply.author?.role || "Member"}
+                                    </Badge>
+                                    <span className="text-xs text-gray-500 dark:text-gray-400">
+                                      {timeAgo(reply.createdAt)}
+                                    </span>
+                                  </div>
+
+                                  <p className="text-sm text-gray-700 dark:text-gray-200 break-words">
+                                    {reply.content}
+                                  </p>
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
             </CardContent>
           </Card>
-        )}
-      </div>
-     <Footers clubLogoSrc="/jjuclub.jpg" />
 
-    </div>
+          {/* MOVED: Similar Topics BELOW comments (no sidebar, no grid) */}
+          {relatedPosts.length > 0 && (
+            <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 dark:text-gray-100">
+                  <Sparkles className="w-5 h-5 text-purple-600" />
+                  Similar Topics You May Like
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Based on shared tags</p>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {relatedPosts.map((relatedPost) => (
+                  <motion.div
+                    key={relatedPost.id}
+                    whileHover={{ scale: 1.01 }}
+                    className="group cursor-pointer"
+                    onClick={() => handleRelated(relatedPost.id)}
+                  >
+                    <div className="flex gap-3">
+                      <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <img
+                          src={relatedPost.coverImage}
+                          alt={relatedPost.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-orange-600 transition-colors mb-1">
+                          {relatedPost.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          By {relatedPost.author} • {relatedPost.readingTime} min
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {relatedPost.matchingTags.map((tag) => (
+                            <Badge
+                              key={tag}
+                              className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:hover:bg-orange-900"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <Separator className="mt-4 dark:bg-gray-800" />
+                  </motion.div>
+                ))}
+
+                <Button variant="outline" className="w-full">
+                  Show More Related Posts
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+        <Footers clubLogoSrc="/jjuclub.jpg" />
+      </div>
+    </>
   );
 }
 

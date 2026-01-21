@@ -104,14 +104,14 @@ const MainHeader = () => {
 
             <DropdownMenuSeparator />
 
-            {user?.role === "admin" && (
+    
               <DropdownMenuItem asChild>
                 <Link to="/dashboard" className="flex items-center gap-2 py-1.5 text-sm">
                   <LayoutGrid className="size-4 text-green-600" />
                   Dashboard
                 </Link>
               </DropdownMenuItem>
-            )}
+           
 
             <DropdownMenuItem asChild>
               <Link to="/dashboard/profile" className="flex items-center gap-2 py-1.5 text-sm">
@@ -131,7 +131,7 @@ const MainHeader = () => {
           </DropdownMenuContent>
         </DropdownMenu>
       ) : (
-        <Link to="/register" className="px-3 py-1.5 bg-rose-600 text-white rounded-md text-sm">
+        <Link to="/login" className="px-3 py-1.5 bg-rose-600 text-white rounded-md text-sm">
           Sign Up
         </Link>
       )}

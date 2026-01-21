@@ -40,12 +40,12 @@ export default function Example() {
           </div>
 
           <p className="-translate-x-2 font-medium dark:text-white text-zinc-700">
-            Join community of 1m+ founders
+            Join community of 200+ readers
           </p>
         </div>
 
         <h1 className="text-4xl dark:text-white md:text-5xl md:leading-[60px] font-semibold max-w-xl mt-5">
-          Unlock your next big opportunity.
+          Connect, Share, and Grow with Fellow Book Lovers
         </h1>
 
         <button

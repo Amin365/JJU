@@ -67,6 +67,8 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     staleTime: 60_000,
   });
 
+  console.log("postResponse",postResponse)
+
   useEffect(() => {
     if (typeof postResponse?.likes === "number") setLikeCount(postResponse.likes);
   }, [postResponse?.likes]);
@@ -253,14 +255,21 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     });
   };
 
-  const handleShare = async () => {
-    try {
-      await navigator.clipboard.writeText(window.location.href);
-      toast.success("Link copied to clipboard!");
-    } catch {
-      toast.error("Copy failed", { description: "Could not copy link." });
-    }
-  };
+const handleShare = async () => {
+  try {
+    const shareUrl = `${import.meta.env.VITE_BACKEND_URL}/share/blog/${postId}`;
+
+    await navigator.clipboard.writeText(shareUrl);
+
+    toast.success("Share link copied!");
+  } catch (err) {
+    console.error("Share error:", err);
+    toast.error("Copy failed", {
+      description: "Unable to copy share link",
+    });
+  }
+};
+
 
   const handleComment = () => {
     if (!user) return;

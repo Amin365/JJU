@@ -258,3 +258,66 @@ export const deleteBlogPost = async (req, res) => {
     return res.status(500).json({ message: err.message || "Server error" });
   }
 };
+
+
+
+
+
+export const blogMetaPage = async (req, res) => {
+  try {
+    const { id } = req.params;
+
+    if (!mongoose.isValidObjectId(id)) {
+      return res.status(400).send("Invalid blog id");
+    }
+
+    const post = await BlogPost.findById(id).lean();
+
+    if (!post || post.status !== "Published") {
+      return res.status(404).send("Blog not found");
+    }
+
+    const title = post.title;
+    const description = post.content
+      .replace(/<[^>]*>/g, "")
+      .slice(0, 160);
+
+    const image =
+      post.blog_picture ||
+      "https://jjureadingclub.live/default-og.jpg";
+
+    const redirectUrl = `https://jjureadingclub.live/blogs/${id}`;
+    const shareUrl = `https://jjureadingclub.live/share/blog/${id}`;
+
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+        <head>
+          <meta charset="UTF-8" />
+          <title>${title}</title>
+
+          <!-- Open Graph -->
+          <meta property="og:title" content="${title}" />
+          <meta property="og:description" content="${description}" />
+          <meta property="og:image" content="${image}" />
+          <meta property="og:url" content="${shareUrl}" />
+          <meta property="og:type" content="article" />
+          <meta property="og:site_name" content="JJU Reading Club" />
+
+          <!-- Twitter -->
+          <meta name="twitter:card" content="summary_large_image" />
+          <meta name="twitter:title" content="${title}" />
+          <meta name="twitter:description" content="${description}" />
+          <meta name="twitter:image" content="${image}" />
+
+          <!-- Redirect users -->
+          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+        </head>
+        <body></body>
+      </html>
+    `);
+  } catch (err) {
+    console.error("Meta error:", err);
+    res.status(500).send("Server error");
+  }
+};

@@ -44,7 +44,7 @@ export default function Example() {
           </p>
         </div>
 
-        <h1 className="text-4xl dark:text-white md:text-5xl md:leading-[60px] font-semibold max-w-xl mt-5">
+        <h1 className="text-xl dark:text-white md:text-xl md:leading-[60px] font-semibold max-w-xl mt-5">
           Connect, Share, and Grow with Fellow Book Lovers
         </h1>
 

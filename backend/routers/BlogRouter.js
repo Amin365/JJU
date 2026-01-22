@@ -6,6 +6,7 @@ import {
   getBlogPostById,
   updateBlogPost,
   deleteBlogPost,
+  blogMetaPage
 } from "../controller/BlogPostController.js";
 // import { requireAuth } from "../middleware/requireAuth.js";
 import { protect } from '../middleware/auth.js'
@@ -32,5 +33,6 @@ Blogrouter.get("/blogposts/:id", getBlogPostById);
 Blogrouter.post("/blogposts", protect, upload.single("image"), createBlogPost);
 Blogrouter.put("/blogposts/:id", protect, upload.single("image"), updateBlogPost);
 Blogrouter.delete("/blogposts/:id", protect, deleteBlogPost);
+Blogrouter.get("/share/blog/:id", blogMetaPage);
 
 export default Blogrouter;

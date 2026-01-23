@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useLocation, useNavigate, Link } from 'react-router';
 import { useForm } from 'react-hook-form';
 import { toast } from 'sonner';
@@ -11,53 +11,101 @@ const VerifyOtp = () => {
   const navigate = useNavigate();
 
   const [code, setCode] = useState(['', '', '', '', '', '']);
-  const { handleSubmit } = useForm(); 
+  const { handleSubmit } = useForm();
 
+  // 🔒 Redirect if page refreshed or email missing
+  useEffect(() => {
+    if (!email) {
+      toast.error('Session expired. Please try again.');
+      navigate('/forgot-password');
+    }
+  }, [email, navigate]);
+
+  // 🎯 Auto focus first OTP input
+  useEffect(() => {
+    document.getElementById('code-0')?.focus();
+  }, []);
+
+  // ✅ Verify OTP mutation
   const mutation = useMutation({
     mutationFn: async ({ email, code }) => {
-      return await api.post('/verify-otp', { email, code }).then(res => res.data);
+      return await api.post('/verify-reset-code', { email, code })
+        .then(res => res.data);
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast.success('OTP verified! Enter new password.');
-      navigate('/reset-password', { state: { email } });
+      navigate('/reset-password', {
+        state: {
+          email,
+          userId: data.userId,
+        },
+      });
     },
     onError: (err) => {
-      toast.error('Error', { description: err?.message || 'Invalid OTP' });
+      toast.error(
+        err?.response?.data?.message || 'Invalid or expired OTP'
+      );
+    },
+  });
+
+  // 🔁 Resend OTP mutation
+  const resendMutation = useMutation({
+    mutationFn: async () => {
+      return await api.post('/resend-reset-code', { email });
+    },
+    onSuccess: () => {
+      toast.success('New OTP sent to your email');
+      setCode(['', '', '', '', '', '']);
+      document.getElementById('code-0')?.focus();
+    },
+    onError: (err) => {
+      toast.error(
+        err?.response?.data?.message || 'Failed to resend OTP'
+      );
     },
   });
 
   const handleInputChange = (index, value) => {
-    if (value.length > 1 || isNaN(value)) return; // Ensure only single digit and numeric
+    if (value.length > 1 || isNaN(value)) return;
+
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
 
     if (value && index < 5) {
-      document.getElementById(`code-${index + 1}`).focus();
+      document.getElementById(`code-${index + 1}`)?.focus();
     }
   };
 
   const onSubmit = () => {
     const otpCode = code.join('');
+
     if (otpCode.length !== 6) {
       toast.error('Please enter all 6 digits');
       return;
     }
+
     mutation.mutate({ email, code: otpCode });
   };
 
   return (
     <div className="relative flex min-h-screen items-center justify-center bg-muted/30 p-4 dark:bg-gray-950">
       <div className="w-full max-w-md bg-white dark:bg-gray-900 p-6 rounded-lg shadow-lg border dark:border-gray-800">
-        <h1 className="text-center text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">Verify OTP</h1>
-        <p className="text-center mb-4 text-muted-foreground dark:text-gray-400">Enter the 6-digit code sent to {email}</p>
+        <h1 className="text-center text-2xl font-bold mb-2 text-gray-900 dark:text-gray-100">
+          Verify OTP
+        </h1>
+
+        <p className="text-center mb-4 text-muted-foreground dark:text-gray-400">
+          Enter the 6-digit code sent to {email}
+        </p>
+
         <form onSubmit={handleSubmit(onSubmit)}>
           <div className="flex justify-center gap-2 mb-4">
             {code.map((digit, i) => (
               <input
                 key={i}
                 id={`code-${i}`}
-                type="text" // Explicitly set to text for visibility
+                type="text"
                 maxLength="1"
                 value={digit}
                 onChange={(e) => handleInputChange(i, e.target.value)}
@@ -65,6 +113,7 @@ const VerifyOtp = () => {
               />
             ))}
           </div>
+
           <button
             type="submit"
             disabled={mutation.isLoading}
@@ -73,11 +122,25 @@ const VerifyOtp = () => {
             {mutation.isLoading ? 'Verifying...' : 'Verify OTP'}
           </button>
         </form>
+
         <p className="mt-4 text-center text-muted-foreground dark:text-gray-400">
-          Didn't get code? <button onClick={() => toast('Resend logic')} className="text-orange-600 hover:underline dark:text-orange-400 dark:hover:text-orange-300">Resend</button>
+          Didn't get code?{' '}
+          <button
+            onClick={() => resendMutation.mutate()}
+            disabled={resendMutation.isLoading}
+            className="text-orange-600 hover:underline dark:text-orange-400 dark:hover:text-orange-300"
+          >
+            {resendMutation.isLoading ? 'Sending...' : 'Resend'}
+          </button>
         </p>
+
         <p className="mt-2 text-center">
-          <Link to="/login" className="text-orange-600 hover:underline dark:text-orange-400 dark:hover:text-orange-300">Back to Login</Link>
+          <Link
+            to="/login"
+            className="text-orange-600 hover:underline dark:text-orange-400 dark:hover:text-orange-300"
+          >
+            Back to Login
+          </Link>
         </p>
       </div>
     </div>

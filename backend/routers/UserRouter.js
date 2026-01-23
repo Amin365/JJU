@@ -13,7 +13,8 @@ import {
   getProfile,
   forgotPassword,
   resetPassword,
-  resendResetCode
+  resendResetCode,
+  verifyResetCode
 } from "../controller/UserController.js";
 
 import multer from "multer";
@@ -63,5 +64,6 @@ router.get("/profile", protect, getProfile);
 router.post("/forgot-password", forgotPassword);
 router.post("/reset-password", resetPassword);
 router.post("/resend-reset-code", resendResetCode);
+router.post("/verify-reset-code", verifyResetCode);
 
 export default router;

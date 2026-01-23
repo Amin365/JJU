@@ -116,8 +116,8 @@ export function LoginForm({ className, ...props }) {
                 <Button
                   type="submit"
                   disabled={loginMutation.isLoading}
-                  className="flex items-center justify-center gap-2"
-                  
+                  className="flex items-center dark:bg-orange-600 justify-center gap-2"
+
                 >
                   {loginMutation.isLoading && (
                     <Loader2 className="animate-spin h-5 w-5 text-white" />
@@ -127,7 +127,7 @@ export function LoginForm({ className, ...props }) {
               </Field>
                  <Field>
         <div className="text-right">
-        <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+        <Link to="/forgot-password" className="text-sm text-blue-600 dark:text-white hover:underline">
   Forgot Password?
 </Link>
         </div>

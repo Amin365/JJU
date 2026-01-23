@@ -289,8 +289,7 @@ export const getDailyReportsScope = async (req, res, next) => {
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
-    console.debug("getDailyReportsScope - currentUser:", { id: req.user?._id?.toString(), isSuperAdmin, isModerator, roleName });
-
+   
     const filter = {};
 
     // optional date range
@@ -325,9 +324,8 @@ export const getDailyReportsScope = async (req, res, next) => {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
-        console.debug("getDailyReportsScope - moderator check", { requesterId: req.user?._id?.toString(), memberId });
         const assigned = await ModeratorMember.findOne({ moderator: req.user._id, member: memberId }).lean().exec();
-        console.debug("getDailyReportsScope - assigned result:", { found: !!assigned, assignedMember: assigned?.member?.toString() });
+
         if (!assigned) return res.status(403).json({ message: "Forbidden: member not assigned to this moderator" });
 
         const users = await User.find({ member: memberId }).select("_id").lean().exec();

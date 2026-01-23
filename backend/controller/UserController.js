@@ -364,44 +364,32 @@ export const forgotPassword = async (req, res, next) => {
     // Generate 6-digit OTP
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
+    // Replace old OTP automatically
     user.resetPasswordCode = resetCode;
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+
     await user.save({ validateBeforeSave: false });
 
-    // Send email (example)
-    
     await sendMail({
       to: user.email,
       subject: "Password Reset Code",
       text: `Your password reset code is ${resetCode}`,
     });
-    
 
     return res.status(200).json({
-      message: "Verification code sent to email",
+      message: "OTP sent to email",
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
 
-
-
-export const resetPassword = async (req, res, next) => {
+export const verifyResetCode = async (req, res, next) => {
   try {
-    const { email, code, newPassword, confirmPassword } = req.body;
+    const { email, code } = req.body;
 
-    if (!email || !code || !newPassword || !confirmPassword) {
-      return res.status(400).json({ message: "All fields are required" });
-    }
-
-    if (newPassword !== confirmPassword) {
-      return res.status(400).json({ message: "Passwords do not match" });
-    }
-
-    if (newPassword.length < 6) {
-      return res.status(400).json({ message: "Password must be at least 6 characters" });
-    }
+    if (!email || !code)
+      return res.status(400).json({ message: "Email and code are required" });
 
     const user = await User.findOne({
       email,
@@ -409,51 +397,102 @@ export const resetPassword = async (req, res, next) => {
       resetPasswordExpires: { $gt: Date.now() },
     });
 
-    if (!user) {
+    if (!user)
       return res.status(400).json({
-        message: "Invalid or expired verification code",
+        message: "Invalid or expired reset code",
       });
+
+    return res.status(200).json({
+      message: "OTP verified",
+      userId: user._id, // frontend can store this temporarily
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+
+
+
+
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { userId, newPassword } = req.body;
+
+    if (!userId || !newPassword) {
+      return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Hash new password
-    const salt = await bcrypt.genSalt(10);
-    user.password = await bcrypt.hash(newPassword, salt);
+    // Strong password check
+    // const strongPasswordRegex =
+    //   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
 
-    // Clear reset fields
+    // if (!strongPasswordRegex.test(newPassword)) {
+    //   return res.status(400).json({
+    //     message:
+    //       "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
+    //   });
+    // }
+
+    const user = await User.findById(userId);
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    // ✅ IMPORTANT: assign plain password
+    user.password = newPassword;
+
     user.resetPasswordCode = undefined;
     user.resetPasswordExpires = undefined;
 
-    await user.save();
+    // pre('save') will hash it ONCE
+    await user.save({ validateBeforeSave: false });
 
     return res.status(200).json({
       message: "Password reset successful",
     });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
+
+
+
 
 export const resendResetCode = async (req, res, next) => {
   try {
     const { email } = req.body;
 
+    if (!email)
+      return res.status(400).json({ message: "Email is required" });
+
     const user = await User.findOne({ email });
     if (!user)
       return res.status(404).json({ message: "User not found" });
 
+    // Generate new OTP (old one is overwritten automatically)
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     user.resetPasswordCode = resetCode;
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+
     await user.save({ validateBeforeSave: false });
 
-    // send email again
+    // Send OTP email again
+    await sendMail({
+      to: user.email,
+      subject: "Password Reset Code",
+      text: `Your new password reset code is ${resetCode}`,
+    });
 
-    return res.status(200).json({ message: "New code sent" });
+    return res.status(200).json({
+      message: "New verification code sent to email",
+    });
   } catch (err) {
-    return next(err);
+    next(err);
   }
 };
+
 
 
 

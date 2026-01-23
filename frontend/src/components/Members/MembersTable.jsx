@@ -148,10 +148,13 @@ export default function MemberTable() {
         </div>
 
         <div className="flex gap-3">
-          <Button variant="default" onClick={OpenModelExcel}>
+          <Button variant="default" 
+          className="dark:bg-orange-600"
+           onClick={OpenModelExcel}>
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
           </Button>
-          <Button onClick={handleAddNew}>
+          <Button onClick={handleAddNew} className="dark:bg-orange-600">
+           
             <Plus size={16} /> <span className="ml-2">Add Member</span>
           </Button>
         </div>
@@ -269,7 +272,7 @@ export default function MemberTable() {
       size="sm"
       onClick={() => handlePageChange(currentPage - 1)}
       disabled={currentPage === 1 || isLoading || isFetching}
-      className="flex items-center gap-1 whitespace-nowrap"
+      className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
     >
       <ChevronLeft size={16} />
       Previous
@@ -283,7 +286,7 @@ export default function MemberTable() {
       size="sm"
       onClick={() => handlePageChange(currentPage + 1)}
       disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
-      className="flex items-center gap-1 whitespace-nowrap"
+      className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
     >
       Next
       <ChevronRight size={16} />

@@ -318,7 +318,9 @@ const handleShare = async () => {
             Create an account to post comments and replies.
           </p>
         </div>
-        <Button onClick={() => (window.location.href = "/signup")}>Create Account</Button>
+        <Button 
+        className={"dark:bg-orange-600"} variant="default"
+         onClick={() => (window.location.href = "/login")}>Login </Button>
       </div>
     </div>
   );

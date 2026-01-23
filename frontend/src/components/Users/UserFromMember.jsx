@@ -182,7 +182,7 @@ const CreateUserForm = () => {
         </div>
 
         {/* Modern steps */}
-        <div className="grid  grid-cols-1 mx-20 md:grid-cols-2 gap-3 mb-6">
+        <div className="grid  grid-cols-1 mx-8 md:grid-cols-2 gap-3 mb-6">
           <StepPill
             active={step === 1}
             done={step > 1}

@@ -34,9 +34,11 @@ app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
 
+import cors from "cors";
+
 const allowedOrigins = [
   "http://localhost:5173",
-  "https://jjureadingclub.com/"
+  "https://jjureadingclub.com" // remove trailing slash
 ];
 
 app.use(
@@ -54,6 +56,7 @@ app.use(
     credentials: true,
   })
 );
+
 
 
 // after express app created, before routes:

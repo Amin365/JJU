@@ -3,6 +3,7 @@ import User from "../models/user.js";
 
 import Member from "../models/Members.js";
 import bcrypt from "bcryptjs";
+import { sendMail } from "./EmailController.js";
 
 
 export const createUserFromMember = async (req, res, next) => {
@@ -347,6 +348,115 @@ export const deleteAccount = async (req, res, next) => {
     return next(err);
   }
 };
+
+
+export const forgotPassword = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email)
+      return res.status(400).json({ message: "Email is required" });
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    // Generate 6-digit OTP
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    user.resetPasswordCode = resetCode;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    await user.save({ validateBeforeSave: false });
+
+    // Send email (example)
+    
+    await sendMail({
+      to: user.email,
+      subject: "Password Reset Code",
+      text: `Your password reset code is ${resetCode}`,
+    });
+    
+
+    return res.status(200).json({
+      message: "Verification code sent to email",
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+
+export const resetPassword = async (req, res, next) => {
+  try {
+    const { email, code, newPassword, confirmPassword } = req.body;
+
+    if (!email || !code || !newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "All fields are required" });
+    }
+
+    if (newPassword !== confirmPassword) {
+      return res.status(400).json({ message: "Passwords do not match" });
+    }
+
+    if (newPassword.length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    const user = await User.findOne({
+      email,
+      resetPasswordCode: code,
+      resetPasswordExpires: { $gt: Date.now() },
+    });
+
+    if (!user) {
+      return res.status(400).json({
+        message: "Invalid or expired verification code",
+      });
+    }
+
+    // Hash new password
+    const salt = await bcrypt.genSalt(10);
+    user.password = await bcrypt.hash(newPassword, salt);
+
+    // Clear reset fields
+    user.resetPasswordCode = undefined;
+    user.resetPasswordExpires = undefined;
+
+    await user.save();
+
+    return res.status(200).json({
+      message: "Password reset successful",
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const resendResetCode = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    const user = await User.findOne({ email });
+    if (!user)
+      return res.status(404).json({ message: "User not found" });
+
+    const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
+
+    user.resetPasswordCode = resetCode;
+    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000;
+    await user.save({ validateBeforeSave: false });
+
+    // send email again
+
+    return res.status(200).json({ message: "New code sent" });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+
+
 
 // Existing controllers...
 

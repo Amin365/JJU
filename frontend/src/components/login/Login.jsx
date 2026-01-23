@@ -19,7 +19,7 @@ import { useMutation } from "@tanstack/react-query"
 import api from "../../app/api/apislice"
 import { toast } from 'sonner'
 import { useDispatch, useSelector } from "react-redux"
-import { useNavigate } from "react-router"
+import { Link, useNavigate } from "react-router"
 import { setAuth } from "../../app/AuthSlice"
 import { extractErrorMessages } from "../../../../backend/utility/Globalerror"
 import { enableNotifications } from "../../lib/notifications"
@@ -117,6 +117,7 @@ export function LoginForm({ className, ...props }) {
                   type="submit"
                   disabled={loginMutation.isLoading}
                   className="flex items-center justify-center gap-2"
+                  
                 >
                   {loginMutation.isLoading && (
                     <Loader2 className="animate-spin h-5 w-5 text-white" />
@@ -124,6 +125,13 @@ export function LoginForm({ className, ...props }) {
                   {loginMutation.isLoading ? "Logging in..." : "Login"}
                 </Button>
               </Field>
+                 <Field>
+        <div className="text-right">
+        <Link to="/forgot-password" className="text-sm text-blue-600 hover:underline">
+  Forgot Password?
+</Link>
+        </div>
+      </Field>
             </FieldGroup>
           </form>
         </CardContent>

@@ -183,7 +183,7 @@ const MembersForm = () => {
     setStep(1);
     setCurrentProfilePicture(null); // Reset the preview state
     setTimeout(() => {
-      navigate("/dashboard/members");
+      navigate("/");
     }, 1000);
   };
 
@@ -541,7 +541,7 @@ const MembersForm = () => {
 
   <button
     type="button"
-    onClick={() => navigate("/dashboard/members")}
+    onClick={() => navigate("/")}
     className="flex items-center gap-2 px-4 py-2.5 bg-white/80 text-slate-600 
     shadow-lg hover:bg-slate-100 rounded-xl border border-slate-200/70 
     transition-all text-xs md:text-sm font-semibold whitespace-nowrap"

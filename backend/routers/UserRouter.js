@@ -10,7 +10,10 @@ import {
   updateProfile,
   changePassword,
   deleteAccount,
-  getProfile
+  getProfile,
+  forgotPassword,
+  resetPassword,
+  resendResetCode
 } from "../controller/UserController.js";
 
 import multer from "multer";
@@ -57,4 +60,8 @@ router.get("/users/:id", protect, requireSuperAdmin, getUserById);
 router.post("/users/from-member", protect, requireSuperAdmin, createUserFromMember);
 router.patch("/users/:id/status", protect, requireSuperAdmin, updateUserStatus);
 router.get("/profile", protect, getProfile);
+router.post("/forgot-password", forgotPassword);
+router.post("/reset-password", resetPassword);
+router.post("/resend-reset-code", resendResetCode);
+
 export default router;

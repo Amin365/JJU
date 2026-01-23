@@ -9,6 +9,9 @@ import ReadingRecaps from "./components/Members/ReadingRecap";
 const DashboardPage = lazy(() => import("./pages/Dashboard"));
 
 const LoginPage = lazy(() => import("./pages/Loginpage"));
+const ForgotPassword = lazy(() => import("./components/login/ForgetPassword"));
+const ResetPassword = lazy(() => import("./components/login/ResetPasswordForm"));
+const VerifyOtp= lazy(() => import("./components/login/VerifyOtp"));
 const BookTable = lazy(() => import("./components/Books/BookTable"));
 const BookDetails = lazy(() => import("./components/Books/BookDetails"));
 const MembersForm = lazy(() => import("./components/Members/MemberForm"));
@@ -36,18 +39,23 @@ const BlogFeeds=lazy(()=>import('./components/Blogs/BlogFeeds'));
 const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 const Profile = lazy(() => import("./components/Users/UserProfile"));
 const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
-
+const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
 function App() {
   return (
  
       <Routes>
         {/* auth */}
         <Route path="/login" element={<LoginPage />} />
+       
         <Route path="/" element={<Homepage />} />
           <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
                <Route path="/blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogFeeds /></Suspense>} />
+        <Route path="/members/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersFormPublic /></Suspense>} />
 
-
+ <Route path="/forgot-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ForgotPassword /></Suspense>} />
+<Route path="/verify-otp" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><VerifyOtp /></Suspense>} />
+<Route path="/reset-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResetPassword /></Suspense>} />
+        {/* protected routes */}
         <Route
           path="/dashboard"
           element={

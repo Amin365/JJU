@@ -63,24 +63,14 @@ app.use(
         defaultSrc: ["'self'"],
         scriptSrc: ["'self'"],
         styleSrc: ["'self'", "'unsafe-inline'"],
-        imgSrc: [
-          "'self'",
-          "data:",
-          "https://res.cloudinary.com",
-          "https://i.pravatar.cc",
-          "https://images.unsplash.com"
-        ],
-        connectSrc: [
-          "'self'",
-          "https://jjureadingclub.com",      // Allow your frontend domain
-          "https://www.jjureadingclub.com",  // Allow www version
-            // If backend is on subdomain
-        ],
+        imgSrc: ["'self'", "data:", "https://res.cloudinary.com", "https://images.unsplash.com", "https://i.pravatar.cc"],
+        connectSrc: ["'self'", "https://jjureadingclub.com"], // allow API calls
         frameAncestors: ["'none'"],
       },
     },
   })
 );
+
 
 
 

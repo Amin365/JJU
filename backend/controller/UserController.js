@@ -350,6 +350,8 @@ export const deleteAccount = async (req, res, next) => {
 };
 
 
+
+
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;

@@ -44,8 +44,7 @@ const allowedOrigins = [
 app.use(
   cors({
     origin: function (origin, callback) {
-      // allow requests with no origin (Postman, mobile apps)
-      if (!origin) return callback(null, true);
+      if (!origin) return callback(null, true); // Postman, server-side requests
 
       if (allowedOrigins.includes(origin)) {
         callback(null, true);
@@ -57,9 +56,6 @@ app.use(
   })
 );
 
-
-
-// after express app created, before routes:
 app.use(
   helmet({
     contentSecurityPolicy: {
@@ -70,18 +66,28 @@ app.use(
         imgSrc: [
           "'self'",
           "data:",
-          "https://res.cloudinary.com", // allow Cloudinary
-          "https://i.pravatar.cc",     // allow avatar service
           "https://res.cloudinary.com",
-"https://images.unsplash.com"          
-          // include any other domains you need
+          "https://i.pravatar.cc",
+          "https://images.unsplash.com"
         ],
-        connectSrc: ["'self'"],
+        connectSrc: [
+          "'self'",
+          "https://jjureadingclub.com",      // Allow your frontend domain
+          "https://www.jjureadingclub.com",  // Allow www version
+            // If backend is on subdomain
+        ],
         frameAncestors: ["'none'"],
       },
     },
   })
 );
+
+
+
+// after express app created, before routes:
+
+
+
 app.use(xss());
 app.use(hpp());
 

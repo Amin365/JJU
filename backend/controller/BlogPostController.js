@@ -308,61 +308,67 @@ export const deleteBlogPost = async (req, res) => {
   }
 };
 
-/* ======================================================
-   BLOG META PAGE (SOCIAL SHARE)
-====================================================== */
+
 
 export const blogMetaPage = async (req, res) => {
   try {
     const { id } = req.params;
 
+    // Validate blog ID
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).send("Invalid blog id");
     }
 
+    // Find blog post
     const post = await BlogPost.findById(id).lean();
     if (!post || post.status !== "Published") {
       return res.status(404).send("Blog not found");
     }
 
+    // Generate dynamic base URL from request
     const baseUrl = `${req.protocol}://${req.get("host")}`;
-    const blogUrl = `${baseUrl}/blogs/${id}`;
 
+    // Build final URLs
+    const redirectUrl = `${baseUrl}/blogs/${id}`;
+    const shareUrl = `${baseUrl}/share/blog/${id}`;
+
+    // Clean description (first 160 chars, no HTML)
     const description = post.content.replace(/<[^>]*>/g, "").slice(0, 160);
+
+    // Image (fallback to default)
     const image = post.blog_picture || `${baseUrl}/default-og.jpg`;
 
-    res.send(`
-<!DOCTYPE html>
-<html lang="en">
-<head>
-  <meta charset="UTF-8" />
-  <title>${post.title}</title>
+    // Send HTML with OG/Twitter meta and redirect
+    res.status(200).send(`
+      <!DOCTYPE html>
+      <html lang="en">
+      <head>
+        <meta charset="UTF-8" />
+        <title>${post.title}</title>
 
-  <link rel="canonical" href="${blogUrl}" />
+        <!-- Open Graph -->
+        <meta property="og:title" content="${post.title}" />
+        <meta property="og:description" content="${description}" />
+        <meta property="og:image" content="${image}" />
+        <meta property="og:url" content="${shareUrl}" />
+        <meta property="og:type" content="article" />
+        <meta property="og:site_name" content="JJU Reading Club" />
 
-  <meta property="og:title" content="${post.title}" />
-  <meta property="og:description" content="${description}" />
-  <meta property="og:image" content="${image}" />
-  <meta property="og:url" content="${blogUrl}" />
-  <meta property="og:type" content="article" />
-  <meta property="og:site_name" content="JJU Reading Club" />
+        <!-- Twitter -->
+        <meta name="twitter:card" content="summary_large_image" />
+        <meta name="twitter:title" content="${post.title}" />
+        <meta name="twitter:description" content="${description}" />
+        <meta name="twitter:image" content="${image}" />
 
-  <meta name="twitter:card" content="summary_large_image" />
-  <meta name="twitter:title" content="${post.title}" />
-  <meta name="twitter:description" content="${description}" />
-  <meta name="twitter:image" content="${image}" />
-
-  <script>
-    setTimeout(() => {
-      window.location.href = "${blogUrl}";
-    }, 1000);
-  </script>
-</head>
-<body></body>
-</html>
-`);
+        <!-- Redirect users -->
+        <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+      </head>
+      <body></body>
+      </html>
+    `);
   } catch (err) {
-    console.error("blogMetaPage:", err);
+    console.error("Meta error:", err);
     res.status(500).send("Server error");
   }
 };
+

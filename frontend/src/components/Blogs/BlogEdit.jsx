@@ -18,8 +18,18 @@ const AVAILABLE_TAGS = [
   "Buug Sookoobid",
   "Diin",
   "Arimo Bulsho",
- 
 ];
+
+// Utility to normalize author names: remove duplicates, extra spaces, and trim
+const normalizeAuthorName = (name) => {
+  if (!name) return "";
+  // Split into words, remove duplicates (case-insensitive), trim, and rejoin
+  const words = name.trim().replace(/\s+/g, " ").split(" ");
+  const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))].map(w =>
+    words.find(orig => orig.toLowerCase() === w) // Preserve original casing
+  );
+  return uniqueWords.join(" ");
+};
 
 // API helpers detect FormData and set multipart header
 const apiGetBlogById = async (id) => {
@@ -61,7 +71,14 @@ const BlogEdit = () => {
   const [featuredImageUrl, setFeaturedImageUrl] = useState("");
   const [selectedImage, setSelectedImage] = useState(null);
 
+  // New author state
+  const [authorType, setAuthorType] = useState("me"); // "me" or "another"
+  const [authorName, setAuthorName] = useState("");
+  const [authorPictureUrl, setAuthorPictureUrl] = useState("");
+  const [selectedAuthorImage, setSelectedAuthorImage] = useState(null);
+
   const fileInputRef = useRef(null);
+  const authorFileInputRef = useRef(null);
   const editorRef = useRef(null);
 
   const { data: post, isLoading, isError, error } = useQuery({
@@ -87,6 +104,12 @@ const BlogEdit = () => {
     setContent(post.content || "");
     setSelectedTags(Array.isArray(post.tags) ? post.tags : []);
     setFeaturedImageUrl(post.blog_picture || "");
+
+    // Initialize author fields with normalization
+    const normalizedAuthorName = normalizeAuthorName(post.author_name);
+    setAuthorType(normalizedAuthorName ? "another" : "me");
+    setAuthorName(normalizedAuthorName || "");
+    setAuthorPictureUrl(post.author_picture || "");
   }, [isEditMode, post, user, navigate]);
 
   const createMutation = useMutation({
@@ -119,7 +142,7 @@ const BlogEdit = () => {
   // Helpers
   const toggleTag = (tag) => {
     setSelectedTags((prev) =>
-      prev.includes(tag) ? prev.filter((t) => t !== tag) : [...prev, tag]
+      prev.includes(tag) ? prev.filter((t) => t.trim()) : [...prev, tag]
     );
   };
 
@@ -152,6 +175,32 @@ const BlogEdit = () => {
     toast.success("Image selected (will be uploaded with the form).");
   };
 
+  const handleAuthorImageSelect = (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    if (!file.type.startsWith("image/")) {
+      toast.error("Please select an image file.");
+      e.target.value = "";
+      setSelectedAuthorImage(null);
+      return;
+    }
+
+    const maxSize = 2 * 1024 * 1024; // 2MB
+    if (file.size > maxSize) {
+      toast.error(
+        `Image size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the 2MB limit.`
+      );
+      e.target.value = "";
+      setSelectedAuthorImage(null);
+      return;
+    }
+
+    setSelectedAuthorImage(file);
+    setAuthorPictureUrl(URL.createObjectURL(file));
+    toast.success("Author image selected (will be uploaded with the form).");
+  };
+
   const handleSave = async (publish) => {
     if (!title.trim()) {
       return toast.error("Please add a title to your article.");
@@ -171,20 +220,36 @@ const BlogEdit = () => {
       return toast.error("Please select at least one tag.");
     }
 
+    // Validate and normalize author
+    let finalAuthorName = "";
+    if (authorType === "another") {
+      finalAuthorName = normalizeAuthorName(authorName);
+      if (!finalAuthorName.trim()) {
+        return toast.error("Please provide the author's name.");
+      }
+    }
+
     // If there is a file, send FormData. Must append file under field name "image"
     // because router uses upload.single("image").
     const hasFile = Boolean(selectedImage);
+    const hasAuthorFile = Boolean(selectedAuthorImage);
     let payload;
 
-    if (hasFile) {
+    if (hasFile || hasAuthorFile) {
       payload = new FormData();
       payload.append("title", title);
       payload.append("content", content);
       // send tags as JSON string; server will JSON.parse if needed
       payload.append("tags", JSON.stringify(selectedTags));
       payload.append("status", publish ? "Published" : "Draft");
+      payload.append("author_type", authorType);
+      if (authorType === "another") {
+        payload.append("author_name", finalAuthorName);
+        payload.append("author_picture", authorPictureUrl);
+      }
       // field name must match multer: "image"
-      payload.append("image", selectedImage, selectedImage.name);
+      if (hasFile) payload.append("image", selectedImage, selectedImage.name);
+      if (hasAuthorFile) payload.append("author_picture", selectedAuthorImage, selectedAuthorImage.name); // Assuming multer fields setup
     } else {
       // plain JSON payload — backend supports both JSON and multipart
       payload = {
@@ -193,6 +258,11 @@ const BlogEdit = () => {
         tags: selectedTags,
         blog_picture: featuredImageUrl || "",
         status: publish ? "Published" : "Draft",
+        author_type: authorType,
+        ...(authorType === "another" && {
+          author_name: finalAuthorName,
+          author_picture: authorPictureUrl,
+        }),
       };
     }
 
@@ -272,6 +342,86 @@ const BlogEdit = () => {
         />
       </div>
 
+      {/* Author selection */}
+      <div className="mb-6">
+        <label className="block text-sm font-medium text-gray-700 mb-2">Author</label>
+        <div className="space-y-2">
+          <label className="flex items-center">
+            <input
+              type="radio"
+              name="authorType"
+              value="me"
+              checked={authorType === "me"}
+              onChange={(e) => setAuthorType(e.target.value)}
+              className="mr-2"
+            />
+            ME (I am the author)
+          </label>
+          <label className="flex items-center">
+            <input
+              type="radio"
+              name="authorType"
+              value="another"
+              checked={authorType === "another"}
+              onChange={(e) => setAuthorType(e.target.value)}
+              className="mr-2"
+            />
+            Another person
+          </label>
+        </div>
+        {authorType === "another" && (
+          <div className="mt-4 space-y-4">
+            <div>
+              <label htmlFor="authorName" className="block text-sm font-medium text-gray-700">
+                Author's Name
+              </label>
+              <input
+                type="text"
+                id="authorName"
+                value={authorName}
+                onChange={(e) => setAuthorName(e.target.value)}
+                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                placeholder="Enter author's name"
+              />
+            </div>
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-2">
+                Author's Picture
+              </label>
+              <input
+                type="file"
+                id="author-picture"
+                accept="image/*"
+                onChange={handleAuthorImageSelect}
+                ref={authorFileInputRef}
+                className="text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-md file:border-0 file:text-sm file:font-semibold file:bg-orange-50 file:text-orange-700 hover:file:bg-orange-100"
+              />
+              {authorPictureUrl && (
+                <div className="mt-2">
+                  <img
+                    src={authorPictureUrl}
+                    alt="Author picture"
+                    className="w-24 h-24 object-cover rounded-md"
+                  />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setAuthorPictureUrl("");
+                      setSelectedAuthorImage(null);
+                      if (authorFileInputRef.current) authorFileInputRef.current.value = "";
+                      toast("Author image removed.");
+                    }}
+                    className="ml-2 text-red-500 text-xs hover:text-red-700"
+                  >
+                    Remove
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+      </div>
+
       {/* Featured Image Upload */}
       <div className="mb-6">
         <label className="block text-sm font-medium text-gray-700 mb-2">
@@ -331,7 +481,7 @@ const BlogEdit = () => {
       </div>
 
       {/* Tags selection */}
-      <div className="mb-6 relative">
+      <div className="mb-6 dark:text-black relative">
         <label className="block text-sm font-medium text-gray-700 mb-1">Tags</label>
 
         <div className="flex flex-wrap gap-2 mb-2">

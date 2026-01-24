@@ -14,19 +14,19 @@ import {
   SidebarTrigger,
 } from "@/components/ui/sidebar";
 import { AppSidebar } from "../components/app-sidebar";
-import { Outlet, useLocation } from "react-router";
+import { Navigate, Outlet, useLocation } from "react-router";
 import ModeToggle from "../components/ModeTogle";
 import MainHeader from "../components/ProfileSection";
 import NotificationBell from "../components/NotificationBell";
 import { useSelector } from "react-redux";
 
 export default function DashboardPage() {
-    const { IsAuthenticated } = useSelector((state) => state.auth);
-    console.log("IsAuthenticated:", IsAuthenticated);
+    const { token } = useSelector((state) => state.auth);
+  
   const location = useLocation();
 
   // Redirect immediately if user is not authenticated
-  if (!IsAuthenticated) {
+  if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
   return (

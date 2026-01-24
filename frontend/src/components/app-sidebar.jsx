@@ -125,6 +125,10 @@ const data = {
 export function AppSidebar({ ...props }) {
   const { user, token } = useSelector((state) => state.auth);
 
+if(!token){
+  return null;
+}
+
   // Fetch fresh profile to ensure populated role (object with role name)
   const { data: profileData } = useQuery({
     queryKey: ["sidebar-profile"],

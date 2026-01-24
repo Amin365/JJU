@@ -31,6 +31,7 @@ import { Separator } from "../ui/separator";
 import { toast } from "sonner";
 
 import Footers from "../Homepage/Footer";
+import Loader from "../Loader";
 
 function timeAgo(dateLike) {
   if (!dateLike) return "";
@@ -57,7 +58,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   const [commentLikedByMe, setCommentLikedByMe] = useState({});
   const [commentLikes, setCommentLikes] = useState({});
 
-  const { data: postResponse } = useQuery({
+  const { data: postResponse ,isLoading } = useQuery({
     queryKey: ["blogpost", postId],
     queryFn: async () => {
       const res = await api.get(`/blogposts/${postId}`);
@@ -67,7 +68,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     staleTime: 60_000,
   });
 
-  console.log("postResponse",postResponse)
+ 
 
   useEffect(() => {
     if (typeof postResponse?.likes === "number") setLikeCount(postResponse.likes);
@@ -125,9 +126,8 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
         postResponse?.blog_picture ||
         "https://images.unsplash.com/photo-1495446815901-a7297e633e8d?w=1200&h=600&fit=crop",
       author: {
-        name: postResponse?.author || "Unknown",
-        avatar: "",
-        role: "Member",
+        name: postResponse?.author_name || postResponse?.author || "Unknown",
+        avatar: postResponse?.author_picture || "",
       },
       publishDate: postResponse?.createdAt || new Date().toISOString(),
       readingTime: 5,
@@ -168,7 +168,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
         return {
           id: p._id,
           title: p.title,
-          author: p.author || "Unknown",
+          author: p.author_name || p.author || "Unknown",
           publishDate: p.createdAt,
           readingTime: 5,
           coverImage: p.blog_picture || "",
@@ -179,6 +179,38 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       .filter((rp) => rp.matchingTags.length > 0)
       .slice(0, 6);
   }, [listResponse, post.tags, post.id]);
+
+// More by the Author
+const moreByAuthor = useMemo(() => {
+  const all = Array.isArray(listResponse?.data) ? listResponse.data : [];
+  const authorName = post.author.name;
+
+  console.log('authorName:', authorName);
+  console.log('all posts:', all.map(p => ({ id: p._id, author: p.author, author_name: p.author_name })));
+
+  if (!authorName || authorName === "Unknown") return [];
+
+  const normalizedAuthorName = authorName.trim().toLowerCase();
+  const filtered = all.filter((p) => {
+    if (p._id === post.id) return false; // Exclude current post
+    const pAuthor = (p.author_name || p.author)?.trim().toLowerCase();
+    return pAuthor === normalizedAuthorName;
+  });
+
+  
+
+  return filtered
+    .map((p) => ({
+      id: p._id,
+      title: p.title,
+      author: p.author_name || p.author || "Unknown",
+      publishDate: p.createdAt,
+      readingTime: 5,
+      coverImage: p.blog_picture || "",
+      tags: Array.isArray(p.tags) ? p.tags : [],
+    }))
+    .slice(0, 6);
+}, [listResponse, post.author.name, post.id]);
 
   // Mutations
   const createCommentMutation = useMutation({
@@ -197,6 +229,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
         description: err?.response?.data?.message || "Please try again.",
       });
     },
+
   });
 
   const createReplyMutation = useMutation({
@@ -271,6 +304,8 @@ const handleShare = async () => {
 };
 
 
+
+
   const handleComment = () => {
     if (!user) return;
     if (!commentText.trim()) return;
@@ -326,6 +361,8 @@ const handleShare = async () => {
   );
 
   const handleRelated = (id) => onRelatedPostClick?.(id);
+
+  if(isLoading) return <Loader />;
 
   return (
     <>
@@ -787,10 +824,71 @@ const handleShare = async () => {
                   </motion.div>
                 ))}
 
-                <Button variant="outline" className="w-full">
+                {/* <Button variant="outline" className="w-full">
                   Show More Related Posts
                   <ChevronRight className="w-4 h-4 ml-1" />
-                </Button>
+                </Button> */}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* More by the Author */}
+          {moreByAuthor.length > 0 && (
+            <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2 dark:text-gray-100">
+                  <Avatar className="w-6 h-6">
+                    <AvatarImage src={post.author.avatar} />
+                    <AvatarFallback className="text-xs">{post.author.name?.[0] || "U"}</AvatarFallback>
+                  </Avatar>
+                  More by {post.author.name}
+                </CardTitle>
+                <p className="text-sm text-gray-600 dark:text-gray-400">Other articles from this author</p>
+              </CardHeader>
+
+              <CardContent className="space-y-4">
+                {moreByAuthor.map((authorPost) => (
+                  <motion.div
+                    key={authorPost.id}
+                    whileHover={{ scale: 1.01 }}
+                    className="group cursor-pointer"
+                    onClick={() => handleRelated(authorPost.id)}
+                  >
+                    <div className="flex gap-3">
+                      <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
+                        <img
+                          src={authorPost.coverImage}
+                          alt={authorPost.title}
+                          className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-300"
+                        />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <h4 className="font-semibold text-sm text-gray-900 dark:text-gray-100 line-clamp-2 group-hover:text-orange-600 transition-colors mb-1">
+                          {authorPost.title}
+                        </h4>
+                        <p className="text-xs text-gray-500 dark:text-gray-400 mb-2">
+                          {authorPost.readingTime} min • {timeAgo(authorPost.publishDate)}
+                        </p>
+                        <div className="flex flex-wrap gap-1">
+                          {authorPost.tags.slice(0, 3).map((tag) => (
+                            <Badge
+                              key={tag}
+                              className="text-xs bg-orange-100 text-orange-700 hover:bg-orange-200 dark:bg-orange-950 dark:text-orange-200 dark:hover:bg-orange-900"
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                    <Separator className="mt-4 dark:bg-gray-800" />
+                  </motion.div>
+                ))}
+
+                {/* <Button variant="outline" className="w-full">
+                  Show More from {post.author.name}
+                  <ChevronRight className="w-4 h-4 ml-1" />
+                </Button> */}
               </CardContent>
             </Card>
           )}

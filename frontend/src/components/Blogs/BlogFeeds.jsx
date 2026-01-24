@@ -115,7 +115,10 @@ export default function BlogFeed({ onPostClick }) {
           `${stripHtml(post?.content).slice(0, 140)}...`,
         coverImage:
           post?.blog_picture || post?.coverImage || FALLBACK_IMAGE,
-        author: post?.author || "Unknown",
+        author: {
+          name: post?.author_name || post?.author || "Unknown",
+          avatar: post?.author_picture || "",
+        },
         readingTime: post?.readingTime || 5,
         publishDate:
           post?.createdAt || post?.publishDate || new Date().toISOString(),
@@ -353,15 +356,15 @@ export default function BlogFeed({ onPostClick }) {
                       <div className="text-xs text-gray-500 dark:text-gray-400 flex items-center gap-3">
                         <div>
                           <Avatar className="w-10 h-10">
-                            <AvatarImage src={post.author?.avatar} />
+                            <AvatarImage src={post.author.avatar} />
                             <AvatarFallback className="dark:text-gray-100">
-                              {String(post.author || "U").slice(0, 1).toUpperCase()}
+                              {String(post.author.name || "U").slice(0, 1).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
                         </div>
 
                         <div>
-                          <p className="text-gray-900 dark:text-gray-100">{post.author}</p>
+                          <p className="text-gray-900 dark:text-gray-100">{post.author.name}</p>
                           <div className="flex items-center gap-3 text-sm text-gray-500 dark:text-gray-400 mt-2">
                             <div className="inline-flex items-center gap-2">
                               <Clock className="w-4 h-4" />

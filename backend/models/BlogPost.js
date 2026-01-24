@@ -5,7 +5,7 @@ const BlogPostSchema = new mongoose.Schema(
     title: { type: String, required: true, trim: true },
     content: { type: String, required: true },
 
-    author: { type: String, required: true, trim: true }, // derived from JWT user
+    author: { type: String, required: true, trim: true }, // derived from JWT user or custom input
 
     relatedBook: { type: String, default: "" },
 
@@ -23,6 +23,10 @@ const BlogPostSchema = new mongoose.Schema(
     views: { type: Number, required: true, default: 0 },
 
     blog_picture: { type: String, default: "" },
+
+    // New fields for custom author
+    author_name: { type: String, default: "" }, // Custom author name if not "ME"
+    author_picture: { type: String, default: "" }, // Custom author picture URL
   },
   { timestamps: true }
 );

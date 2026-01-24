@@ -79,7 +79,7 @@ const BlogTable = () => {
     const q = search.trim().toLowerCase();
     if (!q) return posts;
     return posts.filter((p) => {
-      const haystack = [p.title, p.author, p.status, ...(p.tags || [])]
+      const haystack = [p.title, p.author_name || p.author, p.status, ...(p.tags || [])]
         .filter(Boolean)
         .join(" ")
         .toLowerCase();
@@ -159,7 +159,7 @@ const BlogTable = () => {
                     <div className="font-semibold text-slate-900 dark:text-white truncate max-w-[320px]">{post.title}</div>
                     <div className="text-xs text-slate-500 dark:text-slate-300 truncate" dangerouslySetInnerHTML={{ __html: post.content?.slice(0, 120) }} />
                   </td>
-                  <td className="p-3 text-slate-700 dark:text-slate-200">{post.author || ""}</td>
+                  <td className="p-3 text-slate-700 dark:text-slate-200">{post.author_name || post.author || ""}</td>
                   <td className="p-3"><StatusBadge status={post.status} /></td>
                   <td className="p-3 text-slate-700 dark:text-slate-200">
                     <div className="flex flex-wrap gap-1 max-w-[220px] truncate">

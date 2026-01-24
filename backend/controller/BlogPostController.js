@@ -329,8 +329,8 @@ export const blogMetaPage = async (req, res) => {
       post.blog_picture ||
       "https://jjureadingclub.com/default-og.jpg";
 
-    const redirectUrl = `https://jjureadingclub.com/blogs/${id}`;
-    const shareUrl = `https://jjureadingclub.com/share/blog/${id}`;
+    const redirectUrl = `https://jjureadingclub.com/api/blogs/${id}`;
+    const shareUrl = `https://jjureadingclub.com/api/share/blog/${id}`;
 
     res.status(200).send(`
       <!DOCTYPE html>

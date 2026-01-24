@@ -2,114 +2,126 @@ import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost.js";
 import cleanHtml from "../utility/cleanHtml.js";
 
+/* ======================================================
+   Helpers
+====================================================== */
+
+const normalizeTags = (tags) => {
+  if (!tags) return [];
+
+  if (Array.isArray(tags)) {
+    return tags.map(t => String(t).trim()).filter(Boolean);
+  }
+
+  if (typeof tags === "string") {
+    try {
+      const parsed = JSON.parse(tags);
+      if (Array.isArray(parsed)) {
+        return parsed.map(t => String(t).trim()).filter(Boolean);
+      }
+    } catch {
+      return tags.split(",").map(t => t.trim()).filter(Boolean);
+    }
+  }
+
+  return [];
+};
+
+const normalizeUserName = (user) => {
+  const parts = [
+    user?.first_name,
+    user?.middle_name,
+    user?.last_name,
+  ].filter(Boolean);
+
+  let name = parts.join(" ") || user?.username || user?.email || "";
+
+  const words = name.trim().replace(/\s+/g, " ").split(" ");
+  const unique = [...new Set(words.map(w => w.toLowerCase()))];
+  return unique.map(w => words.find(o => o.toLowerCase() === w)).join(" ");
+};
+
+const getUploadedImage = (file) =>
+  file?.path || file?.secure_url || file?.url || "";
+
+/* ======================================================
+   CREATE BLOG POST
+====================================================== */
+
 export const createBlogPost = async (req, res) => {
   try {
     const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const nameParts = [
-      req.user?.first_name,
-      req.user?.middle_name,
-      req.user?.last_name,
-    ].filter(Boolean);
+    const {
+      title,
+      content,
+      tags,
+      relatedBook,
+      status = "Draft",
+      author_type,
+      author_name,
+      author_picture,
+    } = req.body || {};
 
-    let userName =
-      nameParts.join(" ") || req.user?.username || req.user?.email;
+    if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
+    if (!content?.trim()) return res.status(400).json({ message: "Content is required" });
 
-    // Normalize userName: remove duplicates, extra spaces, and trim
-    if (userName) {
-      const words = userName.trim().replace(/\s+/g, " ").split(" ");
-      const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))].map(w =>
-        words.find(orig => orig.toLowerCase() === w) // Preserve original casing
-      );
-      userName = uniqueWords.join(" ");
+    const finalTags = normalizeTags(tags);
+    if (!finalTags.length) {
+      return res.status(400).json({ message: "Tags must be a non-empty array" });
     }
 
-    if (!userId) {
-      return res.status(401).json({ message: "Unauthorized" });
+    if (!["Draft", "Published"].includes(status)) {
+      return res.status(400).json({ message: "Invalid status" });
     }
 
-    const body = req.body || {};
-    let { title, content, tags, blog_picture, relatedBook, status, author_type, author_name, author_picture } = body;
+    const blogImage = getUploadedImage(req.files?.image?.[0]) || null;
 
-    // Normalize tags
-    if (typeof tags === "string") {
-      try {
-        const parsed = JSON.parse(tags);
-        if (Array.isArray(parsed)) tags = parsed;
-        else tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
-      } catch {
-        tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
-      }
-    }
-    if (!Array.isArray(tags)) tags = [];
-
-    // Access files via req.files for uploadFields
-    const uploaded = req.files?.image ? req.files.image[0] : null;
-    const uploadedImageUrl =
-      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) || null;
-
-    const finalBlogPicture =
-      uploadedImageUrl || (blog_picture && String(blog_picture).trim()) || null;
-
-    // Handle author
     let finalAuthorName = "";
     let finalAuthorPicture = "";
+
     if (author_type === "me") {
-      finalAuthorName = userName;
+      finalAuthorName = normalizeUserName(req.user);
       finalAuthorPicture = req.user?.profile_picture || "";
     } else if (author_type === "another") {
-      finalAuthorName = author_name?.trim() || "";
-      const authorUploaded = req.files?.author_picture ? req.files.author_picture[0] : null;
-      const authorUploadedImageUrl =
-        (authorUploaded && (authorUploaded.path || authorUploaded.secure_url || authorUploaded.url)) || null;
-      finalAuthorPicture = authorUploadedImageUrl || (author_picture && String(author_picture).trim()) || "";
-      if (!finalAuthorName) {
-        return res.status(400).json({ message: "Author name is required when selecting 'another'" });
+      if (!author_name?.trim()) {
+        return res.status(400).json({ message: "Author name is required" });
       }
+      finalAuthorName = author_name.trim();
+      finalAuthorPicture =
+        getUploadedImage(req.files?.author_picture?.[0]) ||
+        author_picture?.trim() ||
+        "";
     } else {
       return res.status(400).json({ message: "Invalid author type" });
     }
 
-    // Validations
-    if (!title || !String(title).trim()) {
-      return res.status(400).json({ message: "Title is required" });
-    }
-    if (!content || !String(content).trim()) {
-      return res.status(400).json({ message: "Content is required" });
-    }
-    if (!Array.isArray(tags) || tags.length === 0) {
-      return res.status(400).json({ message: "Tags must be a non-empty array" });
-    }
-
-    const finalStatus = status ?? "Draft";
-    if (!["Draft", "Published"].includes(finalStatus)) {
-      return res.status(400).json({ message: "Invalid status" });
-    }
-
-    const cleanTitle = cleanHtml(title);
-    const cleanContent = cleanHtml(content);
-
     const post = await BlogPost.create({
-      title: cleanTitle,
-      content: cleanContent,
-      tags: tags.map((t) => t.trim()),
+      title: cleanHtml(title),
+      content: cleanHtml(content),
+      tags: finalTags,
       relatedBook: relatedBook || "",
-      status: finalStatus,
+      status,
       created_by: userId,
       author: finalAuthorName,
       author_name: finalAuthorName,
       author_picture: finalAuthorPicture,
+      blog_picture: blogImage,
       likes: 0,
       views: 0,
-      blog_picture: finalBlogPicture,
     });
 
-    return res.status(201).json({ data: post });
+    res.status(201).json({ data: post });
   } catch (err) {
-    console.error("createBlogPost error:", err);
-    return res.status(500).json({ message: err.message || "Server error" });
+    console.error("createBlogPost:", err);
+    res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ======================================================
+   GET BLOG POSTS
+====================================================== */
 
 export const getBlogPosts = async (req, res) => {
   try {
@@ -121,8 +133,8 @@ export const getBlogPosts = async (req, res) => {
       scope = "all",
     } = req.query;
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const perPage = Math.max(1, Math.min(100, parseInt(limit, 10) || 10));
+    const pageNum = Math.max(1, Number(page));
+    const perPage = Math.min(100, Math.max(1, Number(limit)));
     const skip = (pageNum - 1) * perPage;
 
     const filter = {};
@@ -130,39 +142,35 @@ export const getBlogPosts = async (req, res) => {
     if (scope === "mine") {
       if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
       filter.created_by = req.user._id;
-    } else if (scope === "public") {
+    }
+
+    if (scope === "public") {
       filter.status = "Published";
     }
 
     if (status) {
-      const allowed = ["Draft", "Published"];
-      if (!allowed.includes(status)) {
+      if (!["Draft", "Published"].includes(status)) {
         return res.status(400).json({ message: "Invalid status" });
       }
       filter.status = status;
     }
 
-    if (q && String(q).trim()) {
-      const regex = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+    if (q.trim()) {
+      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
       filter.$or = [
         { title: regex },
         { content: regex },
-        { author: regex },
         { author_name: regex },
         { tags: regex },
       ];
     }
 
     const [items, total] = await Promise.all([
-      BlogPost.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(perPage)
-        .lean(),
+      BlogPost.find(filter).sort({ createdAt: -1 }).skip(skip).limit(perPage).lean(),
       BlogPost.countDocuments(filter),
     ]);
 
-    return res.status(200).json({
+    res.json({
       data: items,
       total,
       page: pageNum,
@@ -170,101 +178,72 @@ export const getBlogPosts = async (req, res) => {
       totalPages: Math.ceil(total / perPage),
     });
   } catch (err) {
-    return res.status(500).json({ message: err.message || "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ======================================================
+   GET BLOG POST BY ID
+====================================================== */
 
 export const getBlogPostById = async (req, res) => {
   try {
     const { id } = req.params;
 
     if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
+      return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id).populate("created_by", "name email");
-    if (!post) return res.status(404).json({ message: "Blog post not found" });
+    const post = await BlogPost.findById(id).populate("created_by", "email");
+    if (!post) return res.status(404).json({ message: "Blog not found" });
 
-    return res.status(200).json({ data: post });
-  } catch (err) {
-    return res.status(500).json({ message: err.message || "Server error" });
+    res.json({ data: post });
+  } catch {
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+/* ======================================================
+   UPDATE BLOG POST
+====================================================== */
+
 export const updateBlogPost = async (req, res) => {
   try {
-    const userId = req.user?._id || req.user?.id;
+    const userId = req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
+      return res.status(400).json({ message: "Invalid blog id" });
     }
 
     const post = await BlogPost.findById(id);
-    if (!post) return res.status(404).json({ message: "Blog post not found" });
+    if (!post) return res.status(404).json({ message: "Blog not found" });
 
-    // Access files via req.files for uploadFields
-    const uploaded = req.files?.image ? req.files.image[0] : null;
-    if (uploaded) {
-      post.blog_picture = uploaded.path || uploaded.secure_url || uploaded.url;
+    if (String(post.created_by) !== String(userId)) {
+      return res.status(403).json({ message: "Permission denied" });
     }
 
-    if (post.created_by && String(post.created_by) !== String(userId)) {
-      return res.status(403).json({ message: "You do not have permission to edit this post" });
-    }
-
-    const body = req.body || {};
-    let { title, content, tags, relatedBook, status, author_type, author_name, author_picture } = body;
-
-    // Normalize tags
-    if (typeof tags === "string") {
-      try {
-        const parsed = JSON.parse(tags);
-        if (Array.isArray(parsed)) tags = parsed;
-        else tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
-      } catch {
-        tags = String(tags).split(",").map((t) => t.trim()).filter(Boolean);
-      }
-    }
-    if (!Array.isArray(tags)) tags = [];
+    const {
+      title,
+      content,
+      tags,
+      relatedBook,
+      status,
+      author_type,
+      author_name,
+      author_picture,
+    } = req.body || {};
 
     if (title !== undefined) post.title = cleanHtml(title);
     if (content !== undefined) post.content = cleanHtml(content);
 
-    if (author_type !== undefined) {
-      if (author_type === "me") {
-        const nameParts = [
-          req.user?.first_name,
-          req.user?.middle_name,
-          req.user?.last_name,
-        ].filter(Boolean);
-        let userName = nameParts.join(" ") || req.user?.username || req.user?.email;
-        // Normalize userName
-        if (userName) {
-          const words = userName.trim().replace(/\s+/g, " ").split(" ");
-          const uniqueWords = [...new Set(words.map(w => w.toLowerCase()))].map(w =>
-            words.find(orig => orig.toLowerCase() === w)
-          );
-          userName = uniqueWords.join(" ");
-        }
-        post.author = userName;
-        post.author_name = userName;
-        post.author_picture = req.user?.profile_picture || "";
-      } else if (author_type === "another") {
-        if (author_name !== undefined) post.author_name = author_name?.trim() || "";
-        if (author_picture !== undefined) post.author_picture = author_picture?.trim() || "";
-        post.author = post.author_name;
-      }
-    }
-
-    if (relatedBook !== undefined) post.relatedBook = relatedBook;
-
     if (tags !== undefined) {
-      if (!Array.isArray(tags)) {
-        return res.status(400).json({ message: "Tags must be an array" });
+      const finalTags = normalizeTags(tags);
+      if (!finalTags.length) {
+        return res.status(400).json({ message: "Invalid tags" });
       }
-      post.tags = tags;
+      post.tags = finalTags;
     }
 
     if (status !== undefined) {
@@ -274,37 +253,64 @@ export const updateBlogPost = async (req, res) => {
       post.status = status;
     }
 
-    await post.save();
+    if (relatedBook !== undefined) post.relatedBook = relatedBook;
 
-    return res.status(200).json({ data: post });
+    const blogImage = getUploadedImage(req.files?.image?.[0]);
+    if (blogImage) post.blog_picture = blogImage;
+
+    if (author_type === "me") {
+      post.author_name = normalizeUserName(req.user);
+      post.author_picture = req.user?.profile_picture || "";
+      post.author = post.author_name;
+    }
+
+    if (author_type === "another") {
+      post.author_name = author_name?.trim() || post.author_name;
+      post.author_picture =
+        getUploadedImage(req.files?.author_picture?.[0]) ||
+        author_picture ||
+        post.author_picture;
+      post.author = post.author_name;
+    }
+
+    await post.save();
+    res.json({ data: post });
   } catch (err) {
-    return res.status(500).json({ message: err.message || "Server error" });
+    res.status(500).json({ message: "Server error" });
   }
 };
 
+/* ======================================================
+   DELETE BLOG POST
+====================================================== */
+
 export const deleteBlogPost = async (req, res) => {
   try {
-    const userId = req.user?._id || req.user?.id;
+    const userId = req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
     if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
+      return res.status(400).json({ message: "Invalid blog id" });
     }
 
     const post = await BlogPost.findById(id);
-    if (!post) return res.status(404).json({ message: "Blog post not found" });
+    if (!post) return res.status(404).json({ message: "Blog not found" });
 
-    if (post.created_by && String(post.created_by) !== String(userId)) {
-      return res.status(403).json({ message: "You do not have permission to delete this post" });
+    if (String(post.created_by) !== String(userId)) {
+      return res.status(403).json({ message: "Permission denied" });
     }
 
-    await BlogPost.deleteOne({ _id: id });
-    return res.status(200).json({ success: true });
-  } catch (err) {
-    return res.status(500).json({ message: err.message || "Server error" });
+    await post.deleteOne();
+    res.json({ success: true });
+  } catch {
+    res.status(500).json({ message: "Server error" });
   }
 };
+
+/* ======================================================
+   BLOG META PAGE (SOCIAL SHARE)
+====================================================== */
 
 export const blogMetaPage = async (req, res) => {
   try {
@@ -315,52 +321,48 @@ export const blogMetaPage = async (req, res) => {
     }
 
     const post = await BlogPost.findById(id).lean();
-
     if (!post || post.status !== "Published") {
       return res.status(404).send("Blog not found");
     }
 
-    const title = post.title;
-    const description = post.content
-      .replace(/<[^>]*>/g, "")
-      .slice(0, 160);
+    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const blogUrl = `${baseUrl}/blogs/${id}`;
 
-    const image =
-      post.blog_picture ||
-      "https://jjureadingclub.com/default-og.jpg";
+    const description = post.content.replace(/<[^>]*>/g, "").slice(0, 160);
+    const image = post.blog_picture || `${baseUrl}/default-og.jpg`;
 
-    const redirectUrl = `https://jjureadingclub.com/api/blogs/${id}`;
-    const shareUrl = `https://jjureadingclub.com/api/share/blog/${id}`;
+    res.send(`
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>${post.title}</title>
 
-    res.status(200).send(`
-      <!DOCTYPE html>
-      <html lang="en">
-        <head>
-          <meta charset="UTF-8" />
-          <title>${title}</title>
+  <link rel="canonical" href="${blogUrl}" />
 
-          <!-- Open Graph -->
-          <meta property="og:title" content="${title}" />
-          <meta property="og:description" content="${description}" />
-          <meta property="og:image" content="${image}" />
-          <meta property="og:url" content="${shareUrl}" />
-          <meta property="og:type" content="article" />
-          <meta property="og:site_name" content="JJU Reading Club" />
+  <meta property="og:title" content="${post.title}" />
+  <meta property="og:description" content="${description}" />
+  <meta property="og:image" content="${image}" />
+  <meta property="og:url" content="${blogUrl}" />
+  <meta property="og:type" content="article" />
+  <meta property="og:site_name" content="JJU Reading Club" />
 
-          <!-- Twitter -->
-          <meta name="twitter:card" content="summary_large_image" />
-          <meta name="twitter:title" content="${title}" />
-          <meta name="twitter:description" content="${description}" />
-          <meta name="twitter:image" content="${image}" />
+  <meta name="twitter:card" content="summary_large_image" />
+  <meta name="twitter:title" content="${post.title}" />
+  <meta name="twitter:description" content="${description}" />
+  <meta name="twitter:image" content="${image}" />
 
-          <!-- Redirect users -->
-          <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
-        </head>
-        <body></body>
-      </html>
-    `);
+  <script>
+    setTimeout(() => {
+      window.location.href = "${blogUrl}";
+    }, 1000);
+  </script>
+</head>
+<body></body>
+</html>
+`);
   } catch (err) {
-    console.error("Meta error:", err);
+    console.error("blogMetaPage:", err);
     res.status(500).send("Server error");
   }
 };

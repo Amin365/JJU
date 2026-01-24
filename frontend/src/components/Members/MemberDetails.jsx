@@ -89,6 +89,7 @@ export default function MemberDetails() {
 
   const member = data ?? null;
 
+
   // Mutations
   const archiveMutation = useMutation({
     mutationFn: async (memberId) => {
@@ -402,7 +403,7 @@ export default function MemberDetails() {
                     )}
 
                     <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300">
-                      {member.status || "Active"}
+                      Role: {member.role.role || "Null"}
                     </span>
                   </div>
                 </div>

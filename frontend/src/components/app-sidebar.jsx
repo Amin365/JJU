@@ -18,7 +18,8 @@ import {
   FileChartColumn,
   User,
   ActivityIcon,
-  StickyNote
+  StickyNote,
+  UserPlus2
 
   
 } from "lucide-react"
@@ -115,6 +116,12 @@ const data = {
       title: "Blogs ",
       url: "/dashboard/blogs",
       icon: StickyNote,
+   
+    },
+    {
+      title: "Join Requests ",
+      url: "/dashboard/join-clubs",
+      icon: UserPlus2,
    
     },
   

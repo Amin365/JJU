@@ -108,7 +108,7 @@ const HeroHeader = () => {
                                   <ModleTogles />
                                 </div>
 
-                                <Button
+                                {/* <Button
                                     asChild
                                     size="sm"
                                     className={cn(isScrolled ? 'lg:inline-flex' : 'hidden')}
@@ -116,7 +116,7 @@ const HeroHeader = () => {
                                     <Link to="#">
                                         <span>Get Started</span>
                                     </Link>
-                                </Button>
+                                </Button> */}
                             </div>
                         </div>
                     </div>

@@ -37,6 +37,7 @@ const BlogTable=lazy(()=>import('./components/Blogs/BlogTable'));
 const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
 const BlogFeeds=lazy(()=>import('./components/Blogs/BlogFeeds'));
 const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
+const JoinClub=lazy(()=>import("./components/Homepage/JoinClubsTable"))
 const Profile = lazy(() => import("./components/Users/UserProfile"));
 const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
 const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
@@ -98,6 +99,7 @@ function App() {
   <Route path="blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogTable /></Suspense>} />
   <Route path="profile" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Profile /></Suspense>} />
   <Route path="id-card/:memberId" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IDcard /></Suspense>} />
+  <Route path="join-clubs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><JoinClub /></Suspense>} />
         </Route>
       </Routes>
 

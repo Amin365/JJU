@@ -7,6 +7,7 @@ import { Eye as IconEye } from "lucide-react";
 import { useSelector } from "react-redux";
 import { useNavigate } from "react-router";
 import api from "../../app/api/apislice";
+import Loader from "../Loader";
 
 export default function ModeratorsPage() {
   const navigate = useNavigate();
@@ -25,7 +26,7 @@ export default function ModeratorsPage() {
     navigate(`/dashboard/moderators/${moderator._id}/members`);
   };
 
-  if (moderatorsLoading) return <p>Loading moderators...</p>;
+  if (moderatorsLoading) return <Loader />;
 
   const shown = isSuperAdmin
     ? moderators.filter((m) => !(m.role?.role && String(m.role.role).toLowerCase().includes("super")))
@@ -34,7 +35,7 @@ export default function ModeratorsPage() {
   return (
     <div className="p-6">
       <ToastContainer />
-      <div className="mb-4 p-4  text-gray-800 rounded">
+      <div className="mb-4 p-4  dark:text-white text-gray-800 rounded">
         <p>Manage your moderators and their assigned members.</p>
       </div>
 

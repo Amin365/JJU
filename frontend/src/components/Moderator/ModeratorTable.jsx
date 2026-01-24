@@ -7,6 +7,8 @@ import { toast } from "react-toastify";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import Loader from "../Loader";
+
 
 export default function ModeratorMembersPage() {
   const qc = useQueryClient();
@@ -105,7 +107,7 @@ export default function ModeratorMembersPage() {
 
     </div>
       <div className="mb-4 p-4  dark:text-white text-gray-800 rounded">
-        <p>Manage assigned members for this moderator.</p>
+        <p className="dark:text-white">Manage assigned members for this moderator.</p>
       </div>
 
       {/* Header row */}

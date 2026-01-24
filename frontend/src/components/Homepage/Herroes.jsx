@@ -11,6 +11,8 @@ import Testomials from "./Testomial"
 import CallToaction from './CallToActions'
 import Footers from './Footer'
 import Faqs from './Faq'
+import JoinClub from './JoinClub'
+
 const transitionVariants = {
   item: {
     hidden: {
@@ -32,6 +34,7 @@ const transitionVariants = {
 }
 
 export default function HeroSection() {
+  const [joinOpen, setJoinOpen] = React.useState(false)
   return (
     <>
       <HeroHeader />
@@ -62,7 +65,7 @@ export default function HeroSection() {
                   <Link
                     to="#link"
                     className="hover:bg-background dark:hover:border-t-border bg-muted group mx-auto flex w-fit items-center gap-4 rounded-full border p-1 pl-4 shadow-md shadow-zinc-950/5 transition-colors duration-300 dark:border-t-white/5 dark:shadow-zinc-950">
-                    
+
                     <span className="text-foreground text-sm">
                       Welcome to Our Modern Club System
                     </span>
@@ -118,10 +121,12 @@ export default function HeroSection() {
                   className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row">
 
                   <div className="bg-foreground/10 rounded-[calc(var(--radius-xl)+0.125rem)] border p-0.5">
-                    <Button asChild size="lg" className="rounded-xl px-5 text-base">
-                      <Link to="#link">
-                        <span className="text-nowrap">Join the Club</span>
-                      </Link>
+                    <Button
+                      size="lg"
+                      className="rounded-xl px-5 text-base"
+                      onClick={() => setJoinOpen(true)}
+                    >
+                      Join the Club
                     </Button>
                   </div>
 
@@ -142,12 +147,12 @@ export default function HeroSection() {
         </section>
 
         {/* about section */}
-     
+
 
         {/* Features section */}
         <div>
           <Features />
-        
+
         </div>
 
         <div>
@@ -162,9 +167,10 @@ export default function HeroSection() {
         <div className="mt-8 mb-32">
           <CallToaction />
         </div>
-        	<div className="relative flex flex-col mt-20 ">
-			<Footers clubLogoSrc="/jjuclub.jpg" />
-		</div>
+        <div className="relative flex flex-col mt-20 ">
+          <Footers clubLogoSrc="/jjuclub.jpg" />
+        </div>
+        <JoinClub open={joinOpen} onOpenChange={setJoinOpen} />
       </main>
     </>
   )

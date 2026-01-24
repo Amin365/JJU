@@ -36,8 +36,8 @@ export const getModerators = async (req, res, next) => {
       .lean();
 
     // Debug: show what Roles were found and how many users matched directly
-    console.debug("getModerators - roles:", { moderatorRole: moderatorRole?.role, superAdminRole: superAdminRole?.role });
-    console.debug("getModerators - direct moderators count:", Array.isArray(moderators) ? moderators.length : 0);
+    // console.debug("getModerators - roles:", { moderatorRole: moderatorRole?.role, superAdminRole: superAdminRole?.role });
+    // console.debug("getModerators - direct moderators count:", Array.isArray(moderators) ? moderators.length : 0);
 
     let finalModerators = moderators;
 

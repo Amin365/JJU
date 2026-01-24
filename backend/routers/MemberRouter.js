@@ -1,6 +1,6 @@
 import express from "express"
 import mongoose from "mongoose"
-import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList} from "../controller/members.js"
+import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus} from "../controller/members.js"
 import { sendMemberEmail } from "../controller/EmailController.js"
 import { protect } from "../middleware/auth.js"
 import multer from "multer";
@@ -52,4 +52,10 @@ MemberRouter.route("/members/:id")
   .get(getMemberById)
   .put(upload.single("profile_picture"), updateMember)
   .delete(deleteMember)
+
+  MemberRouter.post("/join-club",JoinClub)
+
+MemberRouter.get("/join-club", getJoinClubs)
+MemberRouter.get("/join-club/:id", getJoinClubById)
+MemberRouter.patch("/join-club/:id/status", updateJoinClubStatus)
 export default MemberRouter

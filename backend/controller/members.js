@@ -3,9 +3,8 @@ import Member from "../models/Members.js";
 import Role from "../models/Role.js";
 import User from '../models/user.js'
 import ModeratorMember from '../models/ModeratorMember.js'
-/**
- * Helpers
- */
+import Clubreq from "../models/Clubreq.js";
+
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
 /**
@@ -570,6 +569,128 @@ export const bulkCreateMembers = async (req, res, next) => {
     return next(err);
   }
 };
+
+
+
+/**
+ * @desc    Create join club request
+ * @route   POST /api/join-club
+ * @access  Public
+ */
+export const JoinClub = async (req, res, next) => {
+  try {
+    const { FullName, phone, email } = req.body
+
+    // Basic validation
+    if (!FullName || !phone || !email) {
+      return res.status(400).json({
+        message: "Full name, phone, and email are required",
+      })
+    }
+
+    // Prevent duplicate requests
+    const existingRequest = await Clubreq.findOne({ email })
+    if (existingRequest) {
+      return res.status(409).json({
+        message: "A join request with this email already exists",
+      })
+    }
+
+    const clubRequest = await Clubreq.create({
+      FullName,
+      phone,
+      email,
+      status: "Pending",
+    })
+
+    return res.status(201).json({
+      message: "Join club request submitted successfully",
+      data: clubRequest,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @desc    Get all join club requests
+ * @route   GET /api/join-club
+ * @access  Admin
+ */
+export const getJoinClubs = async (req, res, next) => {
+  try {
+    const requests = await Clubreq.find().sort({ createdAt: -1 })
+
+    return res.status(200).json({
+      count: requests.length,
+      data: requests,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @desc    Get single join club request by ID
+ * @route   GET /api/join-club/:id
+ * @access  Admin
+ */
+export const getJoinClubById = async (req, res, next) => {
+  try {
+    const { id } = req.params
+
+    const request = await Clubreq.findById(id)
+    if (!request) {
+      return res.status(404).json({
+        message: "Join club request not found",
+      })
+    }
+
+    return res.status(200).json(request)
+  } catch (error) {
+    next(error)
+  }
+}
+
+/**
+ * @desc    Update join club request status (Approve / Reject)
+ * @route   PATCH /api/join-club/:id/status
+ * @access  Admin
+ */
+export const updateJoinClubStatus = async (req, res, next) => {
+  try {
+    const { id } = req.params
+    const { status } = req.body
+
+    // Validate status
+    if (!["Approved", "Rejected"].includes(status)) {
+      return res.status(400).json({
+        message: "Status must be either Approved or Rejected",
+      })
+    }
+
+    const updatedRequest = await Clubreq.findByIdAndUpdate(
+      id,
+      { status },
+      { new: true }
+    )
+
+    if (!updatedRequest) {
+      return res.status(404).json({
+        message: "Join club request not found",
+      })
+    }
+
+    return res.status(200).json({
+      message: `Join request ${status.toLowerCase()} successfully`,
+      data: updatedRequest,
+    })
+  } catch (error) {
+    next(error)
+  }
+}
+
+
 
 export default {
   createMember,

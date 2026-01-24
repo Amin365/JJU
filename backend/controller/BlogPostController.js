@@ -310,35 +310,32 @@ export const deleteBlogPost = async (req, res) => {
 
 
 
+
 export const blogMetaPage = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Validate blog ID
     if (!mongoose.isValidObjectId(id)) {
       return res.status(400).send("Invalid blog id");
     }
 
-    // Find blog post
     const post = await BlogPost.findById(id).lean();
     if (!post || post.status !== "Published") {
       return res.status(404).send("Blog not found");
     }
 
-    // Generate dynamic base URL from request
-    const baseUrl = `${req.protocol}://${req.get("host")}`;
+    const BASE_URL = process.env.APP_URL; // 🔒 forced canonical
 
-    // Build final URLs
-    const redirectUrl = `${baseUrl}/blogs/${id}`;
-    const shareUrl = `${baseUrl}/share/blog/${id}`;
+    const redirectUrl = `${BASE_URL}/blogs/${id}`;
+    const shareUrl = `${BASE_URL}/api/share/blog/${id}`;
 
-    // Clean description (first 160 chars, no HTML)
-    const description = post.content.replace(/<[^>]*>/g, "").slice(0, 160);
+    const description = post.content
+      .replace(/<[^>]*>/g, "")
+      .slice(0, 160);
 
-    // Image (fallback to default)
-    const image = post.blog_picture || `${baseUrl}/default-og.jpg`;
+    const image =
+      post.blog_picture || `${BASE_URL}/default-og.jpg`;
 
-    // Send HTML with OG/Twitter meta and redirect
     res.status(200).send(`
       <!DOCTYPE html>
       <html lang="en">
@@ -346,7 +343,6 @@ export const blogMetaPage = async (req, res) => {
         <meta charset="UTF-8" />
         <title>${post.title}</title>
 
-        <!-- Open Graph -->
         <meta property="og:title" content="${post.title}" />
         <meta property="og:description" content="${description}" />
         <meta property="og:image" content="${image}" />
@@ -354,13 +350,8 @@ export const blogMetaPage = async (req, res) => {
         <meta property="og:type" content="article" />
         <meta property="og:site_name" content="JJU Reading Club" />
 
-        <!-- Twitter -->
         <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content="${post.title}" />
-        <meta name="twitter:description" content="${description}" />
-        <meta name="twitter:image" content="${image}" />
 
-        <!-- Redirect users -->
         <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
       </head>
       <body></body>
@@ -371,4 +362,5 @@ export const blogMetaPage = async (req, res) => {
     res.status(500).send("Server error");
   }
 };
+
 

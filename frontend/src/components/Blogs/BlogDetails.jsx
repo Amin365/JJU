@@ -366,7 +366,7 @@ const handleShare = async () => {
 
   return (
     <>
-      <Helmet>
+      {/* <Helmet>
         <title>{post.title || "Blog Post"}</title>
         <meta property="og:title" content={post.title || "Blog Post"} />
         <meta property="og:description" content={description} />
@@ -378,7 +378,7 @@ const handleShare = async () => {
         <meta name="twitter:title" content={post.title || "Blog Post"} />
         <meta name="twitter:description" content={description} />
         <meta name="twitter:image" content={imageUrl} />
-      </Helmet>
+      </Helmet> */}
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
         {/* Header */}
         {/* <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 sticky top-0 z-10 shadow-sm">

@@ -6,7 +6,6 @@ import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
 import { sendMemberEmail,sendMail } from "../controller/EmailController.js";
-import { sendPushToUser } from "../utility/push.js";
 
 export const IssueCreate = async (req, res, next) => {
   try {
@@ -254,88 +253,65 @@ export const getMyIssues = async (req, res, next) => {
  * ReminderEmail Controller using Resend
  * POST /issues/:id/reminder
  */
-
-
-/**
- * Send reminder email + push notification for a specific issue
- */
 export const ReminderEmail = async (req, res) => {
   try {
     const { id } = req.params;
 
-    // Load issue with member and book
+    // Load issue with member and book info
     const issue = await Issue.findById(id)
       .populate("member")
       .populate("book")
       .lean();
 
-    if (!issue) return res.status(404).json({ message: "Issue not found" });
-    if (issue.status === "Returned")
-      return res.status(400).json({ message: "Book already returned" });
-
-    const member = issue.member;
-    if (!member || !member._id)
-      return res.status(400).json({ message: "Member not found" });
-
-    // Prevent sending reminders to super admin
-    if (member.role === "super-admin")
-      return res.status(400).json({ message: "Cannot send reminder to admin" });
-
-    const email = member.email;
-    const memberName = `${member.first_name || "Member"} ${member.last_name || ""}`.trim();
-    const bookTitle = issue.book?.title || "the book";
-
-    // Check for duplicate notifications
-    const exists = await Notification.exists({
-      user: member._id,
-      "meta.issue": issue._id,
-      "meta.kind": "reminder",
-    });
-
-    if (exists)
-      return res.status(200).json({ message: "Reminder already sent" });
-
-    // Create notification in DB
-    await Notification.create({
-      user: member._id,
-      title: "📕 Book Return Reminder",
-      message: `"${bookTitle}" is still not returned.`,
-      type: "warning",
-      meta: { issue: issue._id, kind: "reminder", sentAt: new Date() },
-    });
-
-    // Send push notification
-    await sendPushToUser(member._id, {
-      title: "📕 Book Return Reminder",
-      body: `"${bookTitle}" is still not returned.`,
-      data: { issueId: issue._id },
-    });
-
-    // Send email
-    if (email) {
-      const html = `
-        <p>Dear <strong>${memberName}</strong>,</p>
-        <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed has not yet been returned.</p>
-        <p>Please return it as soon as possible to avoid any inconvenience.</p>
-        <br/>
-        <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
-      `;
-
-      await sendMail({
-        to: email,
-        subject: "📕 Book Return Reminder",
-        text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`,
-        html,
-      });
+    if (!issue) {
+      return res.status(404).json({ message: "Issue not found" });
     }
 
-    return res.status(200).json({ message: "Reminder sent successfully" });
+    if (issue.status === "Returned") {
+      return res.status(400).json({ message: "Book already returned" });
+    }
+
+    const email = issue.member?.email;
+    if (!email) {
+      return res.status(400).json({ message: "Member has no email" });
+    }
+
+    const memberName = issue.member?.first_name || "Member";
+    const bookTitle = issue.book?.title || "the book";
+
+    // Default plain text
+    const text = `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`;
+
+    // Default HTML
+    const html = `
+      <p>Dear <strong>${memberName}</strong>,</p>
+      <p>We hope this message finds you well.</p>
+      <p>This is a gentle reminder that the book <strong>"${bookTitle}"</strong> you borrowed has not yet been returned.</p>
+      <p>Please return it at your earliest convenience to avoid any inconvenience.</p>
+      <br/>
+      <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
+    `;
+
+    // ✅ Send email using Resend
+    await sendMail({
+      to: email,
+      subject: "📕 Book Return Reminder",
+      text,
+      html,
+    });
+    
+
+    return res.status(200).json({
+      message: "Reminder email sent successfully",
+    });
+
   } catch (err) {
     console.error("❌ ReminderEmail error:", err);
-    return res.status(500).json({ message: err.message || "Failed to send reminder" });
+    return res.status(500).json({
+      message: err.message || "Failed to send reminder",
+    });
   }
 };
-
 
 
 

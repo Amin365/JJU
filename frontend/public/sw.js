@@ -8,7 +8,7 @@ self.addEventListener("activate", (event) => {
   event.waitUntil(self.clients.claim());
 });
 
-/* PUSH NOTIFICATIONS */
+/* PUSH NOTIFICATIONS (your logic – preserved) */
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -17,22 +17,9 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/jjuclub.png",          // PWA icon
-      badge: "/jjuclub.png",         // small badge icon
-      vibrate: [100, 50, 100],       // vibration pattern
-      data: data.data || {},         // optional payload for click handling
-      tag: data.data?.issueId || "book-reminder",
-      renotify: true,
+      icon: "/jjuclub.png",
+      badge: "/jjuclub.png",
+      vibrate: [100, 50, 100],
     })
-  );
-});
-
-/* OPTIONAL: handle clicks (navigate to a URL) */
-self.addEventListener("notificationclick", (event) => {
-  event.notification.close();
-
-  const url = event.notification.data?.url || "/";
-  event.waitUntil(
-    clients.openWindow(url)
   );
 });

@@ -1,4 +1,5 @@
-export async function enableNotifications(token) {
+// Call this after login with token and userId
+export async function enableNotifications(token, userId) {
   if (!("serviceWorker" in navigator)) return;
 
   const permission = await Notification.requestPermission();
@@ -15,7 +16,7 @@ export async function enableNotifications(token) {
     });
   }
 
-  // Send to backend
+  // Send subscription to backend
   await fetch("/api/push/subscribe", {
     method: "POST",
     headers: {

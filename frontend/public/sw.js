@@ -1,14 +1,10 @@
 /* Install new service worker immediately */
-self.addEventListener("install", () => {
-  self.skipWaiting();
-});
+self.addEventListener("install", () => self.skipWaiting());
 
 /* Take control of all open tabs */
-self.addEventListener("activate", (event) => {
-  event.waitUntil(self.clients.claim());
-});
+self.addEventListener("activate", (event) => event.waitUntil(self.clients.claim()));
 
-/* PUSH NOTIFICATIONS (your logic – preserved) */
+/* Handle push notifications */
 self.addEventListener("push", (event) => {
   if (!event.data) return;
 
@@ -17,9 +13,17 @@ self.addEventListener("push", (event) => {
   event.waitUntil(
     self.registration.showNotification(data.title, {
       body: data.body,
-      icon: "/jjuclub.png",
-      badge: "/jjuclub.png",
+      icon: data.icon || "/jjuclub.png",
+      badge: data.icon || "/jjuclub.png",
       vibrate: [100, 50, 100],
+      data: data.data || {},
     })
   );
+});
+
+/* Optional: handle notification click */
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const url = event.notification.data?.url || "/";
+  event.waitUntil(clients.openWindow(url));
 });

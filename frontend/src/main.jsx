@@ -10,6 +10,40 @@ import store, { persister } from './app/store.js'
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from './components/ThemeProvider.jsx'
 import { HelmetProvider } from "react-helmet-async";
+
+/* =========================
+   PWA: Service Worker
+========================= */
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js')
+      .then((reg) => {
+        console.log('Service Worker registered');
+
+        // Detect updates (no forced reload)
+        reg.onupdatefound = () => {
+          const newWorker = reg.installing;
+
+          if (!newWorker) return;
+
+          newWorker.onstatechange = () => {
+            if (
+              newWorker.state === 'installed' &&
+              navigator.serviceWorker.controller
+            ) {
+              console.log('New version available');
+              // Here you can show a toast: "New update available"
+            }
+          };
+        };
+      })
+      .catch((err) => {
+        console.error('Service Worker registration failed:', err);
+      });
+  });
+}
+/* ========================= */
+
 const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
@@ -21,18 +55,18 @@ const queryClient = new QueryClient({
 createRoot(document.getElementById('root')).render(
   <StrictMode>
     <QueryClientProvider client={queryClient}>
-<Provider store={store}>
-<PersistGate loading={null} persistor={persister}>
- <BrowserRouter>
- <ThemeProvider>
- <HelmetProvider>
-        <App />
-         <Toaster />
-      </HelmetProvider>
-      </ThemeProvider>
-      </BrowserRouter>
-</PersistGate>
-</Provider>
+      <Provider store={store}>
+        <PersistGate loading={null} persistor={persister}>
+          <BrowserRouter>
+            <ThemeProvider>
+              <HelmetProvider>
+                <App />
+                <Toaster />
+              </HelmetProvider>
+            </ThemeProvider>
+          </BrowserRouter>
+        </PersistGate>
+      </Provider>
     </QueryClientProvider>
-  </StrictMode>,
-)
+  </StrictMode>
+);

@@ -337,25 +337,34 @@ export const blogMetaPage = async (req, res) => {
       post.blog_picture || `${BASE_URL}/default-og.jpg`;
 
     res.status(200).send(`
-      <!DOCTYPE html>
-      <html lang="en">
-      <head>
-        <meta charset="UTF-8" />
-        <title>${post.title}</title>
+        <!DOCTYPE html>
+  <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <title>${post.title}</title>
 
-        <meta property="og:title" content="${post.title}" />
-        <meta property="og:description" content="${description}" />
-        <meta property="og:image" content="${image}" />
-        <meta property="og:url" content="${shareUrl}" />
-        <meta property="og:type" content="article" />
-        <meta property="og:site_name" content="JJU Reading Club" />
+    <!-- Open Graph -->
+    <meta property="og:title" content="${post.title}" />
+    <meta property="og:description" content="${description}" />
+    <meta property="og:image" content="${image}" />
+    <meta property="og:url" content="${shareUrl}" />  <!-- hardcoded .com -->
+    <meta property="og:type" content="article" />
+    <meta property="og:site_name" content="JJU Reading Club" /> <!-- stays .com -->
 
-        <meta name="twitter:card" content="summary_large_image" />
+    <!-- Twitter -->
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content="${post.title}" />
+    <meta name="twitter:description" content="${description}" />
+    <meta name="twitter:image" content="${image}" />
 
-        <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
-      </head>
-      <body></body>
-      </html>
+    <!-- Canonical -->
+    <link rel="canonical" href="${redirectUrl}" />
+
+    <!-- Redirect users -->
+    <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
+  </head>
+  <body></body>
+  </html>
     `);
   } catch (err) {
     console.error("Meta error:", err);

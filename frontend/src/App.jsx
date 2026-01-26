@@ -3,6 +3,7 @@ import { Routes, Route } from "react-router";
 import ProtectedRoute from "./pages/ProtectedRoute";
 import Loader from "./components/Loader";
 import ReadingRecaps from "./components/Members/ReadingRecap";
+import PWAInstallPrompt from "./components/PWAInstallPrompt";
 
 
 // lazy-loaded route components
@@ -43,6 +44,8 @@ const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
 const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
 function App() {
   return (
+    <>
+      <PWAInstallPrompt />
  
       <Routes>
         {/* auth */}
@@ -102,6 +105,7 @@ function App() {
   <Route path="join-clubs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><JoinClub /></Suspense>} />
         </Route>
       </Routes>
+      </>
 
   );
 }

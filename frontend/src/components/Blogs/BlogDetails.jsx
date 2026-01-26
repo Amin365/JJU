@@ -487,24 +487,24 @@ const handleShare = async () => {
                       variant="outline"
                       className="bg-purple-50 text-purple-700 border-purple-200 dark:bg-purple-950 dark:text-purple-200 dark:border-purple-900"
                     >
-                      {post.author.role}
+                      {post.author.role || ""}
                     </Badge>
                   </div>
 
-                  <div className="flex items-center gap-2 text-sm text-gray-600 dark:text-gray-400">
-                    <span>
+                  <div className="flex items-center gap-5 text-sm text-gray-600 dark:text-gray-400">
+                    <span className="">
                       {new Date(post.publishDate).toLocaleDateString("en-US", {
                         month: "long",
                         day: "numeric",
                         year: "numeric",
                       })}
                     </span>
-                    <span>•</span>
+                    {/* <span>•</span>
                     <span className="flex items-center gap-1">
                       <Clock className="w-3 h-3" />
                       {post.readingTime} min read
-                    </span>
-                    <span>•</span>
+                    </span> */}
+                    {/* <span>•</span> */}
                     <span className="flex items-center gap-1">
                       <MessageCircle className="w-3 h-3" />
                       {post.comments} comments

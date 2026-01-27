@@ -25,12 +25,8 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Progress } from "@/components/ui/progress";
 import { toast } from "sonner";
-
-// import { ModeToggle } from "@/components/mode-toggle";
 import { useSelector } from "react-redux";
-// import api from "../lib/api/CleintApi";
 import api from "@/app/api/apislice";
-import PVCIDCard from "../IDcard/PVCIDCard";
 import Loader from "../Loader";
 
 export default function ProfilePage() {
@@ -38,36 +34,52 @@ export default function ProfilePage() {
   const { user: reduxUser } = useSelector((state) => state.auth);
   const queryClient = useQueryClient();
 
-  // Fetch current user profile from API
+  // Query user data
   const { data: user, isLoading } = useQuery({
     queryKey: ['profile'],
     queryFn: async () => {
       const res = await api.get('/profile');
       return res.data.data || res.data;
     },
-    // initialData: reduxUser, // Use Redux as initial data
     staleTime: 5 * 60 * 1000,
   });
 
-  console.log('users data', user);
-
+  // Controlled edit state for profile fields
   const [editMode, setEditMode] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
+
+  // State for fields, synced to 'user'
   const [tempData, setTempData] = useState({
-    name: user?.first_name + ' ' + (user?.last_name || '') || '',
-    bio: user?.Bio || '',
-    phone: user?.phone || '',
-    profile: user?.profile_picture || '',
+    name: "",
+    bio: "",
+    phone: "",
+    profile: "",
+    preview: "",
   });
+
+  // Sync tempData when user loads
+  useEffect(() => {
+    if (user) {
+      setTempData({
+        name: (user.first_name || "") + " " + (user.last_name || ""),
+        bio: user.Bio || "",
+        phone: user.phone || "",
+        profile: user.profile_picture || "",
+        preview: "",
+      });
+    }
+  }, [user]);
+
+  // Password state
   const [passwords, setPasswords] = useState({
     currentPassword: "",
     newPassword: "",
     confirmPassword: "",
   });
-  const [loginDevices, setLoginDevices] = useState([]);
 
-  // 🔹 Detect Real Device + Browser
+  // Device detection (demo)
+  const [loginDevices, setLoginDevices] = useState([]);
   useEffect(() => {
     const getDeviceInfo = () => {
       const ua = navigator.userAgent;
@@ -106,7 +118,7 @@ export default function ProfilePage() {
     setLoginDevices(getDeviceInfo());
   }, []);
 
-  // 🔹 Calculate Profile Completion (real-time)
+  // Profile completion
   const calculateCompletion = () => {
     let filled = 0;
     const total = 3; // picture, bio, phone
@@ -118,12 +130,12 @@ export default function ProfilePage() {
     return Math.round((filled / total) * 100);
   };
   const [profileCompletion, setProfileCompletion] = useState(calculateCompletion());
-
   useEffect(() => {
     setProfileCompletion(calculateCompletion());
+    // eslint-disable-next-line
   }, [tempData, user]);
 
-  // 🔹 Handle Photo Preview
+  // Profile pic preview
   const handlePhotoChange = (e) => {
     const file = e.target.files[0];
     if (file) {
@@ -132,7 +144,7 @@ export default function ProfilePage() {
     }
   };
 
-  // 🔹 Update Profile
+  // Profile update mutation
   const updateMutation = useMutation({
     mutationFn: async (updatedProfile) => {
       const formData = new FormData();
@@ -140,7 +152,6 @@ export default function ProfilePage() {
         if (key === "preview") continue;
         formData.append(key, updatedProfile[key]);
       }
-
       const res = await api.put("/profile", formData, {
         headers: { "Content-Type": "multipart/form-data" },
       });
@@ -150,18 +161,18 @@ export default function ProfilePage() {
       toast.success("Profile updated successfully!");
       queryClient.invalidateQueries(["profile"]);
       setEditMode(false);
-      // Update tempData with new data
       setTempData({
-        name: data.first_name + ' ' + (data.last_name || ''),
-        bio: data.Bio || '',
-        phone: data.phone || '',
-        profile: data.profile_picture || '',
+        name: (data.first_name || "") + " " + (data.last_name || ""),
+        bio: data.Bio || "",
+        phone: data.phone || "",
+        profile: data.profile_picture || "",
+        preview: "",
       });
     },
-    onError: (err) => toast.error(err.response?.data?.message || "Failed to update profile."),
+    onError: (err) => toast.error(err?.response?.data?.message || "Failed to update profile."),
   });
 
-  // 🔹 Delete Account
+  // Delete user mutation
   const deleteMutation = useMutation({
     mutationFn: async () => {
       await api.delete("/profile/delete");
@@ -171,10 +182,10 @@ export default function ProfilePage() {
       localStorage.removeItem("token");
       window.location.href = "/login";
     },
-    onError: (err) => toast.error(err.response?.data?.message || "Failed to delete account."),
+    onError: (err) => toast.error(err?.response?.data?.message || "Failed to delete account."),
   });
 
-  // 🔹 Change Password
+  // Password change mutation
   const passwordMutation = useMutation({
     mutationFn: async (passwords) => {
       const res = await api.put("/profile/change-password", passwords);
@@ -185,7 +196,7 @@ export default function ProfilePage() {
       setShowPasswordModal(false);
       setPasswords({ currentPassword: "", newPassword: "", confirmPassword: "" });
     },
-    onError: (err) => toast.error(err.response?.data?.message || "Failed to change password."),
+    onError: (err) => toast.error(err?.response?.data?.message || "Failed to change password."),
   });
 
   if (isLoading) {
@@ -199,7 +210,7 @@ export default function ProfilePage() {
         initial={{ opacity: 0, y: 20 }}
         animate={{ opacity: 1, y: 0 }}
       >
-        {/* LEFT SIDE */}
+        {/* LEFT PANEL */}
         <Card className="rounded-2xl shadow-md p-4 dark:bg-slate-800 md:col-span-1">
           <CardContent className="flex flex-col items-center space-y-4">
             {/* Profile Picture */}
@@ -217,9 +228,12 @@ export default function ProfilePage() {
                 </label>
               )}
             </div>
-
-            {/* Basic Info */}
-            <h2 className="text-2xl font-semibold">{tempData.name || (user?.first_name + ' ' + (user?.last_name || ''))}</h2>
+            {/* User info */}
+            <h2 className="text-2xl font-semibold">
+              {editMode
+                ? tempData.name
+                : (user?.first_name || "") + " " + (user?.last_name || "")}
+            </h2>
             <p className="text-gray-500 flex items-center gap-2">
               <Shield size={16} /> {user?.role?.role || 'User'}
             </p>
@@ -257,76 +271,90 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
 
-        {/* RIGHT SIDE */}
+        {/* RIGHT PANEL */}
         <Card className="md:col-span-2 rounded-2xl shadow-md dark:bg-slate-800">
           <CardHeader className="flex justify-between items-center">
             <CardTitle className="text-2xl font-semibold hidden md:block">Profile Details</CardTitle>
-           <div className="flex items-center gap-3">
-  {!editMode && (
-    <Button
-      onClick={() => navigate(`/dashboard/id-card/${user?.member._id}`)}
-      variant="outline"
-      className="rounded-xl"
-    >
-      View ID Card
-    </Button>
-  )}
+            <div className="flex items-center gap-3">
+              {!editMode && (
+                <Button
+                  onClick={() => navigate(`/dashboard/id-card/${user?.member?._id}`)}
+                  variant="outline"
+                  className="rounded-xl"
+                >
+                  View ID Card
+                </Button>
+              )}
 
-  {!editMode ? (
-    <Button onClick={() => setEditMode(true)} className="rounded-xl flex gap-2">
-      <Edit size={16} /> Edit Profile
-    </Button>
-  ) : (
-    <div className="flex gap-2">
-      <Button
-        onClick={() => updateMutation.mutate(tempData)}
-        className="rounded-xl flex gap-2"
-        disabled={updateMutation.isPending}
-      >
-        <Save size={16} />
-        {updateMutation.isPending ? "Saving..." : "Save"}
-      </Button>
-      <Button
-        variant="outline"
-        onClick={() => {
-          setTempData({
-            name: user?.first_name + ' ' + (user?.last_name || ''),
-            bio: user?.Bio || '',
-            phone: user?.phone || '',
-            profile: user?.profile_picture || '',
-          });
-          setEditMode(false);
-        }}
-        className="rounded-xl flex gap-2"
-      >
-        <X size={16} /> Cancel
-      </Button>
-    </div>
-  )}
-</div>
-
+              {!editMode ? (
+                <Button onClick={() => setEditMode(true)} className="rounded-xl flex gap-2">
+                  <Edit size={16} /> Edit Profile
+                </Button>
+              ) : (
+                <div className="flex gap-2">
+                  <Button
+                    onClick={() => updateMutation.mutate(tempData)}
+                    className="rounded-xl flex gap-2"
+                    disabled={updateMutation.isPending}
+                  >
+                    <Save size={16} />
+                    {updateMutation.isPending ? "Saving..." : "Save"}
+                  </Button>
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setTempData({
+                        name: (user.first_name || "") + " " + (user.last_name || ""),
+                        bio: user.Bio || "",
+                        phone: user.phone || "",
+                        profile: user.profile_picture || "",
+                        preview: "",
+                      });
+                      setEditMode(false);
+                    }}
+                    className="rounded-xl flex gap-2"
+                  >
+                    <X size={16} /> Cancel
+                  </Button>
+                </div>
+              )}
+            </div>
           </CardHeader>
-
           <CardContent className="space-y-6">
-            {/* Basic Info */}
+            {/* Form fields */}
             <div className="grid sm:grid-cols-2 gap-4">
-              {[{ icon: User, key: "name", label: "Full Name" },
+              {[
+                { icon: User, key: "name", label: "Full Name" },
                 { icon: Mail, key: "email", label: "Email", disabled: true },
-                { icon: Phone, key: "phone", label: "Phone" }].map((f) => (
+                { icon: Phone, key: "phone", label: "Phone" },
+              ].map((f) => (
                 <div key={f.key}>
                   <label className="text-gray-500 flex items-center gap-2">
                     <f.icon size={16} /> {f.label}
                   </label>
                   <Input
                     disabled={f.disabled || !editMode}
-                    value={tempData?.[f.key] || user?.[f.key === 'email' ? 'email' : f.key] || ""}
-                    onChange={(e) => setTempData({ ...tempData, [f.key]: e.target.value })}
+                    value={
+                      editMode
+                        ? (f.key === "email"
+                          ? user?.email || ""
+                          : tempData?.[f.key] ?? "")
+                        : (f.key === "name"
+                          ? (user?.first_name || "") + " " + (user?.last_name || "")
+                          : f.key === "email"
+                          ? user?.email || ""
+                          : user?.[f.key] || "")
+                    }
+                    onChange={
+                      f.key === "email"
+                        ? undefined
+                        : (e) => setTempData({ ...tempData, [f.key]: e.target.value })
+                    }
                     className="mt-1"
                   />
                 </div>
               ))}
             </div>
-
             {/* Bio */}
             <div>
               <label className="text-gray-500 flex items-center gap-2">
@@ -334,12 +362,11 @@ export default function ProfilePage() {
               </label>
               <Textarea
                 disabled={!editMode}
-                value={tempData?.bio || ""}
+                value={tempData.bio}
                 onChange={(e) => setTempData({ ...tempData, bio: e.target.value })}
                 className="mt-1"
               />
             </div>
-
             {/* Security */}
             <div className="space-y-3 pt-4 border-t">
               <h3 className="text-lg font-semibold">Security</h3>
@@ -347,8 +374,7 @@ export default function ProfilePage() {
                 <Lock size={16} /> Change Password
               </Button>
             </div>
-
-            {/* Delete Account */}
+            {/* Delete */}
             <div className="pt-4 border-t">
               <Button variant="destructive" className="w-full flex gap-2" onClick={() => setShowDeleteModal(true)}>
                 <Trash2 size={16} /> Delete Account
@@ -357,6 +383,8 @@ export default function ProfilePage() {
           </CardContent>
         </Card>
       </motion.div>
+
+      {/* Modals */}
 
       {/* Change Password Modal */}
       {showPasswordModal && (
@@ -432,18 +460,9 @@ export default function ProfilePage() {
       )}
 
       {/* Preview ID Card */}
-      <div className="fixed bottom-6 right-6 z-50">
-        {/* <PVCIDCard
-          employeeName={`${user?.member?.first_name || ''} ${user?.member?.middle_name || ''} ${user?.member?.last_name || ''}`.trim()}
-          department={user?.member?.department || ''}
-          employeeId={user?.member?.code || ''}
-          photoUrl={user?.member?.Profile_picture || ''}
-          validFrom={user?.member?.join_date?.split("T")[0] || ''}
-          validUntil="2027-01-01"
-          erpCode={user?.member?.student_id || ''}
-          accessLevel={user?.member?.status || ''}
-        /> */}
-      </div>
+      {/* <div className="fixed bottom-6 right-6 z-50">
+        Optional: render ID card preview component here
+      </div> */}
     </div>
   );
 }

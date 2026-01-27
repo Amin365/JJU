@@ -6,6 +6,7 @@ import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
 import { sendMemberEmail,sendMail } from "../controller/EmailController.js";
+import { sendPushToUser } from "../utility/push.js";
 
 export const IssueCreate = async (req, res, next) => {
   try {

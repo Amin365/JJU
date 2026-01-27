@@ -4,6 +4,7 @@ import Role from "../models/Role.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import mongoose from "mongoose";
 
+// List notifications for the logged in user with proper scoping
 export const listNotifications = async (req, res, next) => {
   try {
     const userId = req.user?._id;
@@ -15,7 +16,11 @@ export const listNotifications = async (req, res, next) => {
     const skip = (pageNum - 1) * perPage;
 
     // Determine role of current user to scope notifications
-    const currentUser = await User.findById(userId).populate("role", "role plural").lean().exec();
+    const currentUser = await User.findById(userId)
+      .populate("role", "role plural")
+      .lean()
+      .exec();
+
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
@@ -23,10 +28,10 @@ export const listNotifications = async (req, res, next) => {
     let notifFilter = {};
 
     if (isSuperAdmin) {
-      // super admin: see all notifications
+      // Super admin: see all notifications
       notifFilter = {};
     } else if (isModerator) {
-      // moderator: see notifications targeted at them OR notifications related to members assigned to them
+      // Moderator: notifications targeted at them OR about assigned members
       const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member").exec();
       if (assignedMemberIds && assignedMemberIds.length > 0) {
         notifFilter = {
@@ -39,8 +44,8 @@ export const listNotifications = async (req, res, next) => {
         notifFilter = { user: new mongoose.Types.ObjectId(userId) };
       }
     } else {
-      // regular user: only notifications for themselves
-      notifFilter = { user: mongoose.Types.ObjectId(userId) };
+      // Regular user: only notifications for themselves
+      notifFilter = { user: new mongoose.Types.ObjectId(userId) };
     }
 
     const [items, total] = await Promise.all([
@@ -65,13 +70,17 @@ export const listNotifications = async (req, res, next) => {
   }
 };
 
+// Mark ALL notifications for user (or scope) as read
 export const markAllRead = async (req, res, next) => {
   try {
     const userId = req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     // Determine role to scope which notifications can be marked
-    const currentUser = await User.findById(userId).populate("role", "role plural").lean().exec();
+    const currentUser = await User.findById(userId)
+      .populate("role", "role plural")
+      .lean()
+      .exec();
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
@@ -83,12 +92,12 @@ export const markAllRead = async (req, res, next) => {
       const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member").exec();
       if (assignedMemberIds && assignedMemberIds.length > 0) {
         updateFilter = {
-            read: false,
-            $or: [
-              { user: new mongoose.Types.ObjectId(userId) },
-              { "meta.member": { $in: assignedMemberIds.map((m) => new mongoose.Types.ObjectId(m)) } },
-            ],
-          };
+          read: false,
+          $or: [
+            { user: new mongoose.Types.ObjectId(userId) },
+            { "meta.member": { $in: assignedMemberIds.map((m) => new mongoose.Types.ObjectId(m)) } },
+          ],
+        };
       } else {
         updateFilter = { user: new mongoose.Types.ObjectId(userId), read: false };
       }
@@ -103,6 +112,7 @@ export const markAllRead = async (req, res, next) => {
   }
 };
 
+// Mark ONE notification as read
 export const markOneRead = async (req, res, next) => {
   try {
     const userId = req.user?._id;
@@ -132,11 +142,13 @@ export const markOneRead = async (req, res, next) => {
 
     if (!allowed) return res.status(403).json({ message: "Forbidden" });
 
-    const updated = await Notification.findByIdAndUpdate(id, { $set: { read: true } }, { new: true }).lean().exec();
+    const updated = await Notification.findByIdAndUpdate(
+      id,
+      { $set: { read: true } },
+      { new: true }
+    ).lean().exec();
     return res.json({ data: updated });
   } catch (err) {
     return next(err);
   }
 };
-
-

@@ -20,13 +20,14 @@ import {
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from '../utility/cloudinary.js'
-    const storage = new CloudinaryStorage({
+
+const storage = new CloudinaryStorage({
   cloudinary: cloudinary,
   params: {
-    folder: "Profile", // folder in cloudinary
+    folder: "Profile",
     allowed_formats: ["jpg", "jpeg", "png", "gif"],
     public_id: (req, file) => Date.now() + "-" + file.originalname.split(".")[0],
-  },
+  }
 });
 
 const upload = multer({ storage });

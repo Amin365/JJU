@@ -259,6 +259,11 @@ export const getProfile = async (req, res, next) => {
 // Update current user's profile
 export const updateProfile = async (req, res, next) => {
   try {
+ console.log("------------ PROFILE UPDATE REQUEST ------------");
+    console.log("req.headers:", req.headers);
+    console.log("req.file:", req.file);
+    console.log("req.body:", req.body);
+
     const userId = req.user._id;
     const { name, bio, phone } = req.body || {};
     const profilePicture = req.file ? req.file.path : undefined; // Cloudinary URL

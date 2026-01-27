@@ -123,10 +123,10 @@ export default function HeroSection() {
                   }}
                   className="mt-12 flex flex-col items-center justify-center gap-2 md:flex-row">
 
-                  <div className="bg-foreground/10 rounded-[calc(var(--radius-xl)+0.125rem)] border p-0.5">
+                  <div className=" rounded-[calc(var(--radius-xl)+0.125rem)] ">
                     <Button
                       size="lg"
-                      className="rounded-xl px-5 text-base"
+                      className="rounded-xl bg-orange-600 px-5 text-base"
                       onClick={() => setJoinOpen(true)}
                     >
                       Join the Club

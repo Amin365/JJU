@@ -29,12 +29,12 @@ export default function Example() {
             />
             <img
               className="size-6 md:size-7 rounded-full border-2 border-white -translate-x-2"
-              src="https://images.unsplash.com/photo-1535713875002-d1d0cf377fde?q=80&w=50"
+              src="testomial/ciise.jpg"
               alt="userImage2"
             />
             <img
               className="size-6 md:size-7 rounded-full border-2 border-white -translate-x-4"
-              src="https://images.unsplash.com/photo-1438761681033-6461ffad8d80?q=80&w=50&h=50&auto=format&fit=crop"
+              src="testomial/nasra.jpg"
               alt="userImage3"
             />
           </div>

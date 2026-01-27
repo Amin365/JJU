@@ -9,7 +9,7 @@ import { Provider } from 'react-redux'
 import store, { persister } from './app/store.js'
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from './components/ThemeProvider.jsx'
-import { HelmetProvider } from "react-helmet-async";
+// import { HelmetProvider } from "react-helmet-async";
 
 /* =========================
    PWA: Service Worker
@@ -59,10 +59,10 @@ createRoot(document.getElementById('root')).render(
         <PersistGate loading={null} persistor={persister}>
           <BrowserRouter>
             <ThemeProvider>
-              <HelmetProvider>
+           
                 <App />
                 <Toaster />
-              </HelmetProvider>
+             
             </ThemeProvider>
           </BrowserRouter>
         </PersistGate>

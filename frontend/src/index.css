@@ -1,7 +1,26 @@
 @import "tailwindcss";
 @import "tw-animate-css";
-
 @custom-variant dark (&:is(.dark *));
+/* Fix for html2canvas color parsing */
+* {
+  -webkit-print-color-adjust: exact !important;
+  color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+
+/* Override problematic color functions */
+.bg-primary {
+  background-color: #3b82f6 !important;
+}
+.text-primary {
+  color: #3b82f6 !important;
+}
+.border-primary {
+  border-color: #3b82f6 !important;
+}
+
+
+
 
 @theme inline {
   --radius-sm: calc(var(--radius) - 4px);

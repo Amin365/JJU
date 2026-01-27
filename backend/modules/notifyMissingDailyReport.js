@@ -1,7 +1,7 @@
 import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
 import User from "../models/user.js";
-import Member from "../models/Member.js"; // if you have a Member model
+import Member from "../models/Members.js"; 
 import Notification from "../models/Notification.js";
 import { sendPushToUser } from "../utility/push.js";
 

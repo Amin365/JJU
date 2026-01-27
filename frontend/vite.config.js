@@ -12,6 +12,6 @@ export default defineConfig({
     },
   },
   optimizeDeps: {
-    include: ["framer-motion"],
+    include: ["framer-motion", "html2canvas", "dom-to-image-more"],
   },
 });

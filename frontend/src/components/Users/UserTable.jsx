@@ -120,7 +120,9 @@ const UsersTable = () => {
         </div>
 
         <div className="flex gap-3">
-          <Button onClick={() => navigate("/dashboard/users/new")}>
+          <Button 
+          className="dark:bg-orange-600"
+          onClick={() => navigate("/dashboard/users/new")}>
             <Plus size={16} /> <span className="ml-2">Create User</span>
           </Button>
         </div>
@@ -299,7 +301,7 @@ const UsersTable = () => {
               size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1 || isLoading || isFetching}
-              className="flex items-center gap-1 whitespace-nowrap"
+              className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
             >
               <ChevronLeft size={16} />
               Previous
@@ -313,7 +315,7 @@ const UsersTable = () => {
               size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
-              className="flex items-center gap-1 whitespace-nowrap"
+              className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
             >
               Next
               <ChevronRight size={16} />

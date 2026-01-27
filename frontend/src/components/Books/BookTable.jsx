@@ -102,10 +102,15 @@ const BookTable = () => {
         </div>
 
         <div className="flex gap-3">
-          <Button onClick={() => setIsImportModalOpen(true)} variant="default">
+          <Button
+          className="dark:bg-orange-600"
+          
+           onClick={() => setIsImportModalOpen(true)} variant="default">
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
           </Button>
-          <Button onClick={() => setIsNewBookOpen(true)}>
+          <Button 
+          className="dark:bg-orange-600"
+          onClick={() => setIsNewBookOpen(true)}>
             <Plus size={16} /> <span className="ml-2">Register Book</span>
           </Button>
         </div>
@@ -230,7 +235,7 @@ const BookTable = () => {
               size="sm"
               onClick={() => handlePageChange(currentPage - 1)}
               disabled={currentPage === 1 || isLoading || isFetching}
-              className="flex items-center gap-1 whitespace-nowrap"
+              className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
             >
               <ChevronLeft size={16} />
               Previous
@@ -244,7 +249,7 @@ const BookTable = () => {
               size="sm"
               onClick={() => handlePageChange(currentPage + 1)}
               disabled={currentPage === totalPages || totalPages === 0 || isLoading || isFetching}
-              className="flex items-center gap-1 whitespace-nowrap"
+              className="flex items-center dark:bg-orange-600 gap-1 whitespace-nowrap"
             >
               Next
               <ChevronRight size={16} />

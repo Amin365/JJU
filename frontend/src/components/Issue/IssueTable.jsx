@@ -236,11 +236,15 @@ const sendReminderMutation = useMutation({
         <div className="flex items-center justify-between p-4 border-t bg-card">
           <div className="text-sm text-muted-foreground">Showing {issues.length} of {totalItems}</div>
           <div className="flex items-center gap-2">
-            <Button size="sm" onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1 || isLoading}>
+            <Button size="sm" 
+            className="dark:bg-orange-600"
+            onClick={() => setPage(Math.max(1, page - 1))} disabled={page === 1 || isLoading}>
               Prev
             </Button>
             <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted text-foreground">{page} / {totalPages}</span>
-            <Button size="sm" onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages || isLoading}>
+            <Button size="sm" 
+            className="dark:bg-orange-600"
+            onClick={() => setPage(Math.min(totalPages, page + 1))} disabled={page === totalPages || isLoading}>
               Next
             </Button>
           </div>

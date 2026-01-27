@@ -52,7 +52,7 @@ const IssueMemberGate = () => {
           </div>
 
           <Button
-            className="w-full "
+            className="w-full  dark:bg-orange-600"
             onClick={() => lookup.mutate(memberCode.trim())}
             disabled={!memberCode.trim() || lookup.isPending}
           >

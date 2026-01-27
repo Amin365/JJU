@@ -271,7 +271,9 @@ const CreateUserForm = () => {
                       <Button type="button" variant="outline" onClick={() => navigate("/dashboard/users")}>
                         Cancel
                       </Button>
-                      <Button type="button" onClick={goNext} disabled={isLoadingMembers}>
+                      <Button type="button" 
+                      className="dark:bg-orange-600"
+                      onClick={goNext} disabled={isLoadingMembers}>
                         Next <ChevronRight size={16} className="ml-2" />
                       </Button>
                     </div>

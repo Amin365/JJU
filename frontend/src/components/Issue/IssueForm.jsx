@@ -104,7 +104,7 @@ const IssueCreateForm = () => {
     return (
       <div className="p-6 max-w-7xl mx-auto"> 
         <p className="text-slate-600">No member selected. Go back and enter MemberId.</p>
-        <Button className="mt-4" onClick={() => navigate("/dashboard/issues/request")}>
+        <Button className="mt-4 dark:bg-orange-600" onClick={() => navigate("/dashboard/issues/request")}>
           Go to MemberId page
         </Button>
       </div>
@@ -117,7 +117,7 @@ const IssueCreateForm = () => {
         <p className="text-red-600">
           Member not found. Before requesting book you must be member the Club.
         </p>
-        <Button className="mt-4" onClick={() => navigate("/dashboard/issues/request")}>
+        <Button className="mt-4 dark:bg-orange-600" onClick={() => navigate("/dashboard/issues/request")}>
           Back
         </Button>
       </div>

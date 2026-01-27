@@ -121,7 +121,10 @@ export default function ModeratorMembersPage() {
           />
         </div>
 
-        <Button onClick={() => setShowAdd((v) => !v)}>
+        <Button 
+        className="dark:bg-orange-600"
+        
+        onClick={() => setShowAdd((v) => !v)}>
           {showAdd ? "Close" : "Add Members"}
         </Button>
       </div>
@@ -223,6 +226,7 @@ export default function ModeratorMembersPage() {
                           <td className="px-4 py-3 text-right">
                             <Button
                               size="sm"
+                              className="dark:bg-orange-600"
                               onClick={() => assignMutation.mutate(m._id)}
                               disabled={assignMutation.isPending}
                             >

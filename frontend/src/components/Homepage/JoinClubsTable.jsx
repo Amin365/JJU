@@ -230,6 +230,7 @@ const JoinClubsTable = () => {
               size="sm"
               onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
               disabled={currentPage === 1 || isLoading || isFetching}
+              className="dark:bg-orange-600"
             >
               <ChevronLeft size={16} /> Previous
             </Button>
@@ -248,6 +249,7 @@ const JoinClubsTable = () => {
                 isLoading ||
                 isFetching
               }
+              className="dark:bg-orange-600"
             >
               Next <ChevronRight size={16} />
             </Button>

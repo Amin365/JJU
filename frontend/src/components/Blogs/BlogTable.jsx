@@ -98,7 +98,10 @@ const BlogTable = () => {
           <Button variant="outline" onClick={() => refetch()} disabled={isFetching}>
             <RefreshCw className={cn("h-4 w-4", isFetching && "animate-spin")} />
           </Button>
-          <Button onClick={() => navigate("/dashboard/blogs/new")}> <Plus className="h-4 w-4 mr-2" /> New Post</Button>
+          <Button 
+          className="dark:bg-orange-600"
+          
+          onClick={() => navigate("/dashboard/blogs/new")}> <Plus className="h-4 w-4 mr-2" /> New Post</Button>
         </div>
       </div>
 

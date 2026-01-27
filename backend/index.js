@@ -25,6 +25,7 @@ import cookieParser from "cookie-parser";
 import path from 'path'
 import { fileURLToPath } from "url";  
 import Mpesarouter from "./routers/MpesRouter.js"
+import { startDailyReportMissingScheduler } from "./modules/notifyMissingDailyReport.js"
 
 dotenv.config()
 const app = express()
@@ -160,6 +161,7 @@ mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas
     console.log('✅ Connected to MongoDB successfully')
     // start background scheduler for due/overdue notifications
     startIssueDueScheduler();
+    startDailyReportMissingScheduler();
   })
   .catch((error) => console.log('❌ MongoDB Connection Error:', error));
 

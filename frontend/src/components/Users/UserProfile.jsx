@@ -118,12 +118,24 @@ export default function ProfilePage() {
   }, [tempData, user]);
 
   // Avatar picker
-  const handlePhotoChange = (e) => {
-    const file = e.target.files[0];
-    if (file) {
-      setTempData({ ...tempData, profile: file, preview: URL.createObjectURL(file) });
+  // const handlePhotoChange = (e) => {
+  //   const file = e.target.files[0];
+  //   if (file) {
+  //     setTempData({ ...tempData, profile: file, preview: URL.createObjectURL(file) });
+  //   }
+  // };
+
+  const MAX_MB = 10; // whatever you allow
+const handlePhotoChange = (e) => {
+  const file = e.target.files[0];
+  if (file) {
+    if (file.size > MAX_MB * 1024 * 1024) {
+      toast.error(`Image too large. Please select a photo under ${MAX_MB}MB.`);
+      return;
     }
-  };
+    setTempData({ ...tempData, profile: file, preview: URL.createObjectURL(file) });
+  }
+};
 
   // Mutation for profile update
   const updateMutation = useMutation({

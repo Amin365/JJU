@@ -21,14 +21,25 @@ import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from '../utility/cloudinary.js'
 
+// const storage = new CloudinaryStorage({
+//   cloudinary: cloudinary,
+//   params: {
+//     folder: "Profile",
+//     allowed_formats: ["jpg", "jpeg", "png", "gif"],
+//     public_id: (req, file) => Date.now() + "-" + file.originalname.split(".")[0],
+//   }
+// });
 const storage = new CloudinaryStorage({
-  cloudinary: cloudinary,
+  cloudinary,
   params: {
     folder: "Profile",
-    allowed_formats: ["jpg", "jpeg", "png", "gif"],
-    public_id: (req, file) => Date.now() + "-" + file.originalname.split(".")[0],
-  }
+    allowed_formats: ["jpg", "jpeg", "png", "gif", "heic", "heif"],
+    public_id: (req, file) =>
+      Date.now() + "-" + file.originalname.split(".")[0],
+  },
 });
+
+
 
 const upload = multer({ storage ,
   limits: { fileSize: 10 * 1024 * 1024 } // 10 MB file size limit
@@ -53,7 +64,25 @@ const requireSuperAdmin = async (req, res, next) => {
 };
 
 // Profile routes (for current user, no admin guard)
-router.put("/profile", protect, upload.single('profile'), updateProfile); 
+// router.put("/profile", protect, upload.single('profile'), updateProfile); 
+
+router.put(
+  "/profile",
+  protect,
+  (req, res, next) => {
+    upload.single("profile")(req, res, (err) => {
+      if (err) {
+        console.error("🔥 MULTER ERROR:", err);
+        return res.status(400).json({
+          message: err.message || "File upload error",
+        });
+      }
+      next();
+    });
+  },
+  updateProfile
+);
+
 router.put("/profile/change-password", protect, changePassword); // Change password
 router.delete("/profile/delete", protect, deleteAccount); // Delete account
 

@@ -229,7 +229,7 @@ const handlePhotoChange = (e) => {
                   <input
                     type="file"
                     className="hidden"
-                    accept="image/*"
+                     accept="image/jpeg,image/png,image/heic,image/heif"
                     onChange={handlePhotoChange}
                   />
                 </label>

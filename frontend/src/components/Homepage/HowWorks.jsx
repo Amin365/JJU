@@ -21,8 +21,8 @@ function StepIcon({ icon, title, subtitle }) {
     <div className="flex flex-col items-center gap-2" id="how-it-works">
       {icon}
       <div className="text-center leading-tight">
-        <p className="text-sm font-semibold text-gray-900">{title}</p>
-        <p className="text-xs text-gray-600">{subtitle}</p>
+        <p className="text-sm dark:text-white font-semibold text-gray-900">{title}</p>
+        <p className="text-xs dark:text-white text-gray-600">{subtitle}</p>
       </div>
     </div>
   );
@@ -38,13 +38,13 @@ export function AnimatedBeamDemo({ clubLogoSrc }) {
   const centerRef = useRef(null);
 
   return (
-    <div className="w-full mt-12">
+    <div className="w-full mb-20 mt-12">
       {/* Header */}
     <div className="mb-8 text-center ">
-  <h2 className="text-3xl font-bold text-gray-900">
+  <h2 className="text-3xl font-bold dark:text-white text-gray-900">
     How Our Club System Works
   </h2>
-  <p className="mt-1 text-sm text-gray-600">
+  <p className="mt-1 text-sm dark:text-white text-gray-600">
     A simple and modern process that helps members connect, participate, and grow together.
   </p>
 </div>
@@ -68,7 +68,7 @@ export function AnimatedBeamDemo({ clubLogoSrc }) {
               />
             </div>
 
-            <div ref={growRef} className="flex flex-col items-center">
+            <div ref={growRef} className="flex  flex-col items-center">
               <StepIcon
                 icon={
                   <Circle>
@@ -104,6 +104,7 @@ export function AnimatedBeamDemo({ clubLogoSrc }) {
           <div className="flex flex-row items-start justify-between">
             <div ref={activitiesRef} className="flex flex-col items-center">
               <StepIcon
+              
                 icon={
                   <Circle>
                     <Icons.activities />

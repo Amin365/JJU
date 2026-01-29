@@ -12,6 +12,7 @@ import CallToaction from './CallToActions'
 import Footers from './Footer'
 import Faqs from './Faq'
 import JoinClub from './JoinClub'
+import TeamLeaders from './Team'
 
 const transitionVariants = {
   item: {
@@ -158,8 +159,12 @@ export default function HeroSection() {
 
         </div>
 
-        <div>
+        <div className="mb-12">
           <HowWorks clubLogoSrc="/jjuclub.jpg" />
+        </div>
+        <div>
+        <TeamLeaders/>
+
         </div>
         <div className="mt-8">
           <Testomials />

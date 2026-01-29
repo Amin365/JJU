@@ -8,34 +8,35 @@ import {
   Frame,
   Circle
 } from "lucide-react";
+import { Link } from "react-router";
 
 // Plain JS data (no TypeScript)
 const footerLinks = [
   {
     label: "Club",
-    links: [
-      { title: "How It Works", href: "#how-it-works" },
-      { title: "Features", href: "#features" },
-      { title: "Testimonials", href: "#testimonials" },
-      { title: "Events", href: "#events" },
-    ],
+  links: [
+  { title: "How It Works", href: "/#how-it-works" },
+  { title: "Features", href: "/#features" },
+  { title: "Testimonials", href: "/#testimonials" },
+  { title: "FAQs", href: "/#faqs" },
+]
+
   },
   {
     label: "Company",
     links: [
-      { title: "About Us", href: "/about" },
-      { title: "FAQs", href: "/faqs" },
-      { title: "Privacy Policy", href: "/privacy" },
-      { title: "Terms of Service", href: "/terms" },
+      { title: "About Us", href: "/#about" },
+      { title: "FAQs", href: "/#faqs" },
+   
     ],
   },
   {
     label: "Resources",
     links: [
-      { title: "Blog", href: "/blog" },
-      { title: "Help Center", href: "/help" },
-      { title: "Changelog", href: "/changelog" },
-      { title: "Brand", href: "/brand" },
+      { title: "Blog", href: "/#blog" }
+      // { title: "Help Center", href: "/help" },
+      // { title: "Changelog", href: "/changelog" },
+      // { title: "Brand", href: "/brand" },
     ],
   },
   {
@@ -95,13 +96,13 @@ export default function Footer({clubLogoSrc}) {
                     const Icon = link.icon;
                     return (
                       <li key={link.title}>
-                        <a
-                          href={link.href}
+                        <Link
+                          to={link.href}
                           className="hover:text-foreground inline-flex items-center transition-all duration-300"
                         >
                           {Icon ? <Icon className="me-2 size-4" /> : null}
                           {link.title}
-                        </a>
+                        </Link>
                       </li>
                     );
                   })}

@@ -41,6 +41,7 @@ resetPasswordExpires: {
   type: Date,
 },
 
+
   },
   { timestamps: true }
 );
@@ -64,6 +65,7 @@ userSchema.virtual("permissions", {
   localField: "_id",
   foreignField: "user",
 });
+
 
 // Enable virtuals in JSON
 userSchema.set("toObject", { virtuals: true });

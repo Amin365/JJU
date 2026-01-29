@@ -4,6 +4,7 @@ import ProtectedRoute from "./pages/ProtectedRoute";
 import Loader from "./components/Loader";
 import ReadingRecaps from "./components/Members/ReadingRecap";
 import PWAInstallPrompt from "./components/PWAInstallPrompt";
+import ScrollToHash from "./components/ScrollToHash";
 
 
 // lazy-loaded route components
@@ -46,6 +47,7 @@ function App() {
   return (
     <>
       <PWAInstallPrompt />
+      <ScrollToHash/>
  
       <Routes>
         {/* auth */}

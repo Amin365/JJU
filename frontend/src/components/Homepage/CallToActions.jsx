@@ -24,7 +24,7 @@ export default function Example() {
           <div className="flex items-center">
             <img
               className="size-6 md:size-7 rounded-full border-2 border-white"
-              src="https://images.unsplash.com/photo-1633332755192-727a05c4013d?q=80&w=50"
+              src="testomial/xasan.jpg"
               alt="userImage1"
             />
             <img

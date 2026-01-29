@@ -44,6 +44,8 @@ export default function ProfilePage() {
     staleTime: 5 * 60 * 1000,
   });
 
+  console.log('users',user)
+
   const [editMode, setEditMode] = useState(false);
   const [showDeleteModal, setShowDeleteModal] = useState(false);
   const [showPasswordModal, setShowPasswordModal] = useState(false);
@@ -151,6 +153,8 @@ const handlePhotoChange = (e) => {
         headers: { "Content-Type": "multipart/form-data" },
       });
       return res.data.data || res.data;
+
+      
     },
     onSuccess: (data) => {
       toast.success("Profile updated successfully!");
@@ -216,8 +220,7 @@ const handlePhotoChange = (e) => {
               <img
                 src={
                   tempData.preview ||
-                  (user && user.profile_picture) ||
-                  "/default-avatar.png"
+                  (user && user.profile_picture) || user.member?.profile_picture || ""
                 }
                 alt="Profile"
                 className="w-32 h-32 rounded-full object-cover border-4 border-white shadow-md"

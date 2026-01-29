@@ -18,7 +18,7 @@ const Circle = forwardRef(function Circle({ className, children }, ref) {
 
 function StepIcon({ icon, title, subtitle }) {
   return (
-    <div className="flex flex-col items-center gap-2">
+    <div className="flex flex-col items-center gap-2" id="how-it-works">
       {icon}
       <div className="text-center leading-tight">
         <p className="text-sm font-semibold text-gray-900">{title}</p>

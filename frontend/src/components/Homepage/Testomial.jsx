@@ -5,22 +5,38 @@ import { cn } from "@/lib/utils";
 const SQRT_5000 = Math.sqrt(5000);
 
 // Reading-club mock data
+
 const MOCK_TESTIMONIALS = [
   {
     tempId: 0,
     testimonial:
-      "Naadiga waxa aan ku soo biiray 2024 kii, muddadaas aan ku jiray waxa uu ii noqday il aqooneed, oo runtii ogaalkay wax badan ku darsatay, maaddaama aan si bilaash Maktabaddiisa uga dhex helay buug haddii meel kale aan u raadsan lahaa qiima badan iigu kici lahayd.",
-    by: "—Ciise Maxamed • Member",
+      "“Naadiga waxa aan ku soo biiray 2024 kii, muddadaas aan ku jiray waxa uu ii noqday il aqooneed, oo runtii ogaalkay wax badan ku darsatay, maaddaama aan si bilaash Maktabaddiisa uga dhex helay buug haddii meel kale aan u raadsan lahaa qiima badan iigu kici lahayd.”",
+    by: "— Ciise Maxamed • Member",
     imgSrc: "/testomial/ciise.jpg",
   },
   {
     tempId: 1,
     testimonial:
-      "Ku soo biiristii Naadigu waxa ay ii ahayd safar aqooneed iyo mid nafdhis. Waxa aan kula kulmay dad badan oo aan isku jiho u soconno, waxaa ku korodhay xirfaddayda dad la shaqaynta, waxaana ku kobcay aqoontayda guud.",
+      "“Ku soo biiristii Naadigu waxa ay ii ahayd safar aqooneed iyo mid nafdhis. Waxa aan kula kulmay dad badan oo aan isku jiho u soconno, waxaa ku korodhay xirfaddayda dad la shaqaynta, waxaana ku kobcay aqoontayda guud.”",
     by: "Nasra Maxamed • Member",
     imgSrc: "/testomial/nasra.jpg",
   },
+  {
+    tempId: 2,
+    testimonial:
+      "“Ka mid ahaanshaha Naadigu, waxa uu ii fududeeyay in aan si bilaash ah ku helo tababbarro iyo kulan-aqooneeddo xirfadahayga nololeed wax weyn ku darsaday.”",
+    by: "Kawsar Cabdikaafi • Member",
+    imgSrc: "/testomial/kawsar.jpg",
+  },
+  {
+    tempId: 3,
+    testimonial:
+      "“Inkasta oo aan akhriska jeclaa, haddana ma lahayn caado akhris ka hor inta aanan ku soo biirin Naadiga. Markii aan Naadiga ku soo biiray waxaan yeeshay caado akhris maaddaama aan soo dhexgalay degaan akhris oo igu riixayay in aan wax akhriyo.”",
+    by: "Xasan Jeelle • Member",
+    imgSrc: "/testomial/xasan.jpg",
+  },
 ];
+
 
 function autoFontSize(textLength) {
   if (textLength > 400) return "text-sm";
@@ -71,7 +87,7 @@ function TestimonialCard({ position, testimonial, handleMove, cardSize }) {
       <img
         src={testimonial.imgSrc}
         alt={testimonial.by?.split("•")?.[0]?.trim() || "Member"}
-        className="mb-4 h-14 w-12 bg-muted object-cover object-top"
+        className="mb-4 h-17 w-12 rounded bg-muted object-cover object-top"
         style={{ boxShadow: "3px 3px 0px hsl(var(--background))" }}
       />
 
@@ -87,7 +103,7 @@ function TestimonialCard({ position, testimonial, handleMove, cardSize }) {
       </h3>
 
       {/* Read More */}
-      {testimonial.testimonial.length > 200 && (
+      {testimonial.testimonial.length > 150 && (
         <button
           onClick={(e) => {
             e.stopPropagation();
@@ -157,7 +173,7 @@ const StaggerTestimonials = ({
   }, []);
 
   return (
-    <section className={cn("w-full", className)}>
+    <section className={cn("w-full", className)} id="testimonials">
       <div className="mx-auto max-w-4xl px-6 pt-16 text-center">
         <h2 className="text-balance text-3xl font-semibold text-foreground md:text-4xl">
           {title}

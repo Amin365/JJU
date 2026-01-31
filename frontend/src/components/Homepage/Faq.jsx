@@ -12,44 +12,45 @@ import {
   AccordionTrigger,
 } from "@/components/ui/accordion";
 
-/**
- * React JS + shadcn/ui version:
- * - Uses shadcn Accordion components (instead of direct Radix import)
- * - No TypeScript
- * - No "use client"
- * - Keeps GSAP ScrollTrigger + framer-motion animations
- */
+
+// 2. 
+// 3
+// 4. No, it is not mandatory that you read beforehand.
+// 5. Yes, Club membership is 100% free.
+
+
+
 export default function ScrollFAQAccordion({
   data = [
     {
       id: 1,
       question: "How do I join the Reading Club?",
       answer:
-        "Create an account, complete your profile, and you can start joining activities and discussions immediately.",
+        "1.Registration takes place for a short period, so you should stay updated when it is announced on the Club’s social media platforms.",
     },
     {
       id: 2,
       question: "Can I borrow books from the club?",
       answer:
-        "Yes. Members can request books from the club library (or other members) based on availability and borrowing rules.",
+        "Yes, if you are a member, you can borrow one book per week from the Club’s library. ",
     },
     {
       id: 3,
       question: "How often do you meet?",
       answer:
-        "We usually host weekly sessions and monthly themed events. Check the Events page for the latest schedule.",
+        "We hold both online and offline activities, such as book discussions, trainings, and similar events",
     },
     {
       id: 4,
       question: "Do I need to finish the book to join discussions?",
       answer:
-        "Not required. You can join at any point—many sessions include summaries and spoiler-friendly segments.",
+        "While it's encouraged to read the book beforehand to fully participate, we understand that not everyone may have the time. You can still join the discussions and share your thoughts based on what you've read so far.",
     },
     {
       id: 5,
       question: "Is the club free?",
       answer:
-        "Basic membership is free. Some special events or workshops may require registration or limited seats.",
+        "Yes, joining the JJU Reading Club is completely free of charge for all members.",
     },
   ],
   className,

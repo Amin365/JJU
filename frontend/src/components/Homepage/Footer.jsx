@@ -22,14 +22,14 @@ const footerLinks = [
 ]
 
   },
-  {
-    label: "Company",
-    links: [
-      { title: "About Us", href: "/#about" },
-      { title: "FAQs", href: "/#faqs" },
+  // {
+  //   label: "Company",
+  //   links: [
+  //     { title: "About Us", href: "/#about" },
+  //     { title: "FAQs", href: "/#faqs" },
    
-    ],
-  },
+  //   ],
+  // },
   {
     label: "Resources",
     links: [

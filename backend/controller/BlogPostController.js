@@ -372,4 +372,20 @@ export const blogMetaPage = async (req, res) => {
   }
 };
 
+export const incrementViews = async (req, res) => {
+  try {
+    const { id } = req.params;
+    // Use atomic $inc to increment
+    const updated = await BlogPost.findByIdAndUpdate(
+      id,
+      { $inc: { views: 1 } },
+      { new: true, select: "views" }
+    );
+    if (!updated) return res.status(404).json({ message: "Post not found" });
+    res.json({ views: updated.views });
+  } catch (error) {
+    res.status(500).json({ message: "Server error" });
+  }
+};
+
 

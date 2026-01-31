@@ -1,11 +1,10 @@
-import { useMemo, useState, useEffect } from "react";
+import { useMemo, useState, useEffect, useRef } from "react";
 import { formatDistanceToNow } from "date-fns";
 import { useParams, useNavigate } from "react-router";
-import { useSelector } from "react-redux";
+import { useSelector, useDispatch } from "react-redux";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { motion } from "framer-motion";
-// import { Helmet } from "react-helmet-async"; // Add this import (install react-helmet-async if not already)
 import {
   Heart,
   MessageCircle,
@@ -29,35 +28,49 @@ import { Avatar, AvatarFallback, AvatarImage } from "../ui/avatar";
 import { Textarea } from "../ui/textarea";
 import { Separator } from "../ui/separator";
 import { toast } from "sonner";
-
 import Footers from "../Homepage/Footer";
 import Loader from "../Loader";
+import { toggleFavorite } from "../../app/favoritesSlice";
 
+
+// ---- UTILS ----
 function timeAgo(dateLike) {
   if (!dateLike) return "";
   const d = new Date(dateLike);
   if (Number.isNaN(d.getTime())) return "";
   return formatDistanceToNow(d, { addSuffix: true });
 }
+// ---- END UTILS ----
 
 export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   const user = useSelector((state) => state.auth?.user);
   const queryClient = useQueryClient();
+  const dispatch = useDispatch();
+  const favoriteIds = useSelector((state) => state.favorites?.items || []);
+  const isFavorited = favoriteIds.includes(postId);
 
+  // Bookmark state using localStorage
+  // const [bookmarked, setBookmarked] = useState(() => {
+  //   const bookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
+  //   return bookmarks.includes(postId);
+  // });
+
+  // View count
+  const [viewCount, setViewCount] = useState(0);
+  const viewAddedRef = useRef(false);
+
+  // Local UI states
   const [liked, setLiked] = useState(false);
-  const [bookmarked, setBookmarked] = useState(false);
   const [likeCount, setLikeCount] = useState(0);
   const [showFullContent, setShowFullContent] = useState(false);
-
   const [commentText, setCommentText] = useState("");
   const [showCommentForm, setShowCommentForm] = useState(false);
-
   const [activeReplyCommentId, setActiveReplyCommentId] = useState(null);
   const [replyTextByCommentId, setReplyTextByCommentId] = useState({});
-
   const [commentLikedByMe, setCommentLikedByMe] = useState({});
   const [commentLikes, setCommentLikes] = useState({});
 
+  // FETCH: Blog post (with views)
   const { data: postResponse ,isLoading } = useQuery({
     queryKey: ["blogpost", postId],
     queryFn: async () => {
@@ -68,12 +81,23 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     staleTime: 60_000,
   });
 
- 
-
+  // Increment views ONCE per visit
   useEffect(() => {
-    if (typeof postResponse?.likes === "number") setLikeCount(postResponse.likes);
-  }, [postResponse?.likes]);
+    if (!postId || viewAddedRef.current) return;
+    viewAddedRef.current = true;
+    api.post(`/blogposts/${postId}/views`).then(res => {
+      if (res.data?.views !== undefined) setViewCount(res.data.views);
+      queryClient.invalidateQueries({ queryKey: ["blogpost", postId] }); // refresh full post for views if must
+    }).catch(()=>{});
+  }, [postId, queryClient]);
 
+  // Listen for postResponse to update local view count
+  useEffect(() => {
+    if (typeof postResponse?.views === "number") setViewCount(postResponse.views);
+    if (typeof postResponse?.likes === "number") setLikeCount(postResponse.likes);
+  }, [postResponse?.views, postResponse?.likes]);
+
+  // Comments
   const {
     data: commentsResponse,
     isLoading: commentsLoading,
@@ -88,12 +112,10 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     enabled: !!postId,
     staleTime: 30_000,
   });
-
   const comments = Array.isArray(commentsResponse) ? commentsResponse : [];
 
   useEffect(() => {
     if (!comments.length) return;
-
     setCommentLikes((prev) => {
       const next = { ...prev };
       for (const c of comments) {
@@ -101,7 +123,6 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       }
       return next;
     });
-
     if (user?.id || user?._id) {
       const myId = String(user.id || user._id);
       setCommentLikedByMe((prev) => {
@@ -117,6 +138,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     }
   }, [comments, user]);
 
+  // Parse post data
   const post = useMemo(() => {
     return {
       id: postResponse?._id || postId,
@@ -131,14 +153,14 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       },
       publishDate: postResponse?.createdAt || new Date().toISOString(),
       readingTime: 5,
-      views: postResponse?.views || 0,
+      views: typeof postResponse?.views === "number" ? postResponse?.views : 0,
       comments: comments.length,
       tags: Array.isArray(postResponse?.tags) ? postResponse.tags : [],
       bookRelated: postResponse?.relatedBook || "",
     };
   }, [postResponse, postId, comments.length]);
 
-  // Prepare meta tags data
+  // Share meta data
   const description = post.content
     ? post.content.replace(/<[^>]*>/g, "").substring(0, 150) + "..."
     : "";
@@ -180,39 +202,30 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       .slice(0, 6);
   }, [listResponse, post.tags, post.id]);
 
-// More by the Author
-const moreByAuthor = useMemo(() => {
-  const all = Array.isArray(listResponse?.data) ? listResponse.data : [];
-  const authorName = post.author.name;
+  const moreByAuthor = useMemo(() => {
+    const all = Array.isArray(listResponse?.data) ? listResponse.data : [];
+    const authorName = post.author.name;
+    if (!authorName || authorName === "Unknown") return [];
+    const normalizedAuthorName = authorName.trim().toLowerCase();
+    const filtered = all.filter((p) => {
+      if (p._id === post.id) return false; // Exclude current post
+      const pAuthor = (p.author_name || p.author)?.trim().toLowerCase();
+      return pAuthor === normalizedAuthorName;
+    });
+    return filtered
+      .map((p) => ({
+        id: p._id,
+        title: p.title,
+        author: p.author_name || p.author || "Unknown",
+        publishDate: p.createdAt,
+        readingTime: 5,
+        coverImage: p.blog_picture || "",
+        tags: Array.isArray(p.tags) ? p.tags : [],
+      }))
+      .slice(0, 6);
+  }, [listResponse, post.author.name, post.id]);
 
-  console.log('authorName:', authorName);
-  console.log('all posts:', all.map(p => ({ id: p._id, author: p.author, author_name: p.author_name })));
-
-  if (!authorName || authorName === "Unknown") return [];
-
-  const normalizedAuthorName = authorName.trim().toLowerCase();
-  const filtered = all.filter((p) => {
-    if (p._id === post.id) return false; // Exclude current post
-    const pAuthor = (p.author_name || p.author)?.trim().toLowerCase();
-    return pAuthor === normalizedAuthorName;
-  });
-
-  
-
-  return filtered
-    .map((p) => ({
-      id: p._id,
-      title: p.title,
-      author: p.author_name || p.author || "Unknown",
-      publishDate: p.createdAt,
-      readingTime: 5,
-      coverImage: p.blog_picture || "",
-      tags: Array.isArray(p.tags) ? p.tags : [],
-    }))
-    .slice(0, 6);
-}, [listResponse, post.author.name, post.id]);
-
-  // Mutations
+  // ========== MUTATIONS ========== //
   const createCommentMutation = useMutation({
     mutationFn: async ({ content }) => {
       const res = await api.post(`/blogposts/${postId}/comments`, { content });
@@ -229,7 +242,6 @@ const moreByAuthor = useMemo(() => {
         description: err?.response?.data?.message || "Please try again.",
       });
     },
-
   });
 
   const createReplyMutation = useMutation({
@@ -270,7 +282,7 @@ const moreByAuthor = useMemo(() => {
     },
   });
 
-  // UI actions
+  // ========== UI ACTIONS ========== //
   const handleLike = () => {
     setLiked((prev) => {
       const next = !prev;
@@ -280,31 +292,45 @@ const moreByAuthor = useMemo(() => {
     });
   };
 
-  const handleBookmark = () => {
-    setBookmarked((prev) => {
-      const next = !prev;
-      toast.success(next ? "Post bookmarked!" : "Bookmark removed");
-      return next;
-    });
+  const handleFavorite = () => {
+    dispatch(toggleFavorite(postId));
+    toast.success(isFavorited ? "Removed from Favorites!" : "Added to Favorites!");
   };
 
-const handleShare = async () => {
-  try {
-    const shareUrl = `https://jjureadingclub.com/api/share/blog/${postId}`;
+  // const handleBookmark = () => {
+  //   setBookmarked((prev) => {
+  //     let next;
+  //     const bookmarks = JSON.parse(localStorage.getItem("bookmarks") || "[]");
+  //     if (prev) {
+  //       next = false;
+  //       localStorage.setItem(
+  //         "bookmarks",
+  //         JSON.stringify(bookmarks.filter(id => id !== postId))
+  //       );
+  //       toast.success("Bookmark removed");
+  //     } else {
+  //       next = true;
+  //       localStorage.setItem(
+  //         "bookmarks",
+  //         JSON.stringify([...bookmarks, postId])
+  //       );
+  //       toast.success("Post bookmarked!");
+  //     }
+  //     return next;
+  //   });
+  // };
 
-    await navigator.clipboard.writeText(shareUrl);
-
-    toast.success("Share link copied!");
-  } catch (err) {
-    console.error("Share error:", err);
-    toast.error("Copy failed", {
-      description: "Unable to copy share link",
-    });
-  }
-};
-
-
-
+  const handleShare = async () => {
+    try {
+      const shareUrl = `https://jjureadingclub.com/api/share/blog/${postId}`;
+      await navigator.clipboard.writeText(shareUrl);
+      toast.success("Share link copied!");
+    } catch (err) {
+      toast.error("Copy failed", {
+        description: "Unable to copy share link",
+      });
+    }
+  };
 
   const handleComment = () => {
     if (!user) return;
@@ -329,18 +355,14 @@ const handleShare = async () => {
       toast.error("Please login to like comments");
       return;
     }
-
     const commentId = comment._id;
     const currentlyLiked = !!commentLikedByMe[commentId];
     const currentCount = commentLikes[commentId] ?? (comment.likes || 0);
-
-    // optimistic UI
     setCommentLikedByMe((prev) => ({ ...prev, [commentId]: !currentlyLiked }));
     setCommentLikes((prev) => ({
       ...prev,
       [commentId]: currentlyLiked ? Math.max(0, currentCount - 1) : currentCount + 1,
     }));
-
     toggleCommentLikeMutation.mutate({ commentId });
   };
 
@@ -353,47 +375,20 @@ const handleShare = async () => {
             Create an account to post comments and replies.
           </p>
         </div>
-        <Button 
-        className={"dark:bg-orange-600"} variant="default"
-         onClick={() => (window.location.href = "/login")}>Login </Button>
+        <Button className={"dark:bg-orange-600"} variant="default" onClick={() => (window.location.href = "/login")}>Login </Button>
       </div>
     </div>
   );
 
   const handleRelated = (id) => onRelatedPostClick?.(id);
 
-  if(isLoading) return <Loader />;
+  if (isLoading) return <Loader />;
 
   return (
     <>
-      {/* <Helmet>
-        <title>{post.title || "Blog Post"}</title>
-        <meta property="og:title" content={post.title || "Blog Post"} />
-        <meta property="og:description" content={description} />
-        <meta property="og:image" content={imageUrl} />
-        <meta property="og:url" content={window.location.href} />
-        <meta property="og:type" content="article" />
-        <meta property="og:site_name" content="https://jjureadingclub.com" /> 
-        <meta name="twitter:card" content="summary_large_image" />
-        <meta name="twitter:title" content={post.title || "Blog Post"} />
-        <meta name="twitter:description" content={description} />
-        <meta name="twitter:image" content={imageUrl} />
-      </Helmet> */}
       <div className="min-h-screen bg-gray-50 dark:bg-gray-950">
-        {/* Header */}
-        {/* <div className="bg-white dark:bg-gray-900 border-b dark:border-gray-800 sticky top-0 z-10 shadow-sm">
-        <div className="max-w-7xl mx-auto px-4 py-4">
-          <div className="flex items-center justify-between gap-3">
-            <Button variant="ghost" onClick={onBack}>
-              <ArrowLeft className="w-5 h-5 mr-2" />
-              Back to Blog
-            </Button>
-          </div>
-        </div>
-      </div> */}
-
         <div className="max-w-6xl mx-auto px-0 sm:px-4 mt-12  py-6 sm:py-8">
-          {/* ARTICLE ONLY (no sidebar / no grid) */}
+          {/* ARTICLE */}
           <motion.article
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -402,63 +397,49 @@ const handleShare = async () => {
             {/* Cover image with overlay actions */}
             <div className="relative w-full h-80 sm:h-96 overflow-hidden">
               <img src={post.coverImage} alt={post.title} className="w-full h-full object-cover" />
-
-              {/* overlay gradient (transparent low) */}
               <div className="absolute inset-x-0 top-0 h-24 bg-gradient-to-b from-black/45 to-transparent" />
-
-              {/* overlay buttons on top of picture */}
               <div className="absolute top-4 left-4 right-4 flex items-center justify-between gap-2">
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={onBack}
-                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                  >
-                    <ArrowLeft className="w-4 h-4 mr-1" />
-                    Back
+                  <Button size="sm" variant="secondary" onClick={onBack}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg">
+                    <ArrowLeft className="w-4 h-4 mr-1" /> Back
                   </Button>
-
                   <span className="text-xs text-white/90 flex items-center gap-1">
-                    <Eye className="w-4 h-4" />
-                    {post.views}
+                    <Eye className="w-4 h-4" /> {viewCount}
                   </span>
                 </div>
-
                 <div className="flex items-center gap-2">
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleLike}
-                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                  >
-                    <Heart className={`w-4 h-4 mr-1 ${liked ? "fill-white" : ""}`} />
-                    {likeCount}
-                  </Button>
+                <Button
+  size="sm"
+  variant="secondary"
+  onClick={handleFavorite}
+  className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+  title={isFavorited ? "Remove from Favorites" : "Add to Favorites"}
+>
+  <Heart
+    className={`w-4 h-4 transition-colors ${
+      isFavorited
+        ? "text-red-500 fill-red-500"
+        : "text-white"
+    }`}
+  />
+</Button>
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleBookmark}
-                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                    title="Bookmark"
-                  >
-                    <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-white" : ""}`} />
-                  </Button>
+                 
 
-                  <Button
-                    size="sm"
-                    variant="secondary"
-                    onClick={handleShare}
+                  {/* <Button size="sm" variant="secondary" onClick={handleBookmark}
                     className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
-                    title="Share"
-                  >
+                    title={bookmarked ? "Remove Bookmark" : "Bookmark"}>
+                    <Bookmark className={`w-4 h-4 ${bookmarked ? "fill-white text-orange-600" : ""}`} />
+                  </Button> */}
+                  <Button size="sm" variant="secondary" onClick={handleShare}
+                    className="bg-white/15 text-white border border-white/20 hover:bg-white/25 backdrop-blur shadow-lg"
+                    title="Share">
                     <Share2 className="w-4 h-4" />
                   </Button>
                 </div>
               </div>
             </div>
-
             {/* Post body */}
             <div className="p-4 sm:p-6 md:p-10">
               {post.bookRelated && (
@@ -469,17 +450,14 @@ const handleShare = async () => {
                   </Badge>
                 </div>
               )}
-
               <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold text-gray-900 dark:text-gray-100 mb-6 leading-tight">
                 {post.title}
               </h1>
-
               <div className="flex items-center gap-4 mb-8 pb-8 border-b dark:border-gray-800">
                 <Avatar className="w-14 h-14">
                   <AvatarImage src={post.author.avatar} />
                   <AvatarFallback>{post.author.name?.[0] || "U"}</AvatarFallback>
                 </Avatar>
-
                 <div className="flex-1">
                   <div className="flex items-center gap-2 mb-1">
                     <p className="font-semibold text-gray-900 dark:text-gray-100">{post.author.name}</p>
@@ -490,21 +468,12 @@ const handleShare = async () => {
                       {post.author.role || ""}
                     </Badge>
                   </div>
-
                   <div className="flex items-center gap-5 text-sm text-gray-600 dark:text-gray-400">
                     <span className="">
                       {new Date(post.publishDate).toLocaleDateString("en-US", {
-                        month: "long",
-                        day: "numeric",
-                        year: "numeric",
+                        month: "long", day: "numeric", year: "numeric"
                       })}
                     </span>
-                    {/* <span>•</span>
-                    <span className="flex items-center gap-1">
-                      <Clock className="w-3 h-3" />
-                      {post.readingTime} min read
-                    </span> */}
-                    {/* <span>•</span> */}
                     <span className="flex items-center gap-1">
                       <MessageCircle className="w-3 h-3" />
                       {post.comments} comments
@@ -512,8 +481,6 @@ const handleShare = async () => {
                   </div>
                 </div>
               </div>
-
-              {/* Content */}
               <div
                 className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words ${
                   showFullContent ? "" : "max-h-[520px] overflow-hidden"
@@ -528,18 +495,15 @@ const handleShare = async () => {
                     </p>
                   ))
                 )}
-
                 {!showFullContent && (
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
                 )}
               </div>
-
               <div className="mt-4">
                 <Button variant="outline" onClick={() => setShowFullContent((v) => !v)}>
                   {showFullContent ? "Show less" : "Read full post"}
                 </Button>
               </div>
-
               <div className="flex flex-wrap gap-2 mt-12 pt-8 border-t dark:border-gray-800">
                 {post.tags.map((tag) => (
                   <Badge key={tag} variant="outline" className="text-sm">
@@ -549,7 +513,6 @@ const handleShare = async () => {
               </div>
             </div>
           </motion.article>
-
           {/* Comments Section */}
           <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
             <CardHeader>
@@ -558,7 +521,6 @@ const handleShare = async () => {
                 Comments ({comments.length})
               </CardTitle>
             </CardHeader>
-
             <CardContent className="space-y-6">
               {!user ? (
                 <>
@@ -595,11 +557,9 @@ const handleShare = async () => {
                       </div>
                     </div>
                   )}
-
                   <Separator className="dark:bg-gray-800" />
                 </>
               )}
-
               <div className="space-y-6">
                 {commentsLoading ? (
                   <div className="text-sm text-gray-500 dark:text-gray-400">Loading comments...</div>
@@ -613,42 +573,35 @@ const handleShare = async () => {
                   comments.map((comment) => {
                     const displayLikes = commentLikes[comment._id] ?? (comment.likes || 0);
                     const isLiked = !!commentLikedByMe[comment._id];
-
                     return (
                       <div key={comment._id}>
-                        <div
-                          className={`${
-                            comment.isPinned || comment.isBestInsight
-                              ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
-                              : ""
-                          }`}
-                        >
+                        <div className={`${
+                          comment.isPinned || comment.isBestInsight
+                            ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
+                            : ""
+                        }`}>
                           {comment.isPinned && (
                             <div className="flex items-center gap-2 text-sm text-orange-700 mb-2 dark:text-orange-300">
                               <Pin className="w-4 h-4" />
                               <span className="font-medium">Pinned by moderator</span>
                             </div>
                           )}
-
                           {comment.isBestInsight && (
                             <div className="flex items-center gap-2 text-sm text-purple-700 mb-2 dark:text-purple-300">
                               <Sparkles className="w-4 h-4" />
                               <span className="font-medium">Best Insight</span>
                             </div>
                           )}
-
                           <div className="flex gap-3">
                             <Avatar className="w-10 h-10">
                               <AvatarImage src={comment.author?.avatar} />
                               <AvatarFallback>{comment.author?.name?.[0] || "U"}</AvatarFallback>
                             </Avatar>
-
                             <div className="flex-1">
                               <div className="flex items-center gap-2 mb-1">
                                 <span className="font-medium text-gray-900 dark:text-gray-100">
                                   {comment.author?.name || "Unknown"}
                                 </span>
-
                                 <Badge
                                   variant="outline"
                                   className={`text-xs ${
@@ -659,16 +612,13 @@ const handleShare = async () => {
                                 >
                                   {comment.author?.role || "Member"}
                                 </Badge>
-
                                 <span className="text-sm text-gray-500 dark:text-gray-400">
                                   {timeAgo(comment.createdAt)}
                                 </span>
                               </div>
-
                               <p className="text-gray-700 dark:text-gray-200 mb-2 break-words">
                                 {comment.content}
                               </p>
-
                               <div className="flex items-center gap-3 text-sm">
                                 <button
                                   className={`flex items-center gap-1 transition-colors ${
@@ -683,7 +633,6 @@ const handleShare = async () => {
                                   <ThumbsUp className={`w-4 h-4 ${isLiked ? "fill-current" : ""}`} />
                                   <span>{displayLikes}</span>
                                 </button>
-
                                 <button
                                   className="text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400"
                                   onClick={() => openReply(comment._id)}
@@ -692,7 +641,6 @@ const handleShare = async () => {
                                 >
                                   Reply
                                 </button>
-
                                 <button
                                   className="text-gray-500 hover:text-red-600 transition-colors flex items-center gap-1 dark:text-gray-400"
                                   type="button"
@@ -701,7 +649,6 @@ const handleShare = async () => {
                                   Report
                                 </button>
                               </div>
-
                               {user && activeReplyCommentId === comment._id && (
                                 <div className="mt-3 space-y-2">
                                   <Textarea
@@ -733,7 +680,6 @@ const handleShare = async () => {
                             </div>
                           </div>
                         </div>
-
                         {Array.isArray(comment.replies) && comment.replies.length > 0 && (
                           <div className="ml-12 mt-4 space-y-4">
                             {comment.replies.map((reply) => (
@@ -757,7 +703,6 @@ const handleShare = async () => {
                                       {timeAgo(reply.createdAt)}
                                     </span>
                                   </div>
-
                                   <p className="text-sm text-gray-700 dark:text-gray-200 break-words">
                                     {reply.content}
                                   </p>
@@ -773,8 +718,7 @@ const handleShare = async () => {
               </div>
             </CardContent>
           </Card>
-
-          {/* MOVED: Similar Topics BELOW comments (no sidebar, no grid) */}
+          {/* -- Similar Topics -- */}
           {relatedPosts.length > 0 && (
             <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
               <CardHeader>
@@ -784,7 +728,6 @@ const handleShare = async () => {
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Based on shared tags</p>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 {relatedPosts.map((relatedPost) => (
                   <motion.div
@@ -823,16 +766,10 @@ const handleShare = async () => {
                     <Separator className="mt-4 dark:bg-gray-800" />
                   </motion.div>
                 ))}
-
-                {/* <Button variant="outline" className="w-full">
-                  Show More Related Posts
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button> */}
               </CardContent>
             </Card>
           )}
-
-          {/* More by the Author */}
+          {/* -- More by Author -- */}
           {moreByAuthor.length > 0 && (
             <Card className="mt-8 shadow-sm dark:bg-gray-900 dark:border-gray-800">
               <CardHeader>
@@ -845,7 +782,6 @@ const handleShare = async () => {
                 </CardTitle>
                 <p className="text-sm text-gray-600 dark:text-gray-400">Other articles from this author</p>
               </CardHeader>
-
               <CardContent className="space-y-4">
                 {moreByAuthor.map((authorPost) => (
                   <motion.div
@@ -884,11 +820,6 @@ const handleShare = async () => {
                     <Separator className="mt-4 dark:bg-gray-800" />
                   </motion.div>
                 ))}
-
-                {/* <Button variant="outline" className="w-full">
-                  Show More from {post.author.name}
-                  <ChevronRight className="w-4 h-4 ml-1" />
-                </Button> */}
               </CardContent>
             </Card>
           )}
@@ -899,6 +830,7 @@ const handleShare = async () => {
   );
 }
 
+// -- routing wrapper --
 export default function BlogDetailsPage() {
   const { id } = useParams();
   const navigate = useNavigate();

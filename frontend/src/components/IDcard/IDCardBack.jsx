@@ -30,7 +30,7 @@ export function IDCardBack({
           
           {/* Description */}
           <p className="text-[11px] text-gray-500 italic mb-2">
-            The Bearer of this ID Card is an Employee of{" "}
+            The Bearer of this ID Card is an Member of{" "}
             <span className="text-[8px] font-bold text-gray-700">{companyName}</span>.
           </p>
 

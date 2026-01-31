@@ -5,7 +5,7 @@ import storage from "redux-persist/lib/storage";
 
 import AuthReducer from "./AuthSlice";
 import Common from "./CommonnSlice";
-
+import favoritesReducer from "./favoritesSlice";
 
 // Auth Persist Config
 const authPersistConfig = {
@@ -24,6 +24,7 @@ const store = configureStore({
   reducer: {
     auth: persistedAuthReducer,
     common: Common,
+    favorites: favoritesReducer,
   
   },
   middleware: (getDefaultMiddleware) =>

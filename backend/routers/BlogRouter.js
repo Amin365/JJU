@@ -5,7 +5,9 @@ import {
   getBlogPostById,
   updateBlogPost,
   deleteBlogPost,
-  blogMetaPage
+  blogMetaPage,
+  incrementViews
+
 } from "../controller/BlogPostController.js";
 import { protect } from '../middleware/auth.js'
 import multer from "multer";
@@ -39,5 +41,5 @@ Blogrouter.post("/blogposts", protect, uploadFields, createBlogPost);
 Blogrouter.put("/blogposts/:id", protect, uploadFields, updateBlogPost);
 Blogrouter.delete("/blogposts/:id", protect, deleteBlogPost);
 Blogrouter.get("/share/blog/:id", blogMetaPage);
-
+Blogrouter.post("/blogposts/:id/views", incrementViews);
 export default Blogrouter;

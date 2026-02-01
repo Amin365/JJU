@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost.js";
-import cleanHtml from "../utility/cleanHtml.js";
+import cleanTitle from "../utility/cleanHtml.js";
 
-/* ======================================================
+import cleanQuillHtml from "../utility/cleanQuillHtml.js";
+
+
+
+/* 
    Helpers
-====================================================== */
+ */
 
 const normalizeTags = (tags) => {
   if (!tags) return [];
@@ -44,9 +48,8 @@ const normalizeUserName = (user) => {
 const getUploadedImage = (file) =>
   file?.path || file?.secure_url || file?.url || "";
 
-/* ======================================================
-   CREATE BLOG POST
-====================================================== */
+
+
 
 export const createBlogPost = async (req, res) => {
   try {
@@ -61,7 +64,7 @@ export const createBlogPost = async (req, res) => {
       status = "Draft",
       author_type,
       author_name,
-      author_picture,
+      author_picture, // can be a string URL if no file uploaded
     } = req.body || {};
 
     if (!title?.trim()) return res.status(400).json({ message: "Title is required" });
@@ -76,7 +79,7 @@ export const createBlogPost = async (req, res) => {
       return res.status(400).json({ message: "Invalid status" });
     }
 
-    const blogImage = getUploadedImage(req.files?.image?.[0]) || null;
+    const blogImage = getUploadedImage(req.files?.image?.[0]) || "";
 
     let finalAuthorName = "";
     let finalAuthorPicture = "";
@@ -88,25 +91,33 @@ export const createBlogPost = async (req, res) => {
       if (!author_name?.trim()) {
         return res.status(400).json({ message: "Author name is required" });
       }
+
       finalAuthorName = author_name.trim();
+
+      // Prefer uploaded file if present, else accept a URL string in body
       finalAuthorPicture =
         getUploadedImage(req.files?.author_picture?.[0]) ||
-        author_picture?.trim() ||
+        (typeof author_picture === "string" ? author_picture.trim() : "") ||
         "";
     } else {
       return res.status(400).json({ message: "Invalid author type" });
     }
 
     const post = await BlogPost.create({
-      title: cleanHtml(title),
-      content: cleanHtml(content),
+      title: cleanTitle(title),
+
+      // IMPORTANT: preserve blank lines from Quill here
+      content: cleanQuillHtml(content),
+
       tags: finalTags,
       relatedBook: relatedBook || "",
       status,
       created_by: userId,
+
       author: finalAuthorName,
       author_name: finalAuthorName,
       author_picture: finalAuthorPicture,
+
       blog_picture: blogImage,
       likes: 0,
       views: 0,
@@ -119,9 +130,9 @@ export const createBlogPost = async (req, res) => {
   }
 };
 
-/* ======================================================
+/* 
    GET BLOG POSTS
-====================================================== */
+ */
 
 export const getBlogPosts = async (req, res) => {
   try {
@@ -182,9 +193,9 @@ export const getBlogPosts = async (req, res) => {
   }
 };
 
-/* ======================================================
+/* 
    GET BLOG POST BY ID
-====================================================== */
+ */
 
 export const getBlogPostById = async (req, res) => {
   try {
@@ -203,9 +214,9 @@ export const getBlogPostById = async (req, res) => {
   }
 };
 
-/* ======================================================
+/* 
    UPDATE BLOG POST
-====================================================== */
+ */
 
 export const updateBlogPost = async (req, res) => {
   try {
@@ -235,8 +246,10 @@ export const updateBlogPost = async (req, res) => {
       author_picture,
     } = req.body || {};
 
-    if (title !== undefined) post.title = cleanHtml(title);
-    if (content !== undefined) post.content = cleanHtml(content);
+    if (title !== undefined) post.title = cleanTitle(title);
+
+    // IMPORTANT: preserve blank lines from Quill here too
+    if (content !== undefined) post.content = cleanQuillHtml(content);
 
     if (tags !== undefined) {
       const finalTags = normalizeTags(tags);
@@ -262,27 +275,28 @@ export const updateBlogPost = async (req, res) => {
       post.author_name = normalizeUserName(req.user);
       post.author_picture = req.user?.profile_picture || "";
       post.author = post.author_name;
-    }
+    } else if (author_type === "another") {
+      if (author_name !== undefined) post.author_name = author_name?.trim() || post.author_name;
 
-    if (author_type === "another") {
-      post.author_name = author_name?.trim() || post.author_name;
       post.author_picture =
         getUploadedImage(req.files?.author_picture?.[0]) ||
-        author_picture ||
+        (typeof author_picture === "string" ? author_picture.trim() : "") ||
         post.author_picture;
+
       post.author = post.author_name;
     }
 
     await post.save();
     res.json({ data: post });
   } catch (err) {
+    console.error("updateBlogPost:", err);
     res.status(500).json({ message: "Server error" });
   }
 };
 
-/* ======================================================
+/* 
    DELETE BLOG POST
-====================================================== */
+ */
 
 export const deleteBlogPost = async (req, res) => {
   try {
@@ -387,5 +401,18 @@ export const incrementViews = async (req, res) => {
     res.status(500).json({ message: "Server error" });
   }
 };
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 

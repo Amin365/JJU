@@ -481,7 +481,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                   </div>
                 </div>
               </div>
-              <div
+              {/* <div
                 className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words ${
                   showFullContent ? "" : "max-h-[520px] overflow-hidden"
                 }`}
@@ -498,7 +498,19 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                 {!showFullContent && (
                   <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
                 )}
-              </div>
+              </div> */}
+
+              <div
+  className={`prose prose-base sm:prose-lg max-w-none font-serif dark:prose-invert relative break-words
+              [&_p]:mb-6 [&_p:last-child]:mb-0
+              ${showFullContent ? "" : "max-h-[520px] overflow-hidden"}`}
+>
+  <div dangerouslySetInnerHTML={{ __html: post.content }} />
+
+  {!showFullContent && (
+    <div className="pointer-events-none absolute inset-x-0 bottom-0 h-32 bg-gradient-to-t from-white via-white/80 to-transparent dark:from-gray-900 dark:via-gray-900/80" />
+  )}
+</div>
               <div className="mt-4">
                 <Button variant="outline" onClick={() => setShowFullContent((v) => !v)}>
                   {showFullContent ? "Show less" : "Read full post"}

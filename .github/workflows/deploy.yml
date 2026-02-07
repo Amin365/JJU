@@ -1,39 +1,44 @@
-
-name: Auto Deploy Frontend and Backend
+# .github/workflows/deploy.yml
+name: Auto Deploy JJU Project
 
 on:
   push:
     branches:
-      - main
+      - main  # triggers when you push to main branch
 
 jobs:
   deploy:
     runs-on: ubuntu-latest
 
     steps:
-      - name: Deploy to DigitalOcean Server
-        uses: appleboy/ssh-action@v1
-        with:
-          host: ${{ secrets.SERVER_IP }}
-          username: ${{ secrets.SERVER_USER }}
-          key: ${{ secrets.SSH_KEY }}
-          script: |
-            echo "Connected to server"
+    - name: Checkout code
+      uses: actions/checkout@v3
 
-            cd /var/www/JJU
-            git pull origin main
+    - name: Deploy to DigitalOcean Server
+      uses: appleboy/ssh-action@v1
+      with:
+        host: ${{ secrets.SERVER_IP }}
+        username: ${{ secrets.SERVER_USER }}
+        key: ${{ secrets.SSH_KEY }}
+        port: 22
+        script: |
+          echo "Connected to server"
+          
+          cd /var/www/JJU
+          git reset --hard
+          git pull origin main
 
-            echo "Deploying Backend"
-            cd backend
-            npm install
-            pm2 restart all || pm2 start index.js --name backend
+          echo "Deploying Backend"
+          cd backend
+          npm install
+          pm2 restart all || pm2 start index.js --name backend
 
-            echo "Deploying Frontend"
-            cd ../frontend
-            npm install
-            NODE_OPTIONS="--max-old-space-size=4096" npm run build
+          echo "Deploying Frontend"
+          cd ../frontend
+          npm install
+          NODE_OPTIONS="--max-old-space-size=4096" npm run build
 
-            rm -rf /var/www/html/*
-            cp -r dist/* /var/www/html/
+          rm -rf /var/www/html/*
+          cp -r dist/* /var/www/html/
 
-            echo "Deployment Finished"
+          echo "Deployment Finished"

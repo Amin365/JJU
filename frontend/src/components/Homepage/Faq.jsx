@@ -26,7 +26,7 @@ export default function ScrollFAQAccordion({
       id: 1,
       question: "How do I join the Reading Club?",
       answer:
-        "1.Registration takes place for a short period, so you should stay updated when it is announced on the Club’s social media platforms.",
+        "Registration takes place for a short period, so you should stay updated when it is announced on the Club’s social media platforms.",
     },
     {
       id: 2,

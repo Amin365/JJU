@@ -13,6 +13,7 @@ const AVAILABLE_TAGS = [
   "Saynis",
   "Taariikh",
   "Sheeko Faneed",
+  "Sheeko Gaaban",
   "Suugan",
   "Technology",
   "Buug Sookoobid",

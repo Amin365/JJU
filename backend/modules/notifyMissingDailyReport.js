@@ -34,7 +34,7 @@ export async function notifyUsersMissingDailyReport() {
 
   for (const memberId of memberIds) {
     // Get all users under this member
-    const users = await User.find({ member: memberId })
+    const users = await User.find({ member: memberId, role: "Members" })
       .select("_id first_name last_name email role")
       .lean();
 
@@ -61,7 +61,7 @@ export async function notifyUsersMissingDailyReport() {
 
       const message = `Mr ${user.first_name} ${user.last_name}, don’t break your reading streak! You haven’t submitted your daily reading report for today or yesterday.`;
 
-      // Save notification (ALL roles)
+      // Save notification (Members only)
       await Notification.create({
         user: user._id,
         title: "Don't break your streak!",
@@ -74,18 +74,14 @@ export async function notifyUsersMissingDailyReport() {
         },
       });
 
-      // 🔒 PUSH NOTIFICATION RULE
-      // ❌ Super Admin → NO push
-      // ✅ Members → YES push
-      if (user.role === "Members") {
-        try {
-          await sendPushToUser(user._id, {
-            title: "Don't break your reading streak!",
-            body: message,
-          });
-        } catch (err) {
-          console.error("Push notification failed:", err);
-        }
+      // Send push notification (Members only)
+      try {
+        await sendPushToUser(user._id, {
+          title: "Don't break your reading streak!",
+          body: message,
+        });
+      } catch (err) {
+        console.error("Push notification failed:", err);
       }
     }
   }

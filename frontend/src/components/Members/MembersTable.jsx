@@ -195,7 +195,7 @@ export default function MemberTable() {
           <p className="text-sm mt-1 text-muted-foreground">Manage club members and their profiles.</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 gap-3 md:flex">
           <Button variant="default" 
           className="dark:bg-orange-600"
            onClick={OpenModelExcel}>

@@ -155,7 +155,7 @@ const BookTable = () => {
           <p className="text-sm mt-1 text-slate-500 dark:text-gray-300">Manage books in the catalog.</p>
         </div>
 
-        <div className="flex gap-3">
+        <div className="grid grid-cols-2 gap-3 md:flex">
           <Button
             className="dark:bg-orange-600"
             onClick={() => setIsImportModalOpen(true)}

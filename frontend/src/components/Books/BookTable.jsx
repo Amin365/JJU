@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import * as XLSX from "xlsx";
 import { Plus, Search, FileSpreadsheet, ChevronLeft, ChevronRight, ArrowLeft } from "lucide-react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
@@ -15,11 +16,20 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import NewBookModal from "./BookModel";
+import ImportBooksExcelModal from "./ExportBooksExcelModal";
 
 const fetchBooks = async ({ queryKey }) => {
-  const [, page = 1, limit = 10] = queryKey;
+  const [, page = 1, limit = 10, q = "", type = "All", status = "All"] = queryKey;
 
-  const res = await api.get("/books", { params: { page, limit } });
+  const params = {
+    page,
+    limit,
+    ...(q ? { q } : {}),
+    ...(type && type !== "All" ? { BookType: type } : {}),
+    ...(status && status !== "All" ? { status } : {}),
+  };
+
+  const res = await api.get("/books", { params });
   return res.data;
 
 };
@@ -50,7 +60,7 @@ const BookTable = () => {
 
   
   const { data, isLoading, isFetching, error, refetch } = useQuery({
-    queryKey: ["books", currentPage, limit],
+    queryKey: ["books", currentPage, limit, searchTerm.trim(), filterType, filterStatus],
     queryFn: fetchBooks,
     keepPreviousData: true,
     staleTime: 30_000,
@@ -65,24 +75,68 @@ const BookTable = () => {
     setCurrentPage(1);
   }, [searchTerm, filterType, filterStatus, limit]);
 
-  const filteredBooks = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase();
-    return books.filter((b) => {
-      const matchesSearch =
-        !q ||
-        (b.title && b.title.toLowerCase().includes(q)) ||
-        (b.author && b.author.toLowerCase().includes(q)) ||
-        (b.isbn && b.isbn.toLowerCase().includes(q));
-      const matchesType = filterType === "All" || !filterType || (b.BookType === filterType);
-      const matchesStatus = filterStatus === "All" || !filterStatus || (b.status === filterStatus);
-      return matchesSearch && matchesType && matchesStatus;
-    });
-  }, [books, searchTerm, filterType, filterStatus]);
+  const filteredBooks = books;
 
   const bookTypes = useMemo(() => ["All", ...Array.from(new Set(books.map((b) => b.BookType).filter(Boolean)))], [books]);
   const statusTypes = useMemo(() => ["All", ...Array.from(new Set(books.map((b) => b.status).filter(Boolean)))], [books]);
 
   const handleRowClick = (id) => navigate(`${id}`);
+
+  const handleExportExcel = async () => {
+    const q = searchTerm.trim();
+    const paramsBase = {
+      ...(q ? { q } : {}),
+      ...(filterType && filterType !== "All" ? { BookType: filterType } : {}),
+      ...(filterStatus && filterStatus !== "All" ? { status: filterStatus } : {}),
+    };
+
+    const perPage = 100;
+    let page = 1;
+    let allBooks = [];
+    let totalPagesLocal = 1;
+
+    do {
+      const res = await api.get("/books", {
+        params: { ...paramsBase, page, limit: perPage },
+      });
+
+      const pageBooks = res.data?.data ?? [];
+      allBooks = allBooks.concat(pageBooks);
+      totalPagesLocal = res.data?.totalPages ?? 1;
+      page += 1;
+    } while (page <= totalPagesLocal);
+
+    const rows = allBooks.map((b) => ({
+      Title: b.title ?? "",
+      Author: b.author ?? "",
+      ISBN: b.isbn ?? "",
+      Type: b.BookType ?? "",
+      Status: b.status ?? "",
+      TotalCopies: b.totalCopies ?? 0,
+      Borrowed: b.borrowedCount ?? 0,
+      Remaining: b.availableCopies ?? 0,
+      CreatedAt: formatDate(b.createdAt),
+      UpdatedAt: formatDate(b.updatedAt),
+    }));
+
+    const ws = XLSX.utils.json_to_sheet(rows);
+    ws["!cols"] = [
+      { wch: 28 },
+      { wch: 22 },
+      { wch: 16 },
+      { wch: 16 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 10 },
+      { wch: 12 },
+      { wch: 14 },
+      { wch: 14 },
+    ];
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, "Books");
+    XLSX.writeFile(wb, "books-export.xlsx");
+  };
 
   const handlePageChange = (newPage) => {
     if (!isLoading && !isFetching && newPage >= 1 && newPage <= totalPages) {
@@ -103,10 +157,18 @@ const BookTable = () => {
 
         <div className="flex gap-3">
           <Button
-          className="dark:bg-orange-600"
-          
-           onClick={() => setIsImportModalOpen(true)} variant="default">
+            className="dark:bg-orange-600"
+            onClick={() => setIsImportModalOpen(true)}
+            variant="default"
+          >
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
+          </Button>
+          <Button
+            className="dark:bg-orange-600"
+            onClick={handleExportExcel}
+            variant="default"
+          >
+            <FileSpreadsheet size={16} /> <span className="ml-2">Export Excel</span>
           </Button>
           <Button 
           className="dark:bg-orange-600"
@@ -258,7 +320,7 @@ const BookTable = () => {
         </div>
       </Card>
 
-      {/* <ImportExcelModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} refreshTable={refetch} /> */}
+      <ImportBooksExcelModal isOpen={isImportModalOpen} onClose={() => setIsImportModalOpen(false)} refreshTable={refetch} />
 
       <NewBookModal isOpen={isNewBookOpen} onClose={() => setIsNewBookOpen(false)} onSuccess={() => { setIsNewBookOpen(false); refetch(); }} />
     </div>

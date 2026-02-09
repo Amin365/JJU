@@ -377,12 +377,12 @@ export default function BookDetails() {
                   Refresh list cache
                 </button>
 
-                <button
+                {/* <button
                   onClick={() => navigate("/books")}
                   className="px-3 py-2 rounded-xl bg-slate-100 dark:bg-gray-800 text-sm font-medium hover:bg-slate-200 dark:hover:bg-gray-700 transition-colors"
                 >
                   Back to books list
-                </button>
+                </button> */}
               </div>
             </div>
           </Card>

@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from "react";
+import * as XLSX from "xlsx";
 import {
   Plus,
   Search as SearchIcon,
@@ -108,9 +109,23 @@ export default function MemberTable() {
   }, [searchTerm, filterRegion, filterStatus]);
 
   const filteredMembers = useMemo(() => {
-    if (filterStatus === "All") return members;
-    return members.filter((m) => m.status === filterStatus);
-  }, [members, filterStatus]);
+    const q = searchTerm.trim().toLowerCase();
+    return members.filter((m) => {
+      const matchesSearch =
+        !q ||
+        (m.first_name && m.first_name.toLowerCase().includes(q)) ||
+        (m.middle_name && m.middle_name.toLowerCase().includes(q)) ||
+        (m.last_name && m.last_name.toLowerCase().includes(q)) ||
+        (m.full_name && m.full_name.toLowerCase().includes(q)) ||
+        (m.email && m.email.toLowerCase().includes(q)) ||
+        (m.phone && m.phone.toLowerCase().includes(q)) ||
+        (m.code && m.code.toLowerCase().includes(q));
+
+      const matchesRegion = filterRegion === "All" || !filterRegion || m.region === filterRegion;
+      const matchesStatus = filterStatus === "All" || !filterStatus || m.status === filterStatus;
+      return matchesSearch && matchesRegion && matchesStatus;
+    });
+  }, [members, searchTerm, filterRegion, filterStatus]);
 
   const regions = useMemo(() => ["All", ...Array.from(new Set(members.map((m) => m.region).filter(Boolean)))], [members]);
   const statuses = useMemo(() => ["All", ...Array.from(new Set(members.map((m) => m.status).filter(Boolean)))], [members]);
@@ -122,6 +137,39 @@ export default function MemberTable() {
   const handleAddNew = () => {
     navigate("/dashboard/members/new");
   };
+
+    const handleExportExcel = () => {
+      const rows = filteredMembers.map((m) => ({
+        FullName: m.full_name || `${m.first_name ?? ""} ${m.last_name ?? ""}`.trim(),
+        FirstName: m.first_name ?? "",
+        MiddleName: m.middle_name ?? "",
+        LastName: m.last_name ?? "",
+        Email: m.email ?? "",
+        Phone: m.phone ?? "",
+        Code: m.code ?? "",
+        Region: m.region ?? "",
+        Status: m.status ?? "",
+        JoinDate: formatDate(m.join_date),
+      }));
+
+      const ws = XLSX.utils.json_to_sheet(rows);
+      ws["!cols"] = [
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 16 },
+        { wch: 24 },
+        { wch: 16 },
+        { wch: 14 },
+        { wch: 14 },
+        { wch: 12 },
+        { wch: 14 },
+      ];
+
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "Members");
+      XLSX.writeFile(wb, "members-export.xlsx");
+    };
 
   const handlePageChange = (newPage) => {
     if (!isLoading && !isFetching && newPage >= 1 && newPage <= totalPages) {
@@ -152,6 +200,13 @@ export default function MemberTable() {
           className="dark:bg-orange-600"
            onClick={OpenModelExcel}>
             <FileSpreadsheet size={16} /> <span className="ml-2">Import Excel</span>
+          </Button>
+          <Button
+            variant="default"
+            className="dark:bg-orange-600"
+            onClick={handleExportExcel}
+          >
+            <FileSpreadsheet size={16} /> <span className="ml-2">Export Excel</span>
           </Button>
           <Button onClick={handleAddNew} className="dark:bg-orange-600">
            

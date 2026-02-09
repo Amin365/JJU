@@ -572,11 +572,7 @@ export const bulkCreateMembers = async (req, res, next) => {
 
 
 
-/**
- * @desc    Create join club request
- * @route   POST /api/join-club
- * @access  Public
- */
+
 export const JoinClub = async (req, res, next) => {
   try {
     const { FullName, phone, email } = req.body

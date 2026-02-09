@@ -2,6 +2,7 @@ import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
 import User from "../models/user.js";
 import Notification from "../models/Notification.js";
+import Role from "../models/Role.js";
 import { sendPushToUser } from "../utility/push.js";
 
 /* ===========================
@@ -27,6 +28,12 @@ export async function notifyUsersMissingDailyReport() {
   const today = toUTCDateOnly(new Date());
   const yesterday = getYesterdayUTC(today);
 
+  const membersRole = await Role.findOne({ role: /^(members|member)$/i })
+    .select("_id")
+    .lean();
+
+  if (!membersRole?._id) return;
+
   // Get all member IDs that are linked to users
   const memberIds = await User.distinct("member", {
     member: { $ne: null },
@@ -34,7 +41,7 @@ export async function notifyUsersMissingDailyReport() {
 
   for (const memberId of memberIds) {
     // Get all users under this member
-    const users = await User.find({ member: memberId, role: "Members" })
+    const users = await User.find({ member: memberId, role: membersRole._id })
       .select("_id first_name last_name email role")
       .lean();
 

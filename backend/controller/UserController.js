@@ -3,7 +3,7 @@ import User from "../models/user.js";
 
 import Member from "../models/Members.js";
 import bcrypt from "bcryptjs";
-import { sendMail } from "./EmailController.js";
+import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 
 export const createUserFromMember = async (req, res, next) => {
@@ -380,7 +380,18 @@ export const forgotPassword = async (req, res, next) => {
     await sendMail({
       to: user.email,
       subject: "Password Reset Code",
-      text: `Your password reset code is ${resetCode}`,
+      text: `Your password reset code is ${resetCode}. This code expires in 10 minutes. If you did not request a reset, you can ignore this email.`,
+      html: buildEmailHtml({
+        title: "Password Reset Code",
+        preheader: `Your reset code is ${resetCode}`,
+        greeting: `Hello ${user.first_name || ""} ${user.last_name || ""}`.trim(),
+        bodyLines: [
+          `Use the following code to reset your password: <strong>${resetCode}</strong>.`,
+          "This code expires in 10 minutes for your security.",
+          "If you did not request this password reset, you can safely ignore this email.",
+        ],
+        footerNote: `Stay safe, ${process.env.APP_NAME || "Reading Club"}`,
+      }),
     });
 
     return res.status(200).json({
@@ -489,7 +500,18 @@ export const resendResetCode = async (req, res, next) => {
     await sendMail({
       to: user.email,
       subject: "Password Reset Code",
-      text: `Your new password reset code is ${resetCode}`,
+      text: `Your new password reset code is ${resetCode}. This code expires in 10 minutes. If you did not request a reset, you can ignore this email.`,
+      html: buildEmailHtml({
+        title: "Password Reset Code",
+        preheader: `Your reset code is ${resetCode}`,
+        greeting: `Hello ${user.first_name || ""} ${user.last_name || ""}`.trim(),
+        bodyLines: [
+          `Here is your new reset code: <strong>${resetCode}</strong>.`,
+          "This code expires in 10 minutes for your security.",
+          "If you did not request this password reset, you can safely ignore this email.",
+        ],
+        footerNote: `Stay safe, ${process.env.APP_NAME || "Reading Club"}`,
+      }),
     });
 
     return res.status(200).json({

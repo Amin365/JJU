@@ -6,6 +6,7 @@ import Notification from "../models/Notification.js";
 import Role from "../models/Role.js";
 import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
+import StreakRestore from "../models/StreakRestore.js";
                        
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -357,6 +358,77 @@ export const getDailyReportsScope = async (req, res, next) => {
       .exec();
 
     return res.status(200).json({ data: items });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+const getMonthKey = (date = new Date()) => {
+  const d = new Date(date);
+  const y = d.getUTCFullYear();
+  const m = String(d.getUTCMonth() + 1).padStart(2, "0");
+  return `${y}-${m}`;
+};
+
+// GET /daily-reports/streak-restore
+export const getStreakRestoreStatus = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const month = getMonthKey();
+    const doc = await StreakRestore.findOne({ user: userId, month })
+      .select("count restoredForDate month")
+      .lean()
+      .exec();
+
+    return res.status(200).json({
+      count: doc?.count ?? 0,
+      restoredForDate: doc?.restoredForDate ? doc.restoredForDate.toISOString().slice(0, 10) : null,
+      month,
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// POST /daily-reports/streak-restore
+export const restoreStreak = async (req, res, next) => {
+  try {
+    const userId = req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const { restoredForDate } = req.body || {};
+    if (!restoredForDate) return res.status(400).json({ message: "restoredForDate is required" });
+
+    const rd = toDateOnlyUTC(restoredForDate);
+    if (Number.isNaN(rd.getTime())) {
+      return res.status(400).json({ message: "Invalid restoredForDate" });
+    }
+
+    const month = getMonthKey();
+    const existing = await StreakRestore.findOne({ user: userId, month }).exec();
+    if (existing && existing.count >= 5) {
+      return res.status(400).json({ message: "No restores left this month" });
+    }
+
+    const updated = await StreakRestore.findOneAndUpdate(
+      { user: userId, month },
+      {
+        $inc: { count: 1 },
+        $set: { restoredForDate: rd },
+      },
+      { new: true, upsert: true }
+    )
+      .select("count restoredForDate month")
+      .lean()
+      .exec();
+
+    return res.status(200).json({
+      count: updated?.count ?? 0,
+      restoredForDate: updated?.restoredForDate ? updated.restoredForDate.toISOString().slice(0, 10) : null,
+      month: updated?.month ?? month,
+    });
   } catch (err) {
     return next(err);
   }

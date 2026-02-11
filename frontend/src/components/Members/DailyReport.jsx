@@ -11,10 +11,12 @@ import {
   Star,
   Plus,
   Loader2,
+  RefreshCw,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { toast } from "sonner";
+import { useSelector } from "react-redux";
 
 import { Card, CardContent, CardHeader, CardTitle } from "../ui/card";
 import { Button } from "../ui/button";
@@ -53,9 +55,11 @@ const getReportStatusColor = (status) => {
 
 export default function DailyReadingReport() {
   const qc = useQueryClient();
+  const authUser = useSelector((s) => s.auth.user);
 
   const [selectedBookId, setSelectedBookId] = useState("");
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [isRestoreOpen, setIsRestoreOpen] = useState(false);
 
   // modal fields
   const [readingDate, setReadingDate] = useState("");
@@ -64,6 +68,11 @@ export default function DailyReadingReport() {
   const [timeSpent, setTimeSpent] = useState("");
   const [summary, setSummary] = useState("");
   const [rating, setRating] = useState(0);
+
+  const todayISO = toISODate(new Date());
+
+  const [restoreCount, setRestoreCount] = useState(0);
+  const [restoredForDate, setRestoredForDate] = useState("");
 
   // 48 hours: today + yesterday only
   const today = new Date();
@@ -168,6 +177,60 @@ export default function DailyReadingReport() {
     return dates.length ? streak : 0;
   }, [reports]);
 
+  const lastReportDate = useMemo(() => {
+    if (!reports.length) return "";
+    return toISODate(reports[0].readingDate);
+  }, [reports]);
+
+  const daysSinceLastReport = useMemo(() => {
+    if (!lastReportDate) return Infinity;
+    const diff = Math.round(
+      (new Date(todayISO).getTime() - new Date(lastReportDate).getTime()) / (1000 * 60 * 60 * 24)
+    );
+    return diff;
+  }, [lastReportDate, todayISO]);
+
+  const isStreakBroken = reports.length > 0 && daysSinceLastReport >= 3;
+  const isStreakRestored = Boolean(restoredForDate && restoredForDate === lastReportDate && isStreakBroken);
+  const displayStreak = isStreakBroken ? (isStreakRestored ? readingStreak : 0) : readingStreak;
+  const restoresLeft = Math.max(0, 5 - restoreCount);
+
+  const { data: restoreResp } = useQuery({
+    queryKey: ["daily-reports", "streak-restore"],
+    enabled: Boolean(authUser?._id),
+    queryFn: async () => {
+      const res = await api.get("/daily-reports/streak-restore");
+      return res.data;
+    },
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!restoreResp) return;
+    setRestoreCount(Number(restoreResp.count || 0));
+    setRestoredForDate(restoreResp.restoredForDate || "");
+  }, [restoreResp]);
+
+  const handleRestoreStreak = async () => {
+    if (!isStreakBroken) return;
+    if (restoresLeft <= 0) {
+      toast.error("No restores left this month. Start a new streak.");
+      return;
+    }
+    try {
+      const res = await api.post("/daily-reports/streak-restore", {
+        restoredForDate: lastReportDate,
+      });
+      setRestoreCount(Number(res.data?.count || 0));
+      setRestoredForDate(res.data?.restoredForDate || "");
+      qc.invalidateQueries({ queryKey: ["daily-reports", "streak-restore"] });
+      setIsRestoreOpen(false);
+      toast.success("Your streak has been restored.");
+    } catch (err) {
+      toast.error(err?.response?.data?.message || "Failed to restore streak");
+    }
+  };
+
   // ---- create report ----
   const createReport = useMutation({
     mutationFn: async (payload) => {
@@ -179,6 +242,8 @@ export default function DailyReadingReport() {
       // Refresh notifications immediately so the bell updates without reload
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Reading report submitted successfully!");
+      setRestoredForDate("");
+      qc.invalidateQueries({ queryKey: ["daily-reports", "streak-restore"] });
       setIsCreateOpen(false);
       setReadingDate("");
       setPagesFrom("");
@@ -315,14 +380,37 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-65 w-50">
+          <Card
+            className={
+              isStreakBroken && !isStreakRestored
+                ? "shadow-sm md:w-65 w-50 border border-red-200 bg-red-50"
+                : isStreakRestored
+                ? "shadow-sm md:w-65 w-50 border border-amber-200 bg-amber-50"
+                : "shadow-sm md:w-65 w-50"
+            }
+          >
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
-                <Flame className="w-4 h-4 text-orange-600" />
-                <p className="text-xs text-gray-600">Streak</p>
+                <Flame className={`w-4 h-4 ${isStreakBroken && !isStreakRestored ? "text-red-600" : "text-orange-600"}`} />
+                <p className={`text-xs ${isStreakBroken && !isStreakRestored ? "text-red-700" : "text-gray-600"}`}>
+                  {isStreakBroken && !isStreakRestored ? "Streak Broken" : isStreakRestored ? "Streak Restored" : "Streak"}
+                </p>
               </div>
-              <p className="text-2xl font-semibold dark:text-orange-600">{readingStreak}</p>
-              <p className="text-xs dark:text-white text-gray-500">days</p>
+              <p className={`text-2xl font-semibold ${isStreakBroken && !isStreakRestored ? "text-red-700" : "dark:text-orange-600"}`}>
+                {displayStreak}
+              </p>
+              <div className="flex items-center gap-2">
+                <p className={`text-xs ${isStreakBroken && !isStreakRestored ? "text-red-600" : "text-gray-500"}`}>days</p>
+                {isStreakBroken && !isStreakRestored && (
+                  <button
+                    type="button"
+                    onClick={() => setIsRestoreOpen(true)}
+                    className="text-xs text-red-700 underline underline-offset-2"
+                  >
+                    Restore streak
+                  </button>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -496,6 +584,37 @@ export default function DailyReadingReport() {
                 ) : (
                   "Submit report"
                 )}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+
+        <Dialog open={isRestoreOpen} onOpenChange={setIsRestoreOpen}>
+          <DialogContent className="sm:max-w-lg">
+            <DialogHeader>
+              <DialogTitle className="flex items-center gap-2">
+                <RefreshCw className="w-5 h-5" /> Restore your streak?
+              </DialogTitle>
+            </DialogHeader>
+
+            <div className="space-y-2 text-sm text-gray-600">
+              <p>Your streak broke after 3 consecutive missed days.</p>
+              <p>
+                Restores left this month: <span className="font-semibold">{restoresLeft}</span>
+              </p>
+              {restoresLeft <= 0 && <p className="text-red-600">No restores left. Start a new streak.</p>}
+            </div>
+
+            <DialogFooter className="gap-2">
+              <Button variant="outline" onClick={() => setIsRestoreOpen(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handleRestoreStreak}
+                disabled={restoresLeft <= 0 || !isStreakBroken}
+                className="bg-orange-600 hover:bg-orange-700"
+              >
+                Restore streak
               </Button>
             </DialogFooter>
           </DialogContent>

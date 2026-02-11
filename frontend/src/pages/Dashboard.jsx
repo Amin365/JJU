@@ -47,7 +47,7 @@ export default function DashboardPage() {
               </button>
             </SidebarTrigger>
 
-            <h1 className=" md:text-lg text-base font-semibold">JJU Club Reading</h1>
+            <h1 className=" md:text-lg text-base font-semibold">JJU  Reading Club</h1>
           </div>
 
           {/* rightside controls */}

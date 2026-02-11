@@ -11,9 +11,9 @@ import {
 // import sig from "./sig.png"
 
 export function IDCardBack({
-  companyName = "JJU CLUB READING",
-  companyWebsite = "www.JJUCLUB.com",
-  supportEmail = "support@jjuclub.com",
+  companyName = "JJU READING CLUB",
+  companyWebsite = "www.jjureadingclub.com",
+  supportEmail = "support@jjureadingclub.com",
   supportPhone = "+1 (555) 000-0000",
   companyAddress,
 }) {

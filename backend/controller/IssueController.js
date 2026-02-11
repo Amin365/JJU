@@ -5,7 +5,7 @@ import Member from "../models/Members.js"; // adjust if your actual file is Memb
 import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
-import { sendMemberEmail,sendMail } from "../controller/EmailController.js";
+import { sendMemberEmail, sendMail, buildEmailHtml } from "../controller/EmailController.js";
 import { sendPushToUser } from "../utility/push.js";
 
 export const IssueCreate = async (req, res, next) => {
@@ -146,9 +146,13 @@ export const getIssues = async (req, res, next) => {
 
     // Attach borrowed counts per book
     const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
-    if (bookIds.length > 0) {
+    const validBookObjectIds = bookIds
+      .filter((id) => mongoose.Types.ObjectId.isValid(id))
+      .map((id) => new mongoose.Types.ObjectId(id));
+
+    if (validBookObjectIds.length > 0) {
       const counts = await Issue.aggregate([
-        { $match: { book: { $in: bookIds.map((id) => new mongoose.Types.ObjectId(id)) }, status: "Issued" } },
+        { $match: { book: { $in: validBookObjectIds }, status: "Issued" } },
         { $group: { _id: "$book", count: { $sum: 1 } } },
       ]).exec();
       const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
@@ -265,6 +269,10 @@ export const ReminderEmail = async (req, res) => {
   try {
     const { id } = req.params;
 
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid issue id" });
+    }
+
     const issue = await Issue.findById(id)
       .populate("member")
       .populate("book")
@@ -291,14 +299,20 @@ export const ReminderEmail = async (req, res) => {
     await sendMail({
       to: memberUser.email,
       subject: "📕 Book Return Reminder",
-      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned.`,
-      html: `
-        <p>Dear <strong>${memberName}</strong>,</p>
-        <p>This is a reminder that the book <strong>"${bookTitle}"</strong> has not yet been returned.</p>
-        <p>Please return it as soon as possible.</p>
-        <br/>
-        <p>Best regards,<br/><strong>${process.env.APP_NAME || "Reading Club"}</strong></p>
-      `
+      text: `Dear ${memberName}, your borrowed book "${bookTitle}" is still not returned. Please return it as soon as possible or contact the club if you need more time.`,
+      html: buildEmailHtml({
+        title: "Book Return Reminder",
+        preheader: `Reminder: "${bookTitle}" is due.`,
+        greeting: `Dear ${memberName}`,
+        bodyLines: [
+          `This is a friendly reminder that the book <strong>"${bookTitle}"</strong> has not yet been returned.`,
+          "Please return it as soon as possible. If you need additional time, reply to this email and we will help you.",
+          "Keeping returns on time helps everyone enjoy the collection—thank you for your cooperation.",
+        ],
+        ctaLabel: "View My Books",
+        ctaUrl: process.env.APP_URL || "#",
+        footerNote: `Best regards, ${process.env.APP_NAME || "Reading Club"}`,
+      }),
     });
 
     return res.status(200).json({ message: "Reminder sent via email and push if subscribed" });

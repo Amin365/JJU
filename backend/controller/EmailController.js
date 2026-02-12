@@ -79,9 +79,13 @@ export const buildEmailHtml = ({
  */
 export async function sendMail({ to, subject, text, html }) {
   if (!to) throw new Error("Missing 'to' address");
+  if (!RESEND_API_KEY) throw new Error("Missing RESEND_API_KEY");
 
   const fromName = EMAIL_FROM_NAME || APP_NAME || "No Reply";
   const fromAddress = EMAIL_FROM || "noreply@jjureadingclub.com";
+  if (process.env.NODE_ENV === "production" && !EMAIL_FROM) {
+    throw new Error("EMAIL_FROM is required in production (must be a verified sender)");
+  }
   const from = `"${fromName}" <${fromAddress}>`; // Use verified domain
 
   // Resend requires HTML; fallback to plain text wrapped in <pre>
@@ -92,6 +96,7 @@ export async function sendMail({ to, subject, text, html }) {
     to,
     subject,
     html: finalHtml,
+    text: text || undefined,
   });
 
   if (error) {

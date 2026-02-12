@@ -154,11 +154,27 @@ app.post("/db-alter/sync-seed", async (req, res) => {
   }
 });
 
-if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+// if (process.env.NODE_ENV === 'production') {
+//   app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-  app.get(/.*/, (req, res) => {
-    res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+//   app.get(/.*/, (req, res) => {
+//     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
+//   });
+// }
+
+// ===== Production frontend serving =====
+if (process.env.NODE_ENV === "production") {
+  app.use(express.static(path.join(__dirname, "../frontend/dist")));
+
+  // Only serve React app for NON-API routes
+  app.get("*", (req, res, next) => {
+    if (req.originalUrl.startsWith("/api")) {
+      return next(); // let backend API handle it
+    }
+
+    res.sendFile(
+      path.join(__dirname, "../frontend/dist/index.html")
+    );
   });
 }
 

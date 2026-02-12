@@ -27,7 +27,9 @@ import { fileURLToPath } from "url";
 import Mpesarouter from "./routers/MpesRouter.js"
 import { startDailyReportMissingScheduler } from "./modules/notifyMissingDailyReport.js"
 
-dotenv.config()
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+dotenv.config({ path: path.join(__dirname, ".env") });
 const app = express()
 const PORT = process.env.PORT || 5000
 app.set("trust proxy", 1);
@@ -102,6 +104,16 @@ app.use('/api',BlogRouter)
 app.use('/api/blogposts', CommentRouter)
 app.use('/api',Mpesarouter)
 
+app.get("/api/health/email", (req, res) => {
+  return res.json({
+    nodeEnv: process.env.NODE_ENV || null,
+    resendKey: Boolean(process.env.RESEND_API_KEY),
+    emailFrom: process.env.EMAIL_FROM || null,
+    emailFromName: process.env.EMAIL_FROM_NAME || null,
+    appUrl: process.env.APP_URL || null,
+  });
+});
+
 app.post("/sync-and-migration", async (req, res) => {
   try {
  
@@ -143,7 +155,6 @@ app.post("/db-alter/sync-seed", async (req, res) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
-  const __dirname = path.dirname(fileURLToPath(import.meta.url));
   app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
   app.get(/.*/, (req, res) => {

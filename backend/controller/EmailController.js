@@ -103,6 +103,12 @@ export async function sendMail({ to, subject, text, html }) {
     throw new Error(error.message || "Resend failed to send email");
   }
 
+  console.info("✅ Resend accepted email", {
+    to,
+    subject,
+    messageId: data?.id || data?.messageId,
+  });
+
   return data;
 }
 

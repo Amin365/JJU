@@ -121,13 +121,19 @@ export const getIssues = async (req, res, next) => {
     if (isModerator && !isSuperAdmin) {
       const assigned = await ModeratorMember.find({ moderator: userId }).select('member').lean().exec();
       const memberIds = assigned.map((a) => a.member).filter(Boolean);
-      if (memberIds.length === 0) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
-      filter.member = { $in: memberIds };
+      const validMemberIds = memberIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+      if (validMemberIds.length === 0) {
+        return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      }
+      filter.member = { $in: validMemberIds };
     }
 
     // regular users: show only their member's issues
     if (!isModerator && !isSuperAdmin) {
       if (!currentUser?.member) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      if (!mongoose.Types.ObjectId.isValid(currentUser.member)) {
+        return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      }
       filter.member = currentUser.member;
     }
 

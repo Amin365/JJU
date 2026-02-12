@@ -137,18 +137,54 @@ export const getIssues = async (req, res, next) => {
       filter.member = currentUser.member;
     }
 
-    // Query with pagination
-    const [items, total] = await Promise.all([
-      Issue.find(filter)
-        .populate("book", "title author isbn status book_picture availableCopies")
-        .populate("member", "first_name middle_name last_name full_name email code")
-        .sort("-createdAt")
-        .skip(skip)
-        .limit(perPage)
-        .lean()
-        .exec(),
-      Issue.countDocuments(filter).exec(),
-    ]);
+    // Filter out any corrupted issues with invalid refs
+    const andFilters = [
+      { member: { $type: "objectId" } },
+      { book: { $type: "objectId" } },
+    ];
+
+    if (Object.keys(filter).length > 0) {
+      andFilters.push(filter);
+    }
+
+    const finalFilter = andFilters.length > 0 ? { $and: andFilters } : filter;
+
+    const runQuery = async () => {
+      const [items, total] = await Promise.all([
+        Issue.find(finalFilter)
+          .populate("book", "title author isbn status book_picture availableCopies")
+          .populate("member", "first_name middle_name last_name full_name email code")
+          .sort("-createdAt")
+          .skip(skip)
+          .limit(perPage)
+          .lean()
+          .exec(),
+        Issue.countDocuments(finalFilter).exec(),
+      ]);
+      return { items, total };
+    };
+
+    let items;
+    let total;
+
+    try {
+      ({ items, total } = await runQuery());
+    } catch (err) {
+      const msg = String(err?.message || "");
+      if (msg.includes("input must be a 24 character hex string")) {
+        // Cleanup invalid issues (non-ObjectId refs) then retry once
+        await Issue.deleteMany({
+          $or: [
+            { book: { $not: { $type: "objectId" } } },
+            { member: { $not: { $type: "objectId" } } },
+          ],
+        }).exec();
+
+        ({ items, total } = await runQuery());
+      } else {
+        throw err;
+      }
+    }
 
     // Attach borrowed counts per book
     const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));

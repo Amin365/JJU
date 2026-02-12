@@ -88,127 +88,301 @@ export const IssueCreate = async (req, res, next) => {
   }
 };
 
+// export const getIssues = async (req, res, next) => {
+//   try {
+//     const { page = 1, limit = 20, q, status } = req.query;
+
+//     const pageNum = Math.max(1, parseInt(page, 10) || 1);
+//     const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+//     const skip = (pageNum - 1) * perPage;
+
+//     const filter = {};
+//     if (q) {
+//       const re = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
+//       // search by book title or member name
+//       // we'll match later after populating, but keep simple: allow member code matching and book title by lookup
+//       // for now support member code exact match via filter on member (if q looks like code)
+//       filter.$or = [
+//         { 'member.code': re },
+//       ];
+//     }
+//     if (status) filter.status = status;
+
+//     // Role-based scoping: require auth (router enforces protect)
+//     const userId = req.user?._id;
+//     if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+//     const currentUser = await User.findById(userId).populate('role', 'role plural').lean().exec();
+//     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
+//     const isSuperAdmin = /super\s*admin/i.test(roleName);
+//     const isModerator = /moderator/i.test(roleName);
+
+//     // if moderator, restrict to members assigned to them
+//     if (isModerator && !isSuperAdmin) {
+//       const assigned = await ModeratorMember.find({ moderator: userId }).select('member').lean().exec();
+//       const memberIds = assigned.map((a) => a.member).filter(Boolean);
+//       const validMemberIds = memberIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+//       if (validMemberIds.length === 0) {
+//         return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+//       }
+//       filter.member = { $in: validMemberIds };
+//     }
+
+//     // regular users: show only their member's issues
+//     if (!isModerator && !isSuperAdmin) {
+//       if (!currentUser?.member) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+//       if (!mongoose.Types.ObjectId.isValid(currentUser.member)) {
+//         return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+//       }
+//       filter.member = currentUser.member;
+//     }
+
+//     // Filter out any corrupted issues with invalid refs
+//     const andFilters = [
+//       { member: { $type: "objectId" } },
+//       { book: { $type: "objectId" } },
+//     ];
+
+//     if (Object.keys(filter).length > 0) {
+//       andFilters.push(filter);
+//     }
+
+//     const finalFilter = andFilters.length > 0 ? { $and: andFilters } : filter;
+
+//     const runQuery = async () => {
+//       const [items, total] = await Promise.all([
+//         Issue.find(finalFilter)
+//           .populate("book", "title author isbn status book_picture availableCopies")
+//           .populate("member", "first_name middle_name last_name full_name email code")
+//           .sort("-createdAt")
+//           .skip(skip)
+//           .limit(perPage)
+//           .lean()
+//           .exec(),
+//         Issue.countDocuments(finalFilter).exec(),
+//       ]);
+//       return { items, total };
+//     };
+
+//     let items;
+//     let total;
+
+//     try {
+//       ({ items, total } = await runQuery());
+//     } catch (err) {
+//       const msg = String(err?.message || "");
+//       if (msg.includes("input must be a 24 character hex string")) {
+//         // Cleanup invalid issues (non-ObjectId refs) then retry once
+//         await Issue.deleteMany({
+//           $or: [
+//             { book: { $not: { $type: "objectId" } } },
+//             { member: { $not: { $type: "objectId" } } },
+//           ],
+//         }).exec();
+
+//         ({ items, total } = await runQuery());
+//       } else {
+//         throw err;
+//       }
+//     }
+
+//     // Attach borrowed counts per book
+//     const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
+//     const validBookObjectIds = bookIds
+//       .filter((id) => mongoose.Types.ObjectId.isValid(id))
+//       .map((id) => new mongoose.Types.ObjectId(id));
+
+//     if (validBookObjectIds.length > 0) {
+//       const counts = await Issue.aggregate([
+//         { $match: { book: { $in: validBookObjectIds }, status: "Issued" } },
+//         { $group: { _id: "$book", count: { $sum: 1 } } },
+//       ]).exec();
+//       const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
+//       for (const it of items) {
+//         const bid = String(it.book?._id);
+//         if (it.book) it.book.borrowedCount = map[bid] || 0;
+//       }
+//     }
+
+//     return res.status(200).json({ data: items, total, page: pageNum, totalPages: Math.ceil(total / perPage), limit: perPage });
+//   } catch (err) {
+//     return next(err);
+//   }
+// };
+
 export const getIssues = async (req, res, next) => {
   try {
     const { page = 1, limit = 20, q, status } = req.query;
 
-    const pageNum = Math.max(1, parseInt(page, 10) || 1);
-    const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const perPage = Math.min(500, Math.max(1, parseInt(limit, 10)));
     const skip = (pageNum - 1) * perPage;
 
-    const filter = {};
-    if (q) {
-      const re = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      // search by book title or member name
-      // we'll match later after populating, but keep simple: allow member code matching and book title by lookup
-      // for now support member code exact match via filter on member (if q looks like code)
-      filter.$or = [
-        { 'member.code': re },
-      ];
+    if (!req.user?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
     }
-    if (status) filter.status = status;
 
-    // Role-based scoping: require auth (router enforces protect)
-    const userId = req.user?._id;
-    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    // =========================
+    // USER + ROLE
+    // =========================
+    const currentUser = await User.findById(req.user._id)
+      .populate("role", "role plural")
+      .select("member role")
+      .lean();
 
-    const currentUser = await User.findById(userId).populate('role', 'role plural').lean().exec();
-    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
-    const isSuperAdmin = /super\s*admin/i.test(roleName);
-    const isModerator = /moderator/i.test(roleName);
+    if (!currentUser) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
 
-    // if moderator, restrict to members assigned to them
+    const roleName = (
+      currentUser.role?.role ||
+      currentUser.role?.plural ||
+      ""
+    ).toLowerCase();
+
+    const isSuperAdmin = roleName.includes("super");
+    const isModerator = roleName.includes("moderator");
+
+    // =========================
+    // BASE FILTER (SAFE ONLY)
+    // =========================
+    const filter = {
+      book: { $type: "objectId" },
+      member: { $type: "objectId" },
+    };
+
+    if (status) {
+      filter.status = status;
+    }
+
+    // =========================
+    // ROLE-BASED SCOPING
+    // =========================
     if (isModerator && !isSuperAdmin) {
-      const assigned = await ModeratorMember.find({ moderator: userId }).select('member').lean().exec();
-      const memberIds = assigned.map((a) => a.member).filter(Boolean);
-      const validMemberIds = memberIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
-      if (validMemberIds.length === 0) {
-        return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      const assigned = await ModeratorMember.find({
+        moderator: req.user._id,
+      })
+        .select("member")
+        .lean();
+
+      const memberIds = assigned
+        .map(a => a.member)
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
+
+      if (memberIds.length === 0) {
+        return res.status(200).json({
+          data: [],
+          total: 0,
+          page: pageNum,
+          totalPages: 0,
+          limit: perPage,
+        });
       }
-      filter.member = { $in: validMemberIds };
+
+      filter.member = { $in: memberIds };
     }
 
-    // regular users: show only their member's issues
     if (!isModerator && !isSuperAdmin) {
-      if (!currentUser?.member) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
       if (!mongoose.Types.ObjectId.isValid(currentUser.member)) {
-        return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+        return res.status(200).json({
+          data: [],
+          total: 0,
+          page: pageNum,
+          totalPages: 0,
+          limit: perPage,
+        });
       }
       filter.member = currentUser.member;
     }
 
-    // Filter out any corrupted issues with invalid refs
-    const andFilters = [
-      { member: { $type: "objectId" } },
-      { book: { $type: "objectId" } },
-    ];
+    // =========================
+    // SEARCH (MEMBER CODE ONLY)
+    // =========================
+    if (q) {
+      const re = new RegExp(
+        String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"),
+        "i"
+      );
 
-    if (Object.keys(filter).length > 0) {
-      andFilters.push(filter);
-    }
+      const members = await Member.find({ code: re })
+        .select("_id")
+        .lean();
 
-    const finalFilter = andFilters.length > 0 ? { $and: andFilters } : filter;
+      const memberIds = members
+        .map(m => m._id)
+        .filter(id => mongoose.Types.ObjectId.isValid(id));
 
-    const runQuery = async () => {
-      const [items, total] = await Promise.all([
-        Issue.find(finalFilter)
-          .populate("book", "title author isbn status book_picture availableCopies")
-          .populate("member", "first_name middle_name last_name full_name email code")
-          .sort("-createdAt")
-          .skip(skip)
-          .limit(perPage)
-          .lean()
-          .exec(),
-        Issue.countDocuments(finalFilter).exec(),
-      ]);
-      return { items, total };
-    };
-
-    let items;
-    let total;
-
-    try {
-      ({ items, total } = await runQuery());
-    } catch (err) {
-      const msg = String(err?.message || "");
-      if (msg.includes("input must be a 24 character hex string")) {
-        // Cleanup invalid issues (non-ObjectId refs) then retry once
-        await Issue.deleteMany({
-          $or: [
-            { book: { $not: { $type: "objectId" } } },
-            { member: { $not: { $type: "objectId" } } },
-          ],
-        }).exec();
-
-        ({ items, total } = await runQuery());
+      if (memberIds.length > 0) {
+        filter.member = filter.member
+          ? { $in: memberIds.filter(id =>
+              filter.member.$in
+                ? filter.member.$in.includes(id)
+                : true
+            )}
+          : { $in: memberIds };
       } else {
-        throw err;
+        // No matching members → no issues
+        return res.status(200).json({
+          data: [],
+          total: 0,
+          page: pageNum,
+          totalPages: 0,
+          limit: perPage,
+        });
       }
     }
 
-    // Attach borrowed counts per book
-    const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
-    const validBookObjectIds = bookIds
-      .filter((id) => mongoose.Types.ObjectId.isValid(id))
-      .map((id) => new mongoose.Types.ObjectId(id));
+    // =========================
+    // MAIN QUERY
+    // =========================
+    const [items, total] = await Promise.all([
+      Issue.find(filter)
+        .populate("book", "title author isbn status book_picture availableCopies")
+        .populate("member", "first_name middle_name last_name full_name email code")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(perPage)
+        .lean(),
+      Issue.countDocuments(filter),
+    ]);
 
-    if (validBookObjectIds.length > 0) {
+    // =========================
+    // BORROWED COUNTS (FAST)
+    // =========================
+    const bookIds = items
+      .map(i => i.book?._id)
+      .filter(id => mongoose.Types.ObjectId.isValid(id));
+
+    if (bookIds.length > 0) {
       const counts = await Issue.aggregate([
-        { $match: { book: { $in: validBookObjectIds }, status: "Issued" } },
+        { $match: { book: { $in: bookIds }, status: "Issued" } },
         { $group: { _id: "$book", count: { $sum: 1 } } },
-      ]).exec();
-      const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
-      for (const it of items) {
-        const bid = String(it.book?._id);
-        if (it.book) it.book.borrowedCount = map[bid] || 0;
-      }
+      ]);
+
+      const countMap = {};
+      counts.forEach(c => {
+        countMap[String(c._id)] = c.count;
+      });
+
+      items.forEach(i => {
+        if (i.book) {
+          i.book.borrowedCount = countMap[String(i.book._id)] || 0;
+        }
+      });
     }
 
-    return res.status(200).json({ data: items, total, page: pageNum, totalPages: Math.ceil(total / perPage), limit: perPage });
+    return res.status(200).json({
+      data: items,
+      total,
+      page: pageNum,
+      totalPages: Math.ceil(total / perPage),
+      limit: perPage,
+    });
   } catch (err) {
     return next(err);
   }
 };
+
 
 export const markIssueReturned = async (req, res, next) => {
   try {

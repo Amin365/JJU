@@ -81,7 +81,10 @@ app.use(
 
 
 
-app.use(xss());
+app.use((req, res, next) => {
+  if (req.path.startsWith("/api/blogposts")) return next();
+  return xss()(req, res, next);
+});
 app.use(hpp());
 
 

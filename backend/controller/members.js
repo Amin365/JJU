@@ -38,6 +38,10 @@ export const createMember = async (req, res, next) => {
       return res.status(400).json({ message: "first_name and last_name are required" });
     }
 
+    if (!email) {
+      return res.status(400).json({ message: "email is required to create a user automatically" });
+    }
+
     //  Validate role if provided
     if (role) {
       if (!mongoose.Types.ObjectId.isValid(role)) {
@@ -47,6 +51,12 @@ export const createMember = async (req, res, next) => {
       if (!roleExists) {
         return res.status(400).json({ message: "Role not found" });
       }
+    }
+
+    // Prevent duplicate user email before creating member
+    const existingUserByEmail = await User.findOne({ email }).lean().exec();
+    if (existingUserByEmail) {
+      return res.status(409).json({ message: "Email already exists for another user" });
     }
 
     const member = new Member({
@@ -69,6 +79,39 @@ export const createMember = async (req, res, next) => {
 
     try {
       const saved = await member.save();
+
+      // Create user automatically with default password
+      const baseUsername = String(saved.email || `${saved.first_name}${saved.last_name}`)
+        .toLowerCase()
+        .replace(/\s+/g, "")
+        .replace(/[^a-z0-9._-]/gi, "");
+
+      let username = baseUsername || `user${String(saved._id).slice(-4)}`;
+      const existingUsername = await User.findOne({ username }).lean().exec();
+      if (existingUsername) {
+        username = `${username}-${String(saved._id).slice(-4)}`;
+      }
+
+      try {
+        await User.create({
+          first_name: saved.first_name,
+          middle_name: saved.middle_name || "",
+          last_name: saved.last_name,
+          username,
+          email: saved.email,
+          password: "jju1234",
+          member_id: saved.code || String(saved._id),
+          role: saved.role || null,
+          status: saved.status || "Active",
+          member: saved._id,
+          added_by: req.user?._id || null,
+          updated_by: req.user?._id || null,
+        });
+      } catch (userErr) {
+        // rollback member if user creation fails
+        await Member.findByIdAndDelete(saved._id).exec();
+        return res.status(500).json({ message: "Member created but user creation failed" });
+      }
 
       // optional: return populated role for UI
       const populated = await Member.findById(saved._id).populate("role").lean();

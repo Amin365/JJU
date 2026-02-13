@@ -138,13 +138,15 @@ if(!token){
 
   // Fetch fresh profile to ensure populated role (object with role name)
   const { data: profileData } = useQuery({
-    queryKey: ["sidebar-profile"],
+    queryKey: ["sidebar-profile", token],
     queryFn: async () => {
       const res = await api.get("/auth/me");
       return res.data;
     },
     enabled: !!token,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 0,
+    refetchOnMount: "always",
+    refetchOnWindowFocus: true,
   });
 
   const roleName = React.useMemo(() => {

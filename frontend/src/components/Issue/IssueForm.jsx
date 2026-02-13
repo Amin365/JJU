@@ -22,6 +22,14 @@ const fetchBooks = async () => {
   return resp.data?.data ?? resp.data ?? [];
 };
 
+const toISODate = (d) => new Date(d).toISOString().slice(0, 10);
+const addDays = (dateStr, days) => {
+  if (!dateStr) return "";
+  const d = new Date(dateStr);
+  d.setDate(d.getDate() + days);
+  return toISODate(d);
+};
+
 const IssueCreateForm = () => {
   const navigate = useNavigate();
   const qc = useQueryClient();
@@ -64,6 +72,8 @@ const IssueCreateForm = () => {
   });
 
   const selectedBook = watch("book");
+  const issueDateValue = watch("issueDate");
+  const maxReturnDate = addDays(issueDateValue, 7);
 
   const createIssue = useMutation({
     mutationFn: async (payload) => {
@@ -88,6 +98,22 @@ const IssueCreateForm = () => {
     if (!memberId) {
       toast.error("Member not selected");
       return;
+    }
+
+    if (data.issueDate && data.returnDate) {
+      const issueDt = new Date(data.issueDate);
+      const returnDt = new Date(data.returnDate);
+      const diffDays = Math.round((returnDt.getTime() - issueDt.getTime()) / (1000 * 60 * 60 * 24));
+
+      if (Number.isNaN(diffDays) || diffDays < 0) {
+        toast.error("Return date must be after issue date");
+        return;
+      }
+
+      if (diffDays > 7) {
+        toast.error("Return date must be within 7 days of the issue date");
+        return;
+      }
     }
 
     const payload = {
@@ -219,7 +245,25 @@ const IssueCreateForm = () => {
                   <label className="text-sm font-semibold text-slate-600 dark:text-slate-200 flex items-center gap-2">
                     <CalendarDays size={16} /> Return Date <span className="text-red-500">*</span>
                   </label>
-                  <Input type="date" {...register("returnDate", { required: "Return date is required" })} />
+                  <Input
+                    type="date"
+                    min={issueDateValue || undefined}
+                    max={maxReturnDate || undefined}
+                    {...register("returnDate", {
+                      required: "Return date is required",
+                      validate: (value) => {
+                        if (!issueDateValue || !value) return true;
+                        const issueDt = new Date(issueDateValue);
+                        const returnDt = new Date(value);
+                        const diffDays = Math.round(
+                          (returnDt.getTime() - issueDt.getTime()) / (1000 * 60 * 60 * 24)
+                        );
+                        if (Number.isNaN(diffDays) || diffDays < 0) return "Return date must be after issue date";
+                        if (diffDays > 7) return "Return date must be within 7 days of issue date";
+                        return true;
+                      },
+                    })}
+                  />
                   {errors.returnDate && <p className="text-xs text-red-500">{errors.returnDate.message}</p>}
                 </div>
               </div>

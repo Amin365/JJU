@@ -160,10 +160,10 @@ const BlogEdit = () => {
       return;
     }
 
-    const maxSize = 2 * 1024 * 1024; // 2MB
+    const maxSize = 5 * 1024 * 1024; // 5MB
     if (file.size > maxSize) {
       toast.error(
-        `Image size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the 2MB limit.`
+        `Image size (${(file.size / 1024 / 1024).toFixed(2)}MB) exceeds the 5MB limit.`
       );
       e.target.value = "";
       setSelectedImage(null);

@@ -179,7 +179,7 @@ const UsersTable = () => {
                       <div className="w-10 h-10 rounded flex items-center justify-center font-medium text-white shadow-sm bg-gradient-to-br from-orange-500 to-indigo-600">
   {u.member?.Profile_picture ? (
     <img
-      src={u.member.Profile_picture}
+      src={u.member.Profile_picture||u.profile_picture}
       alt={fullName}
       className="w-full h-full object-cover rounded"
     />

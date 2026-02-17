@@ -11,7 +11,7 @@ const menuItems = [
     { name: 'Home', href: '/' },
     { name: 'Dashboard', href: '/dashboard' },
     { name: 'Blogs', href: '/blogs' },
-    { name: 'About', href: '#link' },
+    { name: 'Leaderboard', href: '/leaderboard' },
 ]
 
 const HeroHeader = () => {

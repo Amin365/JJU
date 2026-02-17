@@ -433,3 +433,29 @@ export const restoreStreak = async (req, res, next) => {
     return next(err);
   }
 };
+
+// GET /daily-reports/public?from=&to=&limit=
+export const getDailyReportsPublic = async (req, res, next) => {
+  try {
+    const { from, to, limit = 5000 } = req.query;
+
+    const filter = {};
+    if (from || to) {
+      filter.readingDate = {};
+      if (from) filter.readingDate.$gte = new Date(from);
+      if (to) filter.readingDate.$lte = new Date(to);
+    }
+
+    const items = await DailyReport.find(filter)
+      .populate("createdBy", "username first_name last_name")
+      .select("createdBy readingDate")
+      .sort("-readingDate")
+      .limit(Math.min(Number(limit) || 5000, 5000))
+      .lean()
+      .exec();
+
+    return res.status(200).json({ data: items });
+  } catch (err) {
+    return next(err);
+  }
+};

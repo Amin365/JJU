@@ -18,6 +18,7 @@ const BookTable = lazy(() => import("./components/Books/BookTable"));
 const BookDetails = lazy(() => import("./components/Books/BookDetails"));
 const MembersForm = lazy(() => import("./components/Members/MemberForm"));
 const MemberTable = lazy(() => import("./components/Members/MembersTable"));
+const Leaderboard = lazy(() => import("./components/Members/Leaderboard"));
 const MemberDetails = lazy(() => import("./components/Members/MemberDetails"));
 const SectionCards = lazy(() =>
   import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
@@ -55,6 +56,9 @@ function App() {
         {/* auth */}
         <Route path="/login" element={<LoginPage />} />
         <Route path="/file" element={<File />} />
+          <Route path="/leaderboard" element={<Leaderboard />} />
+       
+
        
         <Route path="/" element={<Homepage />} />
           <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
@@ -81,6 +85,7 @@ function App() {
               </Suspense>
             }
           />
+           <Route path="Leaderboard" element={<Leaderboard />} />
        
           <Route path="books" element=
           {<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}>

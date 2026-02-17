@@ -249,12 +249,11 @@ export const updateMember = async (req, res, next) => {
     if (!mongoose.Types.ObjectId.isValid(id)) {
       return res.status(400).json({ message: "Invalid member id" });
     }
-    
+
+    const update = { ...req.body };
     if (req.file) {
       update.Profile_picture = req.file.path;
     }
-
-    const update = { ...req.body };
     if (update._id) delete update._id;
 
     //  Validate role if client sends it

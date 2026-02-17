@@ -19,7 +19,8 @@ import {
   User,
   ActivityIcon,
   StickyNote,
-  UserPlus2
+  UserPlus2,
+  ListOrdered
 
   
 } from "lucide-react"
@@ -124,6 +125,12 @@ const data = {
       icon: UserPlus2,
    
     },
+    {
+      title: "Leaderboard ",
+      url: "/dashboard/leaderboard",
+      icon: ListOrdered,
+   
+    },
   
   ],
 
@@ -159,12 +166,12 @@ if(!token){
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
       // Members: only Request Books and Reading Reports
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report","/dashboard/report-recap"]);
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report","/dashboard/report-recap", "/dashboard/leaderboard"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {
       // Moderators: only Reading Reports and Daily Activity
-      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues"]);
+      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/leaderboard"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

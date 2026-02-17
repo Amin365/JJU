@@ -4,6 +4,8 @@ import { Flame, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
 import HeroHeader from '../Homepage/HeroSections';
+import Footers from '../Homepage/Footer';
+import Loader from "../Loader";
 
 const getUserName = (user) => {
   if (!user) return "User";
@@ -64,7 +66,7 @@ export default function Leaderboard() {
   const rest = leaderboard.slice(3);
 
   if (isLoading) {
-    return <div className="min-h-screen flex items-center justify-center text-white bg-black">Loading…</div>;
+    return <Loader size="lg" colorClass="text-white" />;
   }
 
   return (
@@ -191,7 +193,12 @@ export default function Leaderboard() {
       No learners found.
     </div>
   )}
+
+
 </section>
+  <div className="mt-32">
+    <Footers  clubLogoSrc="/jjuclub.jpg"  />
+  </div>
 
     </main>
   );

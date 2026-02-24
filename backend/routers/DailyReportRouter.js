@@ -23,6 +23,6 @@ DailyReport.post("/daily-reports/streak-restore", protect, restoreStreak);
 
 DailyReport.post("/daily-reports", protect, createDailyReport);
 
-DailyReport.get("/daily-reports/:id", protect, getDailyReportById);
+DailyReport.get("/daily-reports/:id([0-9a-fA-F]{24})", protect, getDailyReportById);
 
 export default DailyReport;

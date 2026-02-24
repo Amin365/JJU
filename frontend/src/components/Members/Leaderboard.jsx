@@ -3,6 +3,7 @@ import api from '@/app/api/apislice';
 import { Flame, Trophy } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { useMemo } from 'react';
+import { useLocation } from 'react-router';
 import HeroHeader from '../Homepage/HeroSections';
 import Footers from '../Homepage/Footer';
 import Loader from "../Loader";
@@ -36,6 +37,8 @@ function calcLongestStreak(dates) {
 }
 
 export default function Leaderboard() {
+  const location = useLocation();
+  const hideHero = location.pathname === '/dashboard/leaderboard';
   const { data: reports = [], isLoading } = useQuery({
     queryKey: ['dailyReports', 'public'],
     queryFn: async () => {
@@ -69,12 +72,15 @@ export default function Leaderboard() {
     return <Loader size="lg" colorClass="text-white" />;
   }
 
+
+
   return (
     <main className="min-h-screen   py-10 px-2 md:px-6">
-    <div className="mb-32">
+    {!hideHero && (
+      <div className="mb-32">
         <HeroHeader />
-
-    </div>
+      </div>
+    )}
 
       {/* Header */}
       <div className="text-center mt-20 mb-10 md:mb-16">

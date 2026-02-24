@@ -28,8 +28,8 @@ export const listNotifications = async (req, res, next) => {
     let notifFilter = {};
 
     if (isSuperAdmin) {
-      // Super admin: see all notifications
-      notifFilter = {};
+      // Super admin: see all notifications except member missed-report reminders
+      notifFilter = { "meta.kind": { $ne: "missed-daily-report" } };
     } else if (isModerator) {
       // Moderator: notifications targeted at them OR about assigned members
       const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member").exec();

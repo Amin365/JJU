@@ -39,11 +39,17 @@ export function SectionCards() {
     select: (response) => response.data?.data ?? [],
   });
 
-  const { data: books = [] } = useQuery({
+  const { data: booksData = { items: [], total: 0 } } = useQuery({
     queryKey: ["books"],
-    queryFn: () => api.get("/books"),
-    select: (response) => response.data?.data ?? [],
+    queryFn: () => api.get("/books?limit=10000"),
+    select: (response) => ({
+      items: response.data?.data ?? [],
+      total: response.data?.total ?? 0,
+    }),
   });
+
+  const books = booksData.items;
+  const booksTotal = booksData.total;
 
   const { data: issues = [] } = useQuery({
     queryKey: ["issues"],
@@ -73,7 +79,7 @@ export function SectionCards() {
 
     return {
       members: { total: members.length, pct: membersPct, current: membersCurrent, prev: membersPrev },
-      books: { total: books.length, pct: booksPct, current: booksCurrent, prev: booksPrev },
+      books: { total: booksTotal || books.length, pct: booksPct, current: booksCurrent, prev: booksPrev },
       issues: { total: issues.length, pct: issuesPct, current: issuesCurrent, prev: issuesPrev },
       growthRate,
     };

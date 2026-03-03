@@ -255,6 +255,9 @@ export const getDailyReportsByMember = async (req, res, next) => {
 export const getDailyReportById = async (req, res, next) => {
   try {
     const { id } = req.params;
+    if (id === "public") {
+      return getDailyReportsPublic(req, res, next);
+    }
     if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid report id" });
 
     const report = await DailyReport.findById(id)

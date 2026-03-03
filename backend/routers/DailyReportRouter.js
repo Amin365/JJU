@@ -25,7 +25,7 @@ DailyReport.post("/daily-reports/streak-restore", protect, restoreStreak);
 DailyReport.post("/daily-reports", protect, createDailyReport);
 
 DailyReport.get(
-	"/daily-reports/:id",
+	"/daily-reports/:id([0-9a-fA-F]{24})",
 	protect,
 	(req, res, next) => {
 		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return next("route");

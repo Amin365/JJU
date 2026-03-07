@@ -158,7 +158,7 @@ export const getTopReaders = async (req, res, next) => {
       {
         $group: {
           _id: "$createdBy",
-          totalPages: { $sum: { $subtract: ["$pagesTo", "$pagesFrom"] } },
+          totalPages: { $sum: { $add: [{ $subtract: ["$pagesTo", "$pagesFrom"] }, 1] } },
           totalMinutes: { $sum: "$timeSpent" },
           reportCount: { $sum: 1 },
         },

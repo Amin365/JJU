@@ -34,6 +34,8 @@ const countInRange = (items, fromMs, toMsExclusive) =>
     return t >= fromMs && t < toMsExclusive;
   }).length;
 
+const MAX_WIDGET_ITEMS = 7;
+
 export function SectionCards() {
   const { data: members = [] } = useQuery({
     queryKey: ["members"],
@@ -359,7 +361,7 @@ function TopReadersWidget() {
           </p>
         )}
         {!isLoading &&
-          readers.slice(0, 7).map((reader, idx) => (
+          readers.slice(0, MAX_WIDGET_ITEMS).map((reader, idx) => (
             <div
               key={String(reader._id)}
               className="flex items-center gap-3 rounded-md border px-3 py-2"
@@ -382,7 +384,7 @@ function TopReadersWidget() {
                 <p className="truncate text-sm font-medium">{reader.name || "Unknown"}</p>
                 <p className="text-xs text-muted-foreground">
                   {reader.reportCount} report{reader.reportCount !== 1 ? "s" : ""}
-                  {reader.totalMinutes > 0 && ` • ${Math.round(reader.totalMinutes / 60)}h`}
+                  {reader.totalMinutes > 0 && ` • ${Math.floor(reader.totalMinutes / 60)}h`}
                 </p>
               </div>
               <Badge variant="secondary" className="shrink-0 tabular-nums">
@@ -451,7 +453,7 @@ function PopularBooksWidget() {
           </p>
         )}
         {!isLoading &&
-          books.slice(0, 7).map((book, idx) => (
+          books.slice(0, MAX_WIDGET_ITEMS).map((book, idx) => (
             <div
               key={String(book._id)}
               className="flex items-center gap-3 rounded-md border px-3 py-2"

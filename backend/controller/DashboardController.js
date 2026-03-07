@@ -192,7 +192,7 @@ export const getTopReaders = async (req, res) => {
           _id: "$createdBy",
           reportCount: { $sum: 1 },
           lastReport: { $max: "$createdAt" },
-          totalPages: { $sum: { $subtract: ["$pagesTo", "$pagesFrom"] } },
+          totalPages: { $sum: { $abs: { $subtract: ["$pagesTo", "$pagesFrom"] } } },
         },
       },
       { $sort: { reportCount: -1 } },

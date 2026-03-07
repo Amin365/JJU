@@ -1,4 +1,5 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/auth.js";
 import {
   getDashboardStats,
@@ -10,10 +11,20 @@ import {
 
 const DashboardRouter = express.Router();
 
-DashboardRouter.get("/dashboard/stats", protect, getDashboardStats);
-DashboardRouter.get("/dashboard/activity", protect, getRecentActivity);
-DashboardRouter.get("/dashboard/top-readers", protect, getTopReaders);
-DashboardRouter.get("/dashboard/popular-books", protect, getPopularBooks);
-DashboardRouter.get("/dashboard/pending-approvals", protect, getPendingApprovals);
+// Protect expensive aggregation endpoints from abuse (100 req / 15 min per IP)
+const dashboardLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  standardHeaders: true,
+  legacyHeaders: false,
+  handler: (req, res) =>
+    res.status(429).json({ message: "Too many requests. Please slow down." }),
+});
+
+DashboardRouter.get("/dashboard/stats", dashboardLimiter, protect, getDashboardStats);
+DashboardRouter.get("/dashboard/activity", dashboardLimiter, protect, getRecentActivity);
+DashboardRouter.get("/dashboard/top-readers", dashboardLimiter, protect, getTopReaders);
+DashboardRouter.get("/dashboard/popular-books", dashboardLimiter, protect, getPopularBooks);
+DashboardRouter.get("/dashboard/pending-approvals", dashboardLimiter, protect, getPendingApprovals);
 
 export default DashboardRouter;

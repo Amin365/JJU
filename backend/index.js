@@ -26,6 +26,7 @@ import path from 'path'
 import { fileURLToPath } from "url";  
 import Mpesarouter from "./routers/MpesRouter.js"
 import { startDailyReportMissingScheduler } from "./modules/notifyMissingDailyReport.js"
+import DashboardRouter from "./routers/DashboardRouter.js"
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -106,6 +107,7 @@ app.use('/api',UserRouter)
 app.use('/api',BlogRouter)
 app.use('/api/blogposts', CommentRouter)
 app.use('/api',Mpesarouter)
+app.use('/api', DashboardRouter)
 
 app.get("/api/health/email", (req, res) => {
   return res.json({

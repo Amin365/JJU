@@ -50,7 +50,8 @@ const CreateReservationModal = ({ onClose, onSuccess }) => {
 
   const outOfStockBooks = useMemo(() => {
     const all = Array.isArray(booksData) ? booksData : [];
-    return all.filter((b) => (b.availableCopies || 0) === 0 && b.status === "borrowed");
+    // Only allow reservations for books that are currently borrowed (not lost/damaged/archived)
+    return all.filter((b) => (b.availableCopies || 0) === 0 && !["lost", "damaged", "archived"].includes(b.status));
   }, [booksData]);
 
   const lookupMember = async () => {

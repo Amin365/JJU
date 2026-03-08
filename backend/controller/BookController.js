@@ -466,12 +466,13 @@ export const updateBookCondition = async (req, res, next) => {
     if (["lost", "damaged", "archived"].includes(status)) {
       // Reset available copies to 0 when book is out of circulation
       book.availableCopies = 0;
-    } else if (status === "available" && book.status !== "available") {
-      // Restore one copy when marking back as available
-      book.availableCopies = Math.min(
-        (book.availableCopies || 0) + 1,
-        book.totalCopies || 1
-      );
+    } else if (status === "available" && ["lost", "damaged", "archived"].includes(book.status)) {
+      // Restore available copies: set to totalCopies minus currently issued copies
+      const issuedCount = await (await import("../models/Issue.js")).default.countDocuments({
+        book: book._id,
+        status: "Issued",
+      });
+      book.availableCopies = Math.max(0, (book.totalCopies || 1) - issuedCount);
     }
 
     book.status = status;

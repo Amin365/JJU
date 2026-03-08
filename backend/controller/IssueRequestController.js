@@ -343,10 +343,10 @@ export const convertToIssue = async (req, res, next) => {
       return res.status(400).json({ message: `Return date must be within ${MAX_BORROW_DAYS} days` });
     }
 
-    // Check borrowing rules for the member
-    const { allowed, reason } = await checkBorrowingRules(request.member._id, { adminOverride: true });
+    // Check borrowing rules (overdue check still applies even for approved requests)
+    const { allowed, reason } = await checkBorrowingRules(request.member._id);
     if (!allowed) {
-      return res.status(409).json({ message: reason });
+      return res.status(409).json({ message: `Cannot issue: ${reason}` });
     }
 
     // Atomically decrement available copies

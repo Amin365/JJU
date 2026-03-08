@@ -37,6 +37,13 @@ export const createReservation = async (req, res, next) => {
       });
     }
 
+    // Don't allow reservations for books permanently out of circulation
+    if (["lost", "damaged", "archived"].includes(bookDoc.status)) {
+      return res.status(409).json({
+        message: `Cannot reserve a book with status: ${bookDoc.status}.`,
+      });
+    }
+
     // Check if member already has an active reservation for this book
     const existing = await Reservation.findOne({
       book: bookDoc._id,

@@ -2,7 +2,8 @@
 import express from 'express'
 import { createBook,getBooks,getBookById,bulkCreateBooks, updateBook, deleteBook, updateBookCondition, getBookHistory } from '../controller/BookController.js';
 import { protect } from '../middleware/auth.js';
- import { requireRole } from '../middleware/role.js';
+import { requireRole } from '../middleware/role.js';
+import { apiLimiter } from '../utility/rateLimiter.js';
 
 const BookRouter= express.Router();
 
@@ -29,8 +30,8 @@ BookRouter.put('/books/:id', protect, upload.single('image'), updateBook);
 BookRouter.delete('/books/:id',deleteBook)
 
 BookRouter.post("/books/bulk", protect, bulkCreateBooks);
-BookRouter.patch("/books/:id/condition", protect, updateBookCondition);
-BookRouter.get("/books/:id/history", protect, getBookHistory);
+BookRouter.patch("/books/:id/condition", apiLimiter, protect, updateBookCondition);
+BookRouter.get("/books/:id/history", apiLimiter, protect, getBookHistory);
 
 
 export default BookRouter;

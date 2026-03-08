@@ -387,7 +387,7 @@ export default function BookDetails() {
 
             <div className="mb-2 flex flex-col items-stretch gap-2">
               {/* Reserve button when borrowed/out of stock */}
-              {book.status === "borrowed" && (book.availableCopies || 0) === 0 && (
+              {(book.availableCopies || 0) === 0 && !["lost", "damaged", "archived"].includes(book.status) && (
                 <button
                   onClick={() => setShowReserveModal(true)}
                   className="flex items-center justify-center gap-2 px-4 py-2 rounded-xl bg-indigo-600 hover:bg-indigo-700 text-white text-xs md:text-sm font-medium transition-colors"

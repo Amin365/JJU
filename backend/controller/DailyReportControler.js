@@ -7,6 +7,7 @@ import Role from "../models/Role.js";
 import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import StreakRestore from "../models/StreakRestore.js";
+import { checkAndUnlockAchievements } from "./AchievementController.js";
                        
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -151,6 +152,8 @@ if (!last) {
     } catch (e) {
       // swallow notification errors so report creation still succeeds
     }
+
+    checkAndUnlockAchievements(req.user._id).catch((err) => console.error("Achievement check failed:", err));
 
     return res.status(201).json({ data: populated });
   } catch (err) {
@@ -458,6 +461,103 @@ export const getDailyReportsPublic = async (req, res, next) => {
       .exec();
 
     return res.status(200).json({ data: items });
+  } catch (err) {
+    return next(err);
+  }
+};
+// GET /daily-reports/leaderboard
+export const getLeaderboardEnhanced = async (req, res, next) => {
+  try {
+    const { period = "all-time", department, study_year, sortBy = "reports" } = req.query;
+
+    let dateFilter = {};
+    if (period === "weekly") {
+      const since = new Date();
+      since.setDate(since.getDate() - 7);
+      dateFilter = { $gte: since };
+    } else if (period === "monthly") {
+      const since = new Date();
+      since.setDate(since.getDate() - 30);
+      dateFilter = { $gte: since };
+    }
+
+    const matchStage = { status: "Approved" };
+    if (dateFilter.$gte) matchStage.readingDate = dateFilter;
+
+    // Aggregate reports by user
+    const agg = await DailyReport.aggregate([
+      { $match: matchStage },
+      {
+        $group: {
+          _id: "$createdBy",
+          reportsCount: { $sum: 1 },
+          pagesRead: { $sum: { $max: [0, { $subtract: ["$pagesTo", "$pagesFrom"] }] } },
+          minutesRead: { $sum: "$timeSpent" },
+          readingDates: { $addToSet: "$readingDate" },
+        },
+      },
+    ]);
+
+    if (!agg.length) return res.status(200).json({ data: [] });
+
+    const userIds = agg.map((a) => a._id);
+
+    // Fetch user data with member info
+    const users = await User.find({ _id: { $in: userIds } })
+      .select("first_name last_name username profile_picture member")
+      .populate({
+        path: "member",
+        select: "department study_year Profile_picture",
+      })
+      .lean();
+
+    const userMap = new Map(users.map((u) => [String(u._id), u]));
+
+    // Build leaderboard entries
+    let entries = agg.map((a) => {
+      const user = userMap.get(String(a._id));
+      if (!user) return null;
+
+      const memberData = user.member || {};
+      if (department && memberData.department !== department) return null;
+      if (study_year && String(memberData.study_year) !== String(study_year)) return null;
+
+      // Compute streak from readingDates
+      const dates = (a.readingDates || []).map((d) => new Date(d).toISOString().slice(0, 10));
+      const sorted = [...new Set(dates)].sort();
+      let streak = sorted.length ? 1 : 0;
+      let cur = 1;
+      for (let i = 1; i < sorted.length; i++) {
+        const prev = new Date(sorted[i - 1]);
+        const curr = new Date(sorted[i]);
+        const diff = (curr - prev) / (1000 * 60 * 60 * 24);
+        cur = diff === 1 ? cur + 1 : 1;
+        if (cur > streak) streak = cur;
+      }
+
+      return {
+        user: {
+          _id: user._id,
+          first_name: user.first_name,
+          last_name: user.last_name,
+          username: user.username,
+          profile_picture: memberData.Profile_picture || user.profile_picture || "",
+          department: memberData.department || null,
+          study_year: memberData.study_year || null,
+        },
+        reportsCount: a.reportsCount,
+        pagesRead: a.pagesRead,
+        minutesRead: a.minutesRead,
+        streak,
+      };
+    }).filter(Boolean);
+
+    const sortMap = { streak: "streak", pages: "pagesRead", minutes: "minutesRead", reports: "reportsCount" };
+    const sortField = sortMap[sortBy] || "reportsCount";
+    entries.sort((a, b) => b[sortField] - a[sortField]);
+    entries = entries.slice(0, 100);
+
+    return res.status(200).json({ data: entries });
   } catch (err) {
     return next(err);
   }

@@ -29,6 +29,9 @@ import { fileURLToPath } from "url";
 import Mpesarouter from "./routers/MpesRouter.js"
 import { startDailyReportMissingScheduler } from "./modules/notifyMissingDailyReport.js"
 import DashboardRouter from "./routers/DashboardRouter.js"
+import ChallengeRouter from './routers/ChallengeRouter.js';
+import AchievementRouter from './routers/AchievementRouter.js';
+import ReadingGoalRouter from './routers/ReadingGoalRouter.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -111,6 +114,9 @@ app.use('/api',BlogRouter)
 app.use('/api/blogposts', CommentRouter)
 app.use('/api',Mpesarouter)
 app.use('/api',DashboardRouter)
+app.use('/api', ChallengeRouter);
+app.use('/api', AchievementRouter);
+app.use('/api', ReadingGoalRouter);
 
 app.get("/api/health/email", (req, res) => {
   return res.json({

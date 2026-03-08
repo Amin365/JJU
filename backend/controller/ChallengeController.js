@@ -2,20 +2,8 @@ import User from "../models/user.js";
 import DailyReport from "../models/DailyReport.js";
 import ReadingChallenge from "../models/ReadingChallenge.js";
 import ChallengeParticipation from "../models/ChallengeParticipation.js";
+import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
 
-function calcStreak(dates) {
-  if (!dates.length) return 0;
-  const sorted = [...new Set(dates.map((d) => new Date(d).toISOString().slice(0, 10)))].sort();
-  let max = 1, cur = 1;
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1]);
-    const curr = new Date(sorted[i]);
-    const diff = (curr - prev) / (1000 * 60 * 60 * 24);
-    cur = diff === 1 ? cur + 1 : 1;
-    if (cur > max) max = cur;
-  }
-  return max;
-}
 
 async function computeProgress(userId, challenge) {
   const reports = await DailyReport.find({
@@ -24,10 +12,10 @@ async function computeProgress(userId, challenge) {
     status: "Approved",
   }).lean();
 
-  const pagesRead = reports.reduce((sum, r) => sum + Math.max(0, (r.pagesTo || 0) - (r.pagesFrom || 0)), 0);
+  const pagesRead = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
   const minutesRead = reports.reduce((sum, r) => sum + (r.timeSpent || 0), 0);
   const reportsCount = reports.length;
-  const streak = calcStreak(reports.map((r) => r.readingDate));
+  const streak = calcLongestStreak(reports.map((r) => r.readingDate));
 
   return { pagesRead, minutesRead, reportsCount, streak };
 }

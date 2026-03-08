@@ -1,22 +1,23 @@
 import DailyReport from "../models/DailyReport.js";
 import ReadingGoal from "../models/ReadingGoal.js";
+import { calcPagesRead } from "../utility/streakUtils.js";
 
 async function computeGoalProgress(goal) {
   const now = new Date();
   const { goalType, targetValue } = goal;
 
   if (goalType === "pages_per_day" || goalType === "minutes_per_day") {
-    const sevenDaysAgo = new Date(now);
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const lookbackDate = new Date(now);
+    lookbackDate.setDate(lookbackDate.getDate() - 7);
 
     const reports = await DailyReport.find({
       createdBy: goal.user,
-      readingDate: { $gte: sevenDaysAgo, $lte: now },
+      readingDate: { $gte: lookbackDate, $lte: now },
     }).lean();
 
     let total = 0;
     if (goalType === "pages_per_day") {
-      total = reports.reduce((sum, r) => sum + Math.max(0, (r.pagesTo || 0) - (r.pagesFrom || 0)), 0);
+      total = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
     } else {
       total = reports.reduce((sum, r) => sum + (r.timeSpent || 0), 0);
     }

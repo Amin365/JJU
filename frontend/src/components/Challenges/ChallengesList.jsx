@@ -51,6 +51,7 @@ function ChallengeCardSkeleton() {
 
 export default function ChallengesList() {
   const [activeTab, setActiveTab] = useState('All');
+  const [joiningId, setJoiningId] = useState(null);
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
   const queryClient = useQueryClient();
@@ -65,7 +66,11 @@ export default function ChallengesList() {
 
   const joinMutation = useMutation({
     mutationFn: (id) => api.post(`/challenges/${id}/join`),
-    onSuccess: () => queryClient.invalidateQueries(['challenges']),
+    onSuccess: () => {
+      queryClient.invalidateQueries(['challenges']);
+      setJoiningId(null);
+    },
+    onError: () => setJoiningId(null),
   });
 
   const filtered = activeTab === 'All'
@@ -153,13 +158,14 @@ export default function ChallengesList() {
                         <Button
                           size="sm"
                           className="flex-1"
-                          disabled={joinMutation.isPending}
+                          disabled={joiningId === challenge._id}
                           onClick={(e) => {
                             e.stopPropagation();
+                            setJoiningId(challenge._id);
                             joinMutation.mutate(challenge._id);
                           }}
                         >
-                          {joinMutation.isPending && joinMutation.variables === challenge._id ? (
+                          {joiningId === challenge._id ? (
                             <Loader2 className="h-3.5 w-3.5 animate-spin mr-1" />
                           ) : null}
                           Join

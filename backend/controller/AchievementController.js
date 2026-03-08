@@ -1,5 +1,6 @@
 import DailyReport from "../models/DailyReport.js";
 import UserAchievement from "../models/UserAchievement.js";
+import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
 
 export const ACHIEVEMENTS = [
   { code: "first_report", title: "First Steps", description: "Submit your first reading report", icon: "📖", unlockRules: { type: "first_report", threshold: 1 } },
@@ -9,20 +10,6 @@ export const ACHIEVEMENTS = [
   { code: "reports_50", title: "Bookworm", description: "Submit 50 reading reports", icon: "🦋", unlockRules: { type: "reports_count", threshold: 50 } },
   { code: "pages_1000", title: "Page Turner", description: "Read 1000 pages total", icon: "📜", unlockRules: { type: "pages_count", threshold: 1000 } },
 ];
-
-function calcLongestStreak(dates) {
-  if (!dates.length) return 0;
-  const sorted = [...new Set(dates.map((d) => new Date(d).toISOString().slice(0, 10)))].sort();
-  let max = 1, cur = 1;
-  for (let i = 1; i < sorted.length; i++) {
-    const prev = new Date(sorted[i - 1]);
-    const curr = new Date(sorted[i]);
-    const diff = (curr - prev) / (1000 * 60 * 60 * 24);
-    cur = diff === 1 ? cur + 1 : 1;
-    if (cur > max) max = cur;
-  }
-  return max;
-}
 
 // GET /achievements
 export const getAchievements = (req, res) => {
@@ -51,7 +38,7 @@ export const getMyAchievements = async (req, res, next) => {
 export const checkAndUnlockAchievements = async (userId) => {
   const reports = await DailyReport.find({ createdBy: userId }).lean();
   const totalReports = reports.length;
-  const pagesTotal = reports.reduce((sum, r) => sum + Math.max(0, (r.pagesTo || 0) - (r.pagesFrom || 0)), 0);
+  const pagesTotal = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
   const longestStreak = calcLongestStreak(reports.map((r) => r.readingDate));
 
   const alreadyUnlocked = await UserAchievement.find({ user: userId }).lean();

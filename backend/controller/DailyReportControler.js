@@ -8,6 +8,7 @@ import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import StreakRestore from "../models/StreakRestore.js";
 import { checkAndUnlockAchievements } from "./AchievementController.js";
+import { calcLongestStreak } from "../utility/streakUtils.js";
                        
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -523,17 +524,7 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
       if (study_year && String(memberData.study_year) !== String(study_year)) return null;
 
       // Compute streak from readingDates
-      const dates = (a.readingDates || []).map((d) => new Date(d).toISOString().slice(0, 10));
-      const sorted = [...new Set(dates)].sort();
-      let streak = sorted.length ? 1 : 0;
-      let cur = 1;
-      for (let i = 1; i < sorted.length; i++) {
-        const prev = new Date(sorted[i - 1]);
-        const curr = new Date(sorted[i]);
-        const diff = (curr - prev) / (1000 * 60 * 60 * 24);
-        cur = diff === 1 ? cur + 1 : 1;
-        if (cur > streak) streak = cur;
-      }
+      const streak = calcLongestStreak(a.readingDates || []);
 
       return {
         user: {

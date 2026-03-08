@@ -119,6 +119,12 @@ const data = {
    
     },
     {
+      title: "Moderator Workspace ",
+      url: "/dashboard/moderator-workspace",
+      icon: User,
+   
+    },
+    {
       title: "Blogs ",
       url: "/dashboard/blogs",
       icon: StickyNote,
@@ -175,8 +181,8 @@ if(!token){
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {
-      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations
-      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/issues/request","/dashboard/reservations","/dashboard/leaderboard"]);
+      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations, Workspace
+      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/issues/request","/dashboard/reservations","/dashboard/leaderboard","/dashboard/moderator-workspace"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

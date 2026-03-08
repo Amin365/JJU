@@ -3,6 +3,7 @@ import { useNavigate, useParams } from "react-router";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { toast } from "sonner";
+import { cn } from "@/lib/utils";
 import {
   ArrowLeft,
   Trash2,
@@ -17,6 +18,13 @@ import {
   Mail,
   Phone,
   Archive,
+  BookOpen,
+  FileText,
+  StickyNote,
+  Plus,
+  AlertTriangle,
+  CheckCircle,
+  Flame,
 } from "lucide-react";
 import MemberDetailsSkeleton from "./MemberDetialsskleton";
 
@@ -71,6 +79,13 @@ export default function MemberDetails() {
   });
   const [isOperationLoading, setIsOperationLoading] = useState(false);
 
+  // Active tab state
+  const [activeTab, setActiveTab] = useState("profile");
+
+  // Notes form state
+  const [noteText, setNoteText] = useState("");
+  const [noteCategory, setNoteCategory] = useState("");
+
   // Email modal state
   const [isEmailModalOpen, setIsEmailModalOpen] = useState(false);
   const [emailSubject, setEmailSubject] = useState("");
@@ -89,8 +104,43 @@ export default function MemberDetails() {
 
   const member = data ?? null;
 
+  // Fetch member overview (issues, daily reports, notes, moderator)
+  const { data: overviewData, isLoading: overviewLoading } = useQuery({
+    queryKey: ["member-overview", routeId],
+    queryFn: async () => {
+      const res = await api.get(`/members/${routeId}/overview`);
+      return res.data?.data;
+    },
+    enabled: Boolean(routeId),
+    staleTime: 60_000,
+  });
 
-  // Mutations
+  // Notes mutations
+  const addNoteMutation = useMutation({
+    mutationFn: async ({ note, category }) => {
+      const res = await api.post(`/members/${routeId}/notes`, { note, category });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Note added");
+      setNoteText("");
+      setNoteCategory("");
+      qc.invalidateQueries({ queryKey: ["member-overview", routeId] });
+    },
+    onError: (err) => toast.error(err?.response?.data?.message || "Failed to add note"),
+  });
+
+  const deleteNoteMutation = useMutation({
+    mutationFn: async (noteId) => {
+      const res = await api.delete(`/members/${routeId}/notes/${noteId}`);
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("Note removed");
+      qc.invalidateQueries({ queryKey: ["member-overview", routeId] });
+    },
+    onError: () => toast.error("Failed to remove note"),
+  });
   const archiveMutation = useMutation({
     mutationFn: async (memberId) => {
       const res = await api.post(`/members/${memberId}/archive`);
@@ -567,6 +617,184 @@ export default function MemberDetails() {
             </div>
           </Card>
         </div>
+      </div>
+
+      {/* Timeline Tabs */}
+      <div className="mt-8">
+        {/* Tab bar */}
+        <div className="flex gap-1 border-b border-slate-200 dark:border-gray-700 mb-6">
+          {[
+            { id: "profile", label: "Profile", icon: Users },
+            { id: "issues", label: "Issue History", icon: BookOpen },
+            { id: "reports", label: "Daily Reports", icon: FileText },
+            { id: "notes", label: "Notes", icon: StickyNote },
+          ].map(({ id, label, icon: Icon }) => (
+            <button
+              key={id}
+              onClick={() => setActiveTab(id)}
+              className={cn(
+                "flex items-center gap-2 px-4 py-2.5 text-sm font-medium border-b-2 transition-colors",
+                activeTab === id
+                  ? "border-orange-500 text-orange-600 dark:text-orange-400"
+                  : "border-transparent text-slate-500 dark:text-slate-400 hover:text-slate-700 dark:hover:text-gray-200"
+              )}
+            >
+              <Icon size={15} /> {label}
+            </button>
+          ))}
+        </div>
+
+        {/* Issues tab */}
+        {activeTab === "issues" && (
+          <div>
+            {overviewLoading && <p className="text-sm text-slate-400 py-6 text-center">Loading…</p>}
+            {!overviewLoading && overviewData && (
+              <>
+                <div className="grid grid-cols-3 gap-4 mb-4">
+                  <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-4 text-center">
+                    <p className="text-2xl font-bold dark:text-white">{overviewData.issues?.total ?? 0}</p>
+                    <p className="text-xs text-slate-500">Total Issued</p>
+                  </div>
+                  <div className="rounded-xl border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 p-4 text-center">
+                    <p className="text-2xl font-bold text-red-600 dark:text-red-400">{overviewData.issues?.overdueCount ?? 0}</p>
+                    <p className="text-xs text-red-500">Overdue</p>
+                  </div>
+                  <div className="rounded-xl border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-900/20 p-4 text-center">
+                    <p className="text-2xl font-bold text-green-600 dark:text-green-400">{overviewData.issues?.returnedCount ?? 0}</p>
+                    <p className="text-xs text-green-500">Returned</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {(overviewData.issues?.list ?? []).map((issue) => (
+                    <div key={issue._id} className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                      <div>
+                        <p className="font-medium dark:text-white">{issue.book?.title || "Unknown Book"}</p>
+                        <p className="text-xs text-slate-500">{issue.book?.author} · Issued {formatDate(issue.issueDate)}</p>
+                      </div>
+                      <span className={cn(
+                        "text-xs px-2 py-0.5 rounded-full font-semibold",
+                        issue.status === "Overdue" ? "bg-red-100 text-red-700" : issue.status === "Returned" ? "bg-green-100 text-green-700" : "bg-blue-100 text-blue-700"
+                      )}>
+                        {issue.status}
+                      </span>
+                    </div>
+                  ))}
+                  {(overviewData.issues?.list ?? []).length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-6">No issue history.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Daily Reports tab */}
+        {activeTab === "reports" && (
+          <div>
+            {overviewLoading && <p className="text-sm text-slate-400 py-6 text-center">Loading…</p>}
+            {!overviewLoading && overviewData && (
+              <>
+                <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-4 text-center">
+                    <p className="text-2xl font-bold dark:text-white">{overviewData.dailyReports?.total ?? 0}</p>
+                    <p className="text-xs text-slate-500">Total Reports</p>
+                  </div>
+                  <div className="rounded-xl border border-orange-200 dark:border-orange-800 bg-orange-50 dark:bg-orange-900/20 p-4 text-center flex flex-col items-center justify-center gap-1">
+                    <div className="flex items-center gap-1">
+                      <Flame size={18} className="text-orange-500" />
+                      <p className="text-2xl font-bold text-orange-600 dark:text-orange-400">{overviewData.dailyReports?.streak ?? 0}</p>
+                    </div>
+                    <p className="text-xs text-orange-500">Day Streak</p>
+                  </div>
+                </div>
+                <div className="space-y-2">
+                  {(overviewData.dailyReports?.list ?? []).map((report) => (
+                    <div key={report._id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                      <div className="flex items-center justify-between mb-1">
+                        <p className="font-medium dark:text-white">{report.book?.title || "Unknown Book"}</p>
+                        <span className="text-xs text-slate-500">{formatDate(report.readingDate)}</span>
+                      </div>
+                      <p className="text-xs text-slate-500">Pages {report.pagesFrom}–{report.pagesTo} · {report.timeSpent} min</p>
+                      {report.summary && <p className="text-xs text-slate-600 dark:text-slate-400 mt-1 italic">"{report.summary}"</p>}
+                    </div>
+                  ))}
+                  {(overviewData.dailyReports?.list ?? []).length === 0 && (
+                    <p className="text-sm text-slate-400 text-center py-6">No daily reports.</p>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Notes tab */}
+        {activeTab === "notes" && (
+          <div className="space-y-4">
+            {/* Add note form */}
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-4">
+              <h4 className="text-sm font-semibold mb-3 dark:text-white">Add Internal Note</h4>
+              <textarea
+                rows={3}
+                className="w-full rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400 mb-2"
+                placeholder="Write a note about this member..."
+                value={noteText}
+                onChange={(e) => setNoteText(e.target.value)}
+              />
+              <div className="flex gap-2">
+                <input
+                  className="flex-1 rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-orange-400"
+                  placeholder="Category / tag (optional)"
+                  value={noteCategory}
+                  onChange={(e) => setNoteCategory(e.target.value)}
+                />
+                <button
+                  disabled={!noteText.trim() || addNoteMutation.isPending}
+                  onClick={() => addNoteMutation.mutate({ note: noteText, category: noteCategory })}
+                  className="flex items-center gap-1 px-4 py-1.5 bg-orange-500 hover:bg-orange-600 text-white rounded-lg text-sm font-medium disabled:opacity-50"
+                >
+                  <Plus size={14} /> Add
+                </button>
+              </div>
+            </div>
+
+            {/* Notes list */}
+            {overviewLoading && <p className="text-sm text-slate-400 py-4 text-center">Loading…</p>}
+            {!overviewLoading && (
+              <div className="space-y-2">
+                {(overviewData?.notes ?? []).map((note) => (
+                  <div key={note._id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1">
+                        <p className="dark:text-white">{note.note}</p>
+                        <div className="flex items-center gap-2 mt-1 text-xs text-slate-400">
+                          {note.category && (
+                            <span className="px-1.5 py-0.5 rounded bg-slate-100 dark:bg-gray-700 text-slate-600 dark:text-gray-300">
+                              {note.category}
+                            </span>
+                          )}
+                          <span>{note.author ? `${note.author.first_name || ""} ${note.author.last_name || ""}`.trim() || note.author.username : "Unknown"}</span>
+                          <span>·</span>
+                          <span>{formatDate(note.createdAt)}</span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => deleteNoteMutation.mutate(note._id)}
+                        disabled={deleteNoteMutation.isPending}
+                        className="text-slate-400 hover:text-red-500 transition-colors p-1"
+                        title="Remove note"
+                      >
+                        <X size={14} />
+                      </button>
+                    </div>
+                  </div>
+                ))}
+                {(overviewData?.notes ?? []).length === 0 && (
+                  <p className="text-sm text-slate-400 text-center py-6">No notes yet.</p>
+                )}
+              </div>
+            )}
+          </div>
+        )}
       </div>
 
       {/* Confirmation Dialog (simple centered modal) */}

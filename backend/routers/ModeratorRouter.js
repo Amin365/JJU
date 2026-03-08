@@ -5,6 +5,7 @@ import {
   getMembersForAssignment,
   assignMemberToModerator,
   unassignMemberFromModerator,
+  getModeratorWorkspace,
 } from "../controller/ModeratorController.js";
 import { protect } from "../middleware/auth.js"
 
@@ -13,6 +14,9 @@ const ModeratorRouter = express.Router();
 
 // Fetch all moderators (users with moderator role)
 ModeratorRouter.get("/moderators",  getModerators);
+
+// Moderator workspace
+ModeratorRouter.get("/moderators/:moderatorId/workspace", protect, getModeratorWorkspace);
 
 // Fetch members assigned to a specific moderator
 ModeratorRouter.get("/moderators/:moderatorId/members", protect, getAssignedMembers);

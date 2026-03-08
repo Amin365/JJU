@@ -1,9 +1,14 @@
 import mongoose from "mongoose";
+import crypto from "crypto";
 import Member from "../models/Members.js"; 
 import Role from "../models/Role.js";
 import User from '../models/user.js'
 import ModeratorMember from '../models/ModeratorMember.js'
 import Clubreq from "../models/Clubreq.js";
+import Notification from "../models/Notification.js";
+import Issue from "../models/Issue.js";
+import DailyReport from "../models/DailyReport.js";
+import MemberNote from "../models/MemberNote.js";
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -142,10 +147,15 @@ export const getMembers = async (req, res, next) => {
       sort = "-createdAt",
       q,
       region,
+      city,
       gender,
       isArchived,
       from,
       to,
+      department,
+      study_year,
+      status,
+      moderator,
     } = req.query;
 
     const filter = {};
@@ -163,7 +173,11 @@ export const getMembers = async (req, res, next) => {
     }
 
     if (region) filter.region = region;
+    if (city) filter.city = city;
     if (gender) filter.gender = gender;
+    if (department) filter.department = new RegExp(escapeRegex(department), "i");
+    if (study_year) filter.study_year = study_year;
+    if (status && ["Active", "Inactive", "pending"].includes(status)) filter.status = status;
 
     if (typeof isArchived !== "undefined") {
       if (isArchived === "true" || isArchived === "1") filter.isArchived = true;
@@ -183,6 +197,12 @@ export const getMembers = async (req, res, next) => {
       if (Object.keys(filter.join_date).length === 0) delete filter.join_date;
     }
 
+    // Filter by moderator assignment
+    if (moderator && mongoose.Types.ObjectId.isValid(moderator)) {
+      const assignedIds = await ModeratorMember.find({ moderator }).distinct("member").exec();
+      filter._id = { $in: assignedIds };
+    }
+
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * perPage;
@@ -197,6 +217,7 @@ export const getMembers = async (req, res, next) => {
       "phone",
       "code",
       "region",
+      "city",
       "gender",
       "join_date",
       "profile_picture",
@@ -657,11 +678,32 @@ export const JoinClub = async (req, res, next) => {
  */
 export const getJoinClubs = async (req, res, next) => {
   try {
-    const requests = await Clubreq.find().sort({ createdAt: -1 })
+    const { status, page = 1, limit = 20 } = req.query;
+    const filter = {};
+    if (status && ["Pending", "Approved", "Rejected"].includes(status)) {
+      filter.status = status;
+    }
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 20));
+    const skip = (pageNum - 1) * perPage;
+
+    const [requests, total] = await Promise.all([
+      Clubreq.find(filter)
+        .populate("memberId", "first_name last_name code email")
+        .populate("reviewedBy", "first_name last_name username")
+        .sort({ createdAt: -1 })
+        .skip(skip)
+        .limit(perPage)
+        .lean(),
+      Clubreq.countDocuments(filter),
+    ]);
 
     return res.status(200).json({
-      count: requests.length,
+      count: total,
       data: requests,
+      page: pageNum,
+      limit: perPage,
+      totalPages: Math.ceil(total / perPage),
     })
   } catch (error) {
     next(error)
@@ -678,6 +720,9 @@ export const getJoinClubById = async (req, res, next) => {
     const { id } = req.params
 
     const request = await Clubreq.findById(id)
+      .populate("memberId", "first_name last_name code email")
+      .populate("reviewedBy", "first_name last_name username")
+      .lean();
     if (!request) {
       return res.status(404).json({
         message: "Join club request not found",
@@ -692,13 +737,16 @@ export const getJoinClubById = async (req, res, next) => {
 
 /**
  * @desc    Update join club request status (Approve / Reject)
+ *          On Approve: creates a Member + User record if not already existing.
+ *          On Reject: stores rejectionReason.
+ *          In both cases: sends a Notification to the linked user (if any).
  * @route   PATCH /api/join-club/:id/status
- * @access  Admin
+ * @access  Admin/Moderator (protected)
  */
 export const updateJoinClubStatus = async (req, res, next) => {
   try {
     const { id } = req.params
-    const { status } = req.body
+    const { status, rejectionReason } = req.body
 
     // Validate status
     if (!["Approved", "Rejected"].includes(status)) {
@@ -707,28 +755,299 @@ export const updateJoinClubStatus = async (req, res, next) => {
       })
     }
 
-    const updatedRequest = await Clubreq.findByIdAndUpdate(
-      id,
-      { status },
-      { new: true }
-    )
-
-    if (!updatedRequest) {
-      return res.status(404).json({
-        message: "Join club request not found",
-      })
+    const clubReq = await Clubreq.findById(id);
+    if (!clubReq) {
+      return res.status(404).json({ message: "Join club request not found" })
     }
+
+    // Prevent re-processing already decided requests
+    if (clubReq.status !== "Pending") {
+      return res.status(409).json({ message: `Request is already ${clubReq.status}` })
+    }
+
+    const update = {
+      status,
+      reviewedBy: req.user?._id || null,
+      reviewedAt: new Date(),
+    };
+    if (status === "Rejected" && rejectionReason) {
+      update.rejectionReason = String(rejectionReason).trim();
+    }
+
+    let createdMember = null;
+    let linkedUser = null;
+
+    if (status === "Approved") {
+      // Check if a member with this email already exists
+      let member = await Member.findOne({ email: clubReq.email }).lean();
+
+      if (!member) {
+        // Create member from request data
+        const nameParts = clubReq.FullName.trim().split(/\s+/);
+        const first_name = nameParts[0] || clubReq.FullName;
+        const last_name = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-";
+
+        const newMember = new Member({
+          first_name,
+          last_name,
+          email: clubReq.email,
+          phone: clubReq.phone,
+          status: "Active",
+        });
+        member = await newMember.save();
+        createdMember = member;
+      }
+
+      update.memberId = member._id;
+
+      // Check if a user with this email already exists
+      let user = await User.findOne({ email: clubReq.email }).lean();
+      if (!user) {
+        // Generate a random temporary password and force reset on next login
+        const tempPassword = crypto.randomBytes(12).toString("hex");
+        const resetCode = crypto.randomBytes(6).toString("hex").toUpperCase();
+        const resetExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
+        const baseUsername = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "") || `user${Date.now().toString().slice(-6)}`;
+        let username = baseUsername;
+        const existing = await User.findOne({ username }).lean();
+        if (existing) username = `${username}-${Date.now().toString().slice(-4)}`;
+
+        const nameParts = clubReq.FullName.trim().split(/\s+/);
+        try {
+          user = await User.create({
+            first_name: nameParts[0] || clubReq.FullName,
+            last_name: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-",
+            username,
+            email: clubReq.email,
+            password: tempPassword,
+            member_id: member.code || String(member._id),
+            member: member._id,
+            status: "pending",
+            resetPasswordCode: resetCode,
+            resetPasswordExpires: resetExpires,
+            added_by: req.user?._id || null,
+          });
+          linkedUser = user;
+        } catch (userErr) {
+          // User creation failure is non-fatal; log and continue
+          console.error("updateJoinClubStatus: user creation failed", userErr?.message);
+        }
+      } else {
+        linkedUser = user;
+      }
+
+      // Send notification to linked user
+      if (linkedUser) {
+        try {
+          await Notification.create({
+            user: linkedUser._id,
+            title: "Welcome to the Club! 🎉",
+            message: `Your join request has been approved. Welcome, ${clubReq.FullName}!`,
+            type: "success",
+            meta: { kind: "join-request-approved", clubreqId: clubReq._id },
+          });
+        } catch (_) { /* non-fatal */ }
+      }
+    } else {
+      // Rejected – send notification if user exists
+      const existingUser = await User.findOne({ email: clubReq.email }).lean();
+      if (existingUser) {
+        try {
+          await Notification.create({
+            user: existingUser._id,
+            title: "Join Request Update",
+            message: rejectionReason
+              ? `Your join request was not approved. Reason: ${rejectionReason}`
+              : "Your join request was not approved at this time.",
+            type: "warning",
+            meta: { kind: "join-request-rejected", clubreqId: clubReq._id },
+          });
+        } catch (_) { /* non-fatal */ }
+      }
+    }
+
+    const updatedRequest = await Clubreq.findByIdAndUpdate(id, update, { new: true })
+      .populate("memberId", "first_name last_name code email")
+      .populate("reviewedBy", "first_name last_name username")
+      .lean();
 
     return res.status(200).json({
       message: `Join request ${status.toLowerCase()} successfully`,
       data: updatedRequest,
+      createdMember: createdMember || undefined,
     })
   } catch (error) {
     next(error)
   }
 }
 
+/**
+ * @desc    Get aggregated overview for a member (profile timeline)
+ * @route   GET /api/members/:id/overview
+ * @access  Protected
+ */
+export const getMemberOverview = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid member id" });
+    }
 
+    const member = await Member.findById(id).populate("role", "role plural color").lean();
+    if (!member) return res.status(404).json({ message: "Member not found" });
+
+    // Linked user
+    const user = await User.findOne({ member: member._id })
+      .select("_id username email status role createdAt")
+      .populate("role", "role plural")
+      .lean();
+
+    // Moderator assignment
+    const modAssignment = await ModeratorMember.findOne({ member: member._id })
+      .populate("moderator", "_id first_name last_name username email")
+      .lean();
+
+    // Issue history
+    const issues = await Issue.find({ member: member._id })
+      .populate("book", "title author")
+      .sort({ issueDate: -1 })
+      .lean();
+
+    const overdueCount = issues.filter((i) => i.status === "Overdue").length;
+    const issuedCount = issues.filter((i) => i.status === "Issued").length;
+    const returnedCount = issues.filter((i) => i.status === "Returned").length;
+
+    // Daily reports (via user)
+    let dailyReports = [];
+    let reportStreak = 0;
+    if (user) {
+      dailyReports = await DailyReport.find({ createdBy: user._id })
+        .populate("book", "title author")
+        .sort({ readingDate: -1 })
+        .limit(50)
+        .lean();
+
+      // Simple streak: consecutive days with reports going backwards from today
+      const reportDays = new Set(
+        dailyReports.map((r) => new Date(r.readingDate).toISOString().slice(0, 10))
+      );
+      let d = new Date();
+      d.setHours(0, 0, 0, 0);
+      while (reportDays.has(d.toISOString().slice(0, 10))) {
+        reportStreak++;
+        d.setDate(d.getDate() - 1);
+      }
+    }
+
+    // Notes
+    const notes = await MemberNote.find({ member: member._id, isArchived: false })
+      .populate("author", "first_name last_name username")
+      .sort({ createdAt: -1 })
+      .lean();
+
+    return res.status(200).json({
+      data: {
+        member,
+        user: user || null,
+        moderatorAssignment: modAssignment || null,
+        issues: {
+          list: issues,
+          total: issues.length,
+          overdueCount,
+          issuedCount,
+          returnedCount,
+        },
+        dailyReports: {
+          list: dailyReports,
+          total: dailyReports.length,
+          streak: reportStreak,
+        },
+        notes,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * @desc    Add an internal note to a member
+ * @route   POST /api/members/:id/notes
+ * @access  Protected (moderator/admin)
+ */
+export const createMemberNote = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid member id" });
+    }
+    const { note, category } = req.body;
+    if (!note || !String(note).trim()) {
+      return res.status(400).json({ message: "note text is required" });
+    }
+    const memberExists = await Member.exists({ _id: id });
+    if (!memberExists) return res.status(404).json({ message: "Member not found" });
+
+    const created = await MemberNote.create({
+      member: id,
+      author: req.user._id,
+      note: String(note).trim(),
+      category: category ? String(category).trim() : "",
+    });
+
+    const populated = await MemberNote.findById(created._id)
+      .populate("author", "first_name last_name username")
+      .lean();
+
+    return res.status(201).json({ data: populated });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * @desc    List notes for a member
+ * @route   GET /api/members/:id/notes
+ * @access  Protected
+ */
+export const getMemberNotes = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid member id" });
+    }
+    const notes = await MemberNote.find({ member: id, isArchived: false })
+      .populate("author", "first_name last_name username")
+      .sort({ createdAt: -1 })
+      .lean();
+    return res.status(200).json({ data: notes });
+  } catch (err) {
+    return next(err);
+  }
+}
+
+/**
+ * @desc    Delete (archive) a note
+ * @route   DELETE /api/members/:id/notes/:noteId
+ * @access  Protected
+ */
+export const deleteMemberNote = async (req, res, next) => {
+  try {
+    const { id, noteId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id) || !mongoose.Types.ObjectId.isValid(noteId)) {
+      return res.status(400).json({ message: "Invalid id" });
+    }
+    const note = await MemberNote.findOne({ _id: noteId, member: id });
+    if (!note) return res.status(404).json({ message: "Note not found" });
+
+    note.isArchived = true;
+    await note.save();
+    return res.status(200).json({ message: "Note removed" });
+  } catch (err) {
+    return next(err);
+  }
+}
 
 export default {
   createMember,

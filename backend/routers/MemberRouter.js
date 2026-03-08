@@ -1,6 +1,6 @@
 import express from "express"
 import mongoose from "mongoose"
-import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus} from "../controller/members.js"
+import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus, getMemberOverview, createMemberNote, getMemberNotes, deleteMemberNote} from "../controller/members.js"
 import { sendMemberEmail } from "../controller/EmailController.js"
 import { protect } from "../middleware/auth.js"
 import multer from "multer";
@@ -47,15 +47,25 @@ MemberRouter.post('/members/:id/send-email',sendMemberEmail)
 MemberRouter.post("/members/:id/archive", archiveMember)
 MemberRouter.post("/members/:id/restore", restoreMember)
 MemberRouter.post("/members/bulk", protect, bulkCreateMembers);
+
+// Member overview (profile timeline)
+MemberRouter.get("/members/:id/overview", protect, getMemberOverview);
+
+// Member notes
+MemberRouter.route("/members/:id/notes")
+  .get(protect, getMemberNotes)
+  .post(protect, createMemberNote);
+MemberRouter.delete("/members/:id/notes/:noteId", protect, deleteMemberNote);
+
 // generic item routes last
 MemberRouter.route("/members/:id")
   .get(getMemberById)
   .put(upload.single("profile_picture"), updateMember)
   .delete(deleteMember)
 
-  MemberRouter.post("/join-club",JoinClub)
+MemberRouter.post("/join-club",JoinClub)
 
-MemberRouter.get("/join-club", getJoinClubs)
-MemberRouter.get("/join-club/:id", getJoinClubById)
-MemberRouter.patch("/join-club/:id/status", updateJoinClubStatus)
+MemberRouter.get("/join-club", protect, getJoinClubs)
+MemberRouter.get("/join-club/:id", protect, getJoinClubById)
+MemberRouter.patch("/join-club/:id/status", protect, updateJoinClubStatus)
 export default MemberRouter

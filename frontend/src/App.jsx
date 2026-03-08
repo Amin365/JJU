@@ -38,6 +38,7 @@ const DailyActivity=lazy(()=>import('./components/Members/DailyActivity'));
 const ModeratorTable=lazy(()=>import('./components/Moderator/Moderator'));
 const ModeratorPage=lazy(()=>import('./components/Moderator/ModeratorTable'));
 const ReportRecap=lazy(()=>import('./components/Members/ReadingRecap'));
+const ModeratorWorkspace=lazy(()=>import('./components/Moderator/ModeratorWorkspace'));
 const BlogEdit=lazy(()=>import('./components/Blogs/BlogEdit'));
 const BlogTable=lazy(()=>import('./components/Blogs/BlogTable'));
 const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
@@ -109,6 +110,7 @@ function App() {
   <Route path="activity" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><DailyActivity /></Suspense>} />
   <Route path="moderators" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorTable /></Suspense>} />
   <Route path="moderators/:moderatorId/members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorPage /></Suspense>} />
+  <Route path="moderator-workspace" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorWorkspace /></Suspense>} />
   <Route path="report-recap" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ReportRecap /></Suspense>} />
   <Route path="blogs/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />
   <Route path="blogs/edit/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />

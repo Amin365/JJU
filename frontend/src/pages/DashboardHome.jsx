@@ -45,6 +45,8 @@ const timeAgo = (date) => {
   return `${day}d ago`;
 };
 
+const asArray = (value) => (Array.isArray(value) ? value : []);
+
 const activityIcon = (type) => {
   const map = {
     member_created: <UserPlus className="h-4 w-4 text-blue-500" />,
@@ -79,6 +81,8 @@ function StatCard({ title, value, icon: Icon, colorClass = "text-primary", loadi
 }
 
 function ActivityFeed({ events, loading }) {
+  const safeEvents = asArray(events);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -95,7 +99,7 @@ function ActivityFeed({ events, loading }) {
     );
   }
 
-  if (!events?.length) {
+  if (!safeEvents.length) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">No recent activity.</p>
     );
@@ -103,7 +107,7 @@ function ActivityFeed({ events, loading }) {
 
   return (
     <div className="space-y-3 max-h-96 overflow-y-auto pr-1">
-      {events.map((ev, i) => (
+      {safeEvents.map((ev, i) => (
         <div key={i} className="flex items-start gap-3 border rounded-md p-3">
           <div className="mt-0.5 shrink-0">{activityIcon(ev.type)}</div>
           <div className="flex-1 min-w-0">
@@ -119,6 +123,8 @@ function ActivityFeed({ events, loading }) {
 }
 
 function TopReadersList({ readers, loading }) {
+  const safeReaders = asArray(readers);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -136,7 +142,7 @@ function TopReadersList({ readers, loading }) {
     );
   }
 
-  if (!readers?.length) {
+  if (!safeReaders.length) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">No reading reports yet.</p>
     );
@@ -144,7 +150,7 @@ function TopReadersList({ readers, loading }) {
 
   return (
     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-      {readers.map((r, i) => (
+      {safeReaders.map((r, i) => (
         <div key={r._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
             {i + 1}
@@ -165,6 +171,8 @@ function TopReadersList({ readers, loading }) {
 }
 
 function PopularBooksList({ books, loading }) {
+  const safeBooks = asArray(books);
+
   if (loading) {
     return (
       <div className="space-y-3">
@@ -182,7 +190,7 @@ function PopularBooksList({ books, loading }) {
     );
   }
 
-  if (!books?.length) {
+  if (!safeBooks.length) {
     return (
       <p className="text-sm text-muted-foreground py-4 text-center">No issues recorded yet.</p>
     );
@@ -190,7 +198,7 @@ function PopularBooksList({ books, loading }) {
 
   return (
     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
-      {books.map((b, i) => (
+      {safeBooks.map((b, i) => (
         <div key={b._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
           <div className="h-10 w-8 rounded bg-muted flex items-center justify-center shrink-0">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
@@ -224,9 +232,9 @@ function PendingApprovals({ data, loading }) {
     );
   }
 
-  const joinReqs = data?.pendingJoinRequests ?? [];
-  const overdue = data?.overdueIssues ?? [];
-  const todayReports = data?.todayReports ?? [];
+  const joinReqs = asArray(data?.pendingJoinRequests);
+  const overdue = asArray(data?.overdueIssues);
+  const todayReports = asArray(data?.todayReports);
   const total = joinReqs.length + overdue.length + todayReports.length;
 
   if (total === 0) {

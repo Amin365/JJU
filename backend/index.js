@@ -13,6 +13,8 @@ import DailyReportRouter from "./routers/DailyReportRouter.js"
 import NotificationRouter from "./routers/NotificationRouter.js"
 import { startIssueDueScheduler } from "./modules/issueDueScheduler.js"
 import issueRouter from "./routers/IssueRouter.js"
+import issueRequestRouter from "./routers/IssueRequestRouter.js"
+import reservationRouter from "./routers/ReservationRouter.js"
 import ModeratorRouter from "./routers/ModeratorRouter.js"
 import UserRouter from "./routers/UserRouter.js"
 import BlogRouter from "./routers/BlogRouter.js"
@@ -100,6 +102,8 @@ app.use('/api',ModeratorRouter)
 app.use("/api",MemberRouter);
 app.use("/api", RoleRouter);
 app.use('/api',issueRouter)
+app.use('/api',issueRequestRouter)
+app.use('/api',reservationRouter)
 app.use('/api',DailyReportRouter)
 app.use('/api',NotificationRouter)
 app.use('/api',UserRouter)

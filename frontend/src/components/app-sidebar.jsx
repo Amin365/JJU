@@ -20,9 +20,9 @@ import {
   ActivityIcon,
   StickyNote,
   UserPlus2,
-  ListOrdered
-
-  
+  ListOrdered,
+  BookMarked,
+  ClipboardList,
 } from "lucide-react"
 
 
@@ -86,8 +86,13 @@ const data = {
     {
       title: " Request Books  ",
       url: "/dashboard/issues/request",
-      icon: BookOpen,
+      icon: ClipboardList,
    
+    },
+    {
+      title: "Reservations",
+      url: "/dashboard/reservations",
+      icon: BookMarked,
     },
     {
       title: "Reading Reports ",
@@ -165,13 +170,13 @@ if(!token){
 
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
-      // Members: only Request Books and Reading Reports
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/report","/dashboard/report-recap", "/dashboard/leaderboard"]);
+      // Members: only Request Books, Reservations, and Reading Reports
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report","/dashboard/report-recap", "/dashboard/leaderboard"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {
-      // Moderators: only Reading Reports and Daily Activity
-      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/leaderboard"]);
+      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations
+      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/issues/request","/dashboard/reservations","/dashboard/leaderboard"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

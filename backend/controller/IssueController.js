@@ -7,6 +7,8 @@ import ModeratorMember from "../models/ModeratorMember.js";
 import Notification from "../models/Notification.js";
 import { sendMemberEmail, sendMail, buildEmailHtml } from "../controller/EmailController.js";
 import { sendPushToUser } from "../utility/push.js";
+import { checkBorrowingRules } from "../utility/borrowingRules.js";
+import { notifyNextReservation } from "../controller/ReservationController.js";
 
 export const IssueCreate = async (req, res, next) => {
   try {
@@ -32,6 +34,12 @@ export const IssueCreate = async (req, res, next) => {
       return res.status(404).json({ message: "Member not found. Before requesting a book you must be member of the Club" });
     }
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
+
+    // Check borrowing rules
+    const { allowed, reason } = await checkBorrowingRules(memberDoc._id);
+    if (!allowed) {
+      return res.status(409).json({ message: reason });
+    }
 
     // Ensure there are available copies and atomically decrement
     const updatedBook = await Book.findOneAndUpdate(
@@ -437,6 +445,9 @@ export const markIssueReturned = async (req, res, next) => {
         });
       }
     } catch (e) {}
+
+    // Notify next member in reservation queue, if any
+    await notifyNextReservation(issue.book);
 
     return res.status(200).json({ data: populated });
   } catch (err) {

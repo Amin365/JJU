@@ -13,7 +13,7 @@ const bookSchema = new mongoose.Schema({
   isbn: { type: String, required: true, unique: true },
   BookType: { type: String },
 
-  status: { type: String, enum: ['available', 'borrowed'] ,default:"available"},
+  status: { type: String, enum: ['available', 'borrowed', 'lost', 'damaged', 'archived'], default: "available" },
   book_picture:{type:String},
   totalPages: { type: Number, default: 0 },
   totalCopies: { type: Number, default: 1 },

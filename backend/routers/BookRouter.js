@@ -1,6 +1,6 @@
 
 import express from 'express'
-import { createBook,getBooks,getBookById,bulkCreateBooks, updateBook, deleteBook } from '../controller/BookController.js';
+import { createBook,getBooks,getBookById,bulkCreateBooks, updateBook, deleteBook, updateBookCondition, getBookHistory } from '../controller/BookController.js';
 import { protect } from '../middleware/auth.js';
  import { requireRole } from '../middleware/role.js';
 
@@ -29,6 +29,8 @@ BookRouter.put('/books/:id', protect, upload.single('image'), updateBook);
 BookRouter.delete('/books/:id',deleteBook)
 
 BookRouter.post("/books/bulk", protect, bulkCreateBooks);
+BookRouter.patch("/books/:id/condition", protect, updateBookCondition);
+BookRouter.get("/books/:id/history", protect, getBookHistory);
 
 
 export default BookRouter;

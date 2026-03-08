@@ -31,6 +31,8 @@ const Report = lazy(() => import("./components/Members/DailyReport"));
 const MemberGate=lazy(()=>import( "./components/Issue/IssueMemberGate"));
 const IssueMembersForm=lazy(()=>import( "./components/Issue/IssueForm"));
 const Issuetable=lazy(()=>import( "./components/Issue/IssueTable"));
+const RequestBooksPage=lazy(()=>import( "./components/Issue/RequestBooksPage"));
+const ReservationsPage=lazy(()=>import( "./components/Issue/ReservationsPage"));
 const DailyActivity=lazy(()=>import('./components/Members/DailyActivity'));
 const ModeratorTable=lazy(()=>import('./components/Moderator/Moderator'));
 const ModeratorPage=lazy(()=>import('./components/Moderator/ModeratorTable'));
@@ -99,9 +101,10 @@ function App() {
           <Route path="users" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Users /></Suspense>} />
   <Route path="users/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><UsersFromMember /></Suspense>} />
   <Route path="report" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Report /></Suspense>} />
-  <Route path="issues/request" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MemberGate /></Suspense>} />
+  <Route path="issues/request" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><RequestBooksPage /></Suspense>} />
 <Route path="issue/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IssueMembersForm /></Suspense>} />
   <Route path="issues" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Issuetable /></Suspense>} />
+  <Route path="reservations" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ReservationsPage /></Suspense>} />
   <Route path="activity" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><DailyActivity /></Suspense>} />
   <Route path="moderators" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorTable /></Suspense>} />
   <Route path="moderators/:moderatorId/members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorPage /></Suspense>} />

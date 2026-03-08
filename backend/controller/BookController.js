@@ -271,7 +271,7 @@ const toIntOr = (v, fallback) => {
   return Number.isFinite(n) ? Math.trunc(n) : fallback;
 };
 
-const allowedStatus = new Set(["available", "borrowed"]);
+const allowedStatus = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
 
 /**
  * POST /books/bulk
@@ -436,4 +436,84 @@ export default {
   getBooks,
   updateBook,
   deleteBook,
+};
+
+/**
+ * PATCH /books/:id/condition
+ * Body: { status: 'lost' | 'damaged' | 'archived' | 'available', note }
+ * Updates the book's condition/status.
+ */
+export const updateBookCondition = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const allowed = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
+    const { status } = req.body;
+
+    if (!status || !allowed.has(status)) {
+      return res.status(400).json({
+        message: `Invalid status. Must be one of: ${[...allowed].join(", ")}`,
+      });
+    }
+
+    const book = await Book.findById(id).exec();
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    // If marking as lost/damaged/archived, adjust available copies
+    if (["lost", "damaged", "archived"].includes(status)) {
+      // Reset available copies to 0 when book is out of circulation
+      book.availableCopies = 0;
+    } else if (status === "available" && book.status !== "available") {
+      // Restore one copy when marking back as available
+      book.availableCopies = Math.min(
+        (book.availableCopies || 0) + 1,
+        book.totalCopies || 1
+      );
+    }
+
+    book.status = status;
+    await book.save();
+
+    return res.status(200).json({ data: book });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
+ * GET /books/:id/history
+ * Returns issue history for a book.
+ */
+export const getBookHistory = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
+
+    const book = await Book.findById(id).lean().exec();
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
+    const issues = await Issue.find({ book: id })
+      .populate("member", "first_name middle_name last_name full_name email code")
+      .sort({ createdAt: -1 })
+      .lean()
+      .exec();
+
+    const total = issues.length;
+    const lastIssued = issues.find((i) => i.issueDate)?.issueDate ?? null;
+    const lastReturned = issues.find((i) => i.returnedAt)?.returnedAt ?? null;
+
+    return res.status(200).json({
+      data: issues,
+      total,
+      last_issued: lastIssued,
+      last_returned: lastReturned,
+    });
+  } catch (err) {
+    return next(err);
+  }
 };

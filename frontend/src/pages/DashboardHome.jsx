@@ -1,6 +1,7 @@
 
 import React, { useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
+import { Link } from "react-router";
 import {
   BookOpen,
   BookCheck,
@@ -16,6 +17,10 @@ import {
   Star,
   TrendingUp,
   CheckCircle,
+  Trophy,
+  Award,
+  ChevronRight,
+  Calendar,
 } from "lucide-react";
 import {
   Card,
@@ -335,6 +340,146 @@ function PendingApprovals({ data, loading }) {
 
 /* ──────────────────── main page ──────────────────── */
 
+function ActiveChallengesWidget() {
+  const { data: challenges = [], isLoading } = useQuery({
+    queryKey: ["challenges", "active-widget"],
+    queryFn: async () => {
+      const res = await api.get("/challenges", { params: { status: "Active" } });
+      const list = res.data?.data || res.data || [];
+      return list.slice(0, 3);
+    },
+    staleTime: 120_000,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Trophy className="h-5 w-5 text-yellow-400" />
+            Active Challenges
+          </CardTitle>
+          <Link
+            to="/dashboard/challenges"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition"
+          >
+            View all <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <CardDescription>Join a reading challenge</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : challenges.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-3 text-center">No active challenges right now.</p>
+        ) : (
+          <div className="space-y-2">
+            {challenges.map((c) => (
+              <Link key={c._id} to={`/dashboard/challenges/${c._id}`}>
+                <div className="flex items-center gap-3 border rounded-md p-3 hover:bg-muted/50 transition cursor-pointer">
+                  <Trophy className="h-4 w-4 text-yellow-400 shrink-0" />
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{c.title}</p>
+                    <div className="flex items-center gap-1 text-xs text-muted-foreground mt-0.5">
+                      <Calendar className="h-3 w-3" />
+                      <span>
+                        {c.endDate
+                          ? `Ends ${new Date(c.endDate).toLocaleDateString(undefined, { month: "short", day: "numeric" })}`
+                          : c.type}
+                      </span>
+                    </div>
+                  </div>
+                  <Badge variant="outline" className="text-xs border-green-500/30 text-green-400 shrink-0">
+                    {c.type}
+                  </Badge>
+                </div>
+              </Link>
+            ))}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+function RecentAchievementsWidget() {
+  const { data: myAchievements = [], isLoading } = useQuery({
+    queryKey: ["my-achievements-widget"],
+    queryFn: async () => {
+      const res = await api.get("/users/me/achievements");
+      const list = res.data?.data || res.data || [];
+      return [...list]
+        .sort((a, b) => new Date(b.unlockedAt || b.createdAt || 0) - new Date(a.unlockedAt || a.createdAt || 0))
+        .slice(0, 3);
+    },
+    staleTime: 120_000,
+  });
+
+  return (
+    <Card>
+      <CardHeader>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Award className="h-5 w-5 text-purple-400" />
+            My Achievements
+          </CardTitle>
+          <Link
+            to="/dashboard/achievements"
+            className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition"
+          >
+            View all <ChevronRight className="h-3 w-3" />
+          </Link>
+        </div>
+        <CardDescription>Recently unlocked badges</CardDescription>
+      </CardHeader>
+      <CardContent>
+        {isLoading ? (
+          <div className="space-y-2">
+            {Array.from({ length: 3 }).map((_, i) => (
+              <Skeleton key={i} className="h-12 w-full" />
+            ))}
+          </div>
+        ) : myAchievements.length === 0 ? (
+          <p className="text-sm text-muted-foreground py-3 text-center">No achievements yet. Keep reading!</p>
+        ) : (
+          <div className="space-y-2">
+            {myAchievements.map((a, i) => {
+              const ach = a.achievement || a;
+              return (
+                <div key={ach._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
+                  <span className="text-2xl leading-none shrink-0">{ach.icon || "🏅"}</span>
+                  <div className="flex-1 min-w-0">
+                    <p className="text-sm font-medium truncate">{ach.title || ach.name}</p>
+                    {(a.unlockedAt || a.createdAt) && (
+                      <p className="text-xs text-muted-foreground mt-0.5">
+                        {new Date(a.unlockedAt || a.createdAt).toLocaleDateString(undefined, {
+                          month: "short",
+                          day: "numeric",
+                          year: "numeric",
+                        })}
+                      </p>
+                    )}
+                  </div>
+                  <Badge variant="outline" className="text-xs border-yellow-500/30 text-yellow-400 shrink-0">
+                    ✓ Earned
+                  </Badge>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
+/* ──────────────────── main page ──────────────────── */
+
 export default function DashboardHome() {
   const statsQ = useQuery({
     queryKey: ["dashboard", "stats"],
@@ -535,6 +680,12 @@ export default function DashboardHome() {
             )}
           </CardContent>
         </Card>
+      </div>
+
+      {/* ── Active Challenges + Recent Achievements ── */}
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActiveChallengesWidget />
+        <RecentAchievementsWidget />
       </div>
     </div>
   );

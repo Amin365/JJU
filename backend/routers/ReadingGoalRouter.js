@@ -5,7 +5,7 @@ import { getMyGoals, createGoal, updateGoal, deleteGoal } from "../controller/Re
 
 const ReadingGoalRouter = express.Router();
 
-ReadingGoalRouter.get("/users/me/goals", protect, getMyGoals);
+ReadingGoalRouter.get("/users/me/goals", apiLimiter, protect, getMyGoals);
 ReadingGoalRouter.post("/users/me/goals", apiLimiter, protect, createGoal);
 ReadingGoalRouter.patch("/users/me/goals/:id", apiLimiter, protect, updateGoal);
 ReadingGoalRouter.delete("/users/me/goals/:id", apiLimiter, protect, deleteGoal);

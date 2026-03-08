@@ -808,7 +808,8 @@ export const updateJoinClubStatus = async (req, res, next) => {
         const resetCode = crypto.randomBytes(6).toString("hex").toUpperCase();
         const resetExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
 
-        const baseUsername = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "") || `user${Date.now().toString().slice(-6)}`;
+        const rawBase = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "");
+        const baseUsername = rawBase.length > 0 ? rawBase : `user${Date.now().toString().slice(-6)}`;
         let username = baseUsername;
         const existing = await User.findOne({ username }).lean();
         if (existing) username = `${username}-${Date.now().toString().slice(-4)}`;
@@ -928,13 +929,14 @@ export const getMemberOverview = async (req, res, next) => {
         .limit(50)
         .lean();
 
-      // Simple streak: consecutive days with reports going backwards from today
+      // Simple streak: consecutive days with reports going backwards from today (max 365 days)
       const reportDays = new Set(
         dailyReports.map((r) => new Date(r.readingDate).toISOString().slice(0, 10))
       );
       let d = new Date();
       d.setHours(0, 0, 0, 0);
-      while (reportDays.has(d.toISOString().slice(0, 10))) {
+      let maxDays = 365;
+      while (maxDays-- > 0 && reportDays.has(d.toISOString().slice(0, 10))) {
         reportStreak++;
         d.setDate(d.getDate() - 1);
       }

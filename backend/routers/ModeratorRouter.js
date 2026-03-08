@@ -8,6 +8,7 @@ import {
   getModeratorWorkspace,
 } from "../controller/ModeratorController.js";
 import { protect } from "../middleware/auth.js"
+import { apiLimiter } from "../utility/rateLimiter.js"
 
 
 const ModeratorRouter = express.Router();
@@ -16,7 +17,7 @@ const ModeratorRouter = express.Router();
 ModeratorRouter.get("/moderators",  getModerators);
 
 // Moderator workspace
-ModeratorRouter.get("/moderators/:moderatorId/workspace", protect, getModeratorWorkspace);
+ModeratorRouter.get("/moderators/:moderatorId/workspace", protect, apiLimiter, getModeratorWorkspace);
 
 // Fetch members assigned to a specific moderator
 ModeratorRouter.get("/moderators/:moderatorId/members", protect, getAssignedMembers);

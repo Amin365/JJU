@@ -3,6 +3,7 @@ import mongoose from "mongoose"
 import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus, getMemberOverview, createMemberNote, getMemberNotes, deleteMemberNote} from "../controller/members.js"
 import { sendMemberEmail } from "../controller/EmailController.js"
 import { protect } from "../middleware/auth.js"
+import { apiLimiter } from "../utility/rateLimiter.js"
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
 import cloudinary from '../utility/cloudinary.js'
@@ -49,13 +50,13 @@ MemberRouter.post("/members/:id/restore", restoreMember)
 MemberRouter.post("/members/bulk", protect, bulkCreateMembers);
 
 // Member overview (profile timeline)
-MemberRouter.get("/members/:id/overview", protect, getMemberOverview);
+MemberRouter.get("/members/:id/overview", protect, apiLimiter, getMemberOverview);
 
 // Member notes
 MemberRouter.route("/members/:id/notes")
-  .get(protect, getMemberNotes)
-  .post(protect, createMemberNote);
-MemberRouter.delete("/members/:id/notes/:noteId", protect, deleteMemberNote);
+  .get(protect, apiLimiter, getMemberNotes)
+  .post(protect, apiLimiter, createMemberNote);
+MemberRouter.delete("/members/:id/notes/:noteId", protect, apiLimiter, deleteMemberNote);
 
 // generic item routes last
 MemberRouter.route("/members/:id")
@@ -65,7 +66,7 @@ MemberRouter.route("/members/:id")
 
 MemberRouter.post("/join-club",JoinClub)
 
-MemberRouter.get("/join-club", protect, getJoinClubs)
-MemberRouter.get("/join-club/:id", protect, getJoinClubById)
-MemberRouter.patch("/join-club/:id/status", protect, updateJoinClubStatus)
+MemberRouter.get("/join-club", protect, apiLimiter, getJoinClubs)
+MemberRouter.get("/join-club/:id", protect, apiLimiter, getJoinClubById)
+MemberRouter.patch("/join-club/:id/status", protect, apiLimiter, updateJoinClubStatus)
 export default MemberRouter

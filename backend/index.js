@@ -106,6 +106,7 @@ app.use("/api",MemberRouter);
 app.use("/api", RoleRouter);
 app.use('/api',issueRouter)
 app.use('/api',issueRequestRouter)
+app.use('/api/issue-requests', issueRequestRouter)
 app.use('/api',reservationRouter)
 app.use('/api',DailyReportRouter)
 app.use('/api',NotificationRouter)
@@ -171,7 +172,11 @@ app.post("/db-alter/sync-seed", async (req, res) => {
 if (process.env.NODE_ENV === 'production') {
   app.use(express.static(path.join(__dirname, '../frontend/dist')));
 
-  app.get(/.*/, (req, res) => {
+  app.get(/.*/, (req, res, next) => {
+    if (req.path === '/api' || req.path.startsWith('/api/')) {
+      return next();
+    }
+
     res.sendFile(path.join(__dirname, '../frontend/dist/index.html'));
   });
 }

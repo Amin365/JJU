@@ -28,13 +28,17 @@ jobs:
           git reset --hard
           git pull origin main
 
-          echo "Deploying Backend"
-          cd backend
+          echo "Installing root dependencies"
           npm install
-          pm2 restart all || pm2 start index.js --name backend
+
+          echo "Deploying Backend"
+          pm2 describe backend >/dev/null 2>&1 \
+            && pm2 restart backend --update-env \
+            || pm2 start /var/www/JJU/backend/index.js --name backend
+          pm2 save
 
           echo "Deploying Frontend"
-          cd ../frontend
+          cd /var/www/JJU/frontend
           npm install
           NODE_OPTIONS="--max-old-space-size=4096" npm run build
 

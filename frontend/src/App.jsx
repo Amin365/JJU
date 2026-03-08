@@ -38,6 +38,7 @@ const DailyActivity=lazy(()=>import('./components/Members/DailyActivity'));
 const ModeratorTable=lazy(()=>import('./components/Moderator/Moderator'));
 const ModeratorPage=lazy(()=>import('./components/Moderator/ModeratorTable'));
 const ReportRecap=lazy(()=>import('./components/Members/ReadingRecap'));
+const ModeratorWorkspace=lazy(()=>import('./components/Moderator/ModeratorWorkspace'));
 const BlogEdit=lazy(()=>import('./components/Blogs/BlogEdit'));
 const BlogTable=lazy(()=>import('./components/Blogs/BlogTable'));
 const BlogDetails=lazy(()=>import('./components/Blogs/BlogDetails'));
@@ -46,6 +47,10 @@ const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 const File=lazy(()=>import("./components/Homepage/File"))
 
 const JoinClub=lazy(()=>import("./components/Homepage/JoinClubsTable"))
+const ChallengesList = lazy(() => import('./components/Challenges/ChallengesList'));
+const ChallengeDetails = lazy(() => import('./components/Challenges/ChallengeDetails'));
+const AchievementsPage = lazy(() => import('./components/Achievements/AchievementsPage'));
+const GoalsPage = lazy(() => import('./components/Goals/GoalsPage'));
 const Profile = lazy(() => import("./components/Users/UserProfile"));
 const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
 const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
@@ -109,6 +114,7 @@ function App() {
   <Route path="activity" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><DailyActivity /></Suspense>} />
   <Route path="moderators" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorTable /></Suspense>} />
   <Route path="moderators/:moderatorId/members" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorPage /></Suspense>} />
+  <Route path="moderator-workspace" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ModeratorWorkspace /></Suspense>} />
   <Route path="report-recap" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ReportRecap /></Suspense>} />
   <Route path="blogs/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />
   <Route path="blogs/edit/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogEdit /></Suspense>} />
@@ -117,6 +123,10 @@ function App() {
   <Route path="profile" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Profile /></Suspense>} />
   <Route path="id-card/:memberId" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IDcard /></Suspense>} />
   <Route path="join-clubs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><JoinClub /></Suspense>} />
+  <Route path="challenges" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ChallengesList /></Suspense>} />
+  <Route path="challenges/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ChallengeDetails /></Suspense>} />
+  <Route path="achievements" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AchievementsPage /></Suspense>} />
+  <Route path="goals" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><GoalsPage /></Suspense>} />
         </Route>
       </Routes>
       </>

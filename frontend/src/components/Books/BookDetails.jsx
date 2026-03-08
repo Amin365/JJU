@@ -21,9 +21,7 @@ import BookModal from "./BookModel";
 import { cn } from "@/lib/utils";
 
 /* 
-  This component intentionally follows the visual structure and
-  className patterns used in your EmployeeDetails component so the
-  BookDetails UI looks consistent with your app.
+
 */
 
 /* Reusable Card like in EmployeeDetails */

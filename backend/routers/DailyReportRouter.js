@@ -1,7 +1,8 @@
 import express from "express";
 import mongoose from "mongoose";
-import { createDailyReport, getDailyReports, getDailyReportById, getDailyReportsByMember, getDailyReportsScope, getStreakRestoreStatus, restoreStreak, getDailyReportsPublic } from "../controller/DailyReportControler.js";
+import { createDailyReport, getDailyReports, getDailyReportById, getDailyReportsByMember, getDailyReportsScope, getStreakRestoreStatus, restoreStreak, getDailyReportsPublic, getLeaderboardEnhanced } from "../controller/DailyReportControler.js";
 import { protect } from "../middleware/auth.js";
+import { apiLimiter } from "../utility/rateLimiter.js";
 // import { createDailyReport, getDailyReports, getDailyReportById } from "../controllers/dailyReport.controller.js";
 
 // If you have auth middleware, use it here:
@@ -21,6 +22,8 @@ DailyReport.get("/daily-reports/public", getDailyReportsPublic);
 DailyReport.get("/daily-reports/streak-restore", protect, getStreakRestoreStatus);
 
 DailyReport.post("/daily-reports/streak-restore", protect, restoreStreak);
+
+DailyReport.get("/daily-reports/leaderboard", apiLimiter, getLeaderboardEnhanced);
 
 DailyReport.post("/daily-reports", protect, createDailyReport);
 

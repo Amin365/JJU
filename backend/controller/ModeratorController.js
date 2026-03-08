@@ -3,6 +3,8 @@ import User from "../models/user.js";
 import Member from "../models/Members.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Role from "../models/Role.js";
+import Issue from "../models/Issue.js";
+import DailyReport from "../models/DailyReport.js";
 import mongoose from "mongoose";
 
 // Get list of moderators (users with 'Moderator' role)
@@ -175,6 +177,105 @@ export const unassignMemberFromModerator = async (req, res, next) => {
     }
 
     return res.status(200).json({ message: "Member unassigned successfully" });
+  } catch (err) {
+    return next(err);
+  }
+};
+/**
+ * @desc Moderator workspace - summary counts + assigned members with indicators
+ * @route GET /moderators/:moderatorId/workspace
+ * @access Protected
+ */
+export const getModeratorWorkspace = async (req, res, next) => {
+  try {
+    const { moderatorId } = req.params;
+    if (!mongoose.Types.ObjectId.isValid(moderatorId)) {
+      return res.status(400).json({ message: "Invalid moderator ID" });
+    }
+
+    const user = await User.findById(moderatorId).select("role first_name last_name username email").lean();
+    if (!user) return res.status(404).json({ message: "Moderator not found" });
+
+    // Check if super admin => all members
+    const superAdminRole = await Role.findOne({
+      $or: [
+        { role: { $regex: "^Super Admin$", $options: "i" } },
+        { plural: { $regex: "^Super Admins$", $options: "i" } },
+      ],
+    });
+
+    const isSuperAdmin = superAdminRole && user.role &&
+      user.role.toString() === superAdminRole._id.toString();
+
+    let memberIds;
+    if (isSuperAdmin) {
+      memberIds = await Member.distinct("_id").exec();
+    } else {
+      memberIds = await ModeratorMember.find({ moderator: moderatorId }).distinct("member").exec();
+    }
+
+    const members = await Member.find({ _id: { $in: memberIds } })
+      .select("_id first_name last_name email code status department study_year")
+      .lean();
+
+    // Fetch overdue issues for assigned members
+    const overdueIssues = await Issue.find({
+      member: { $in: memberIds },
+      status: "Overdue",
+    }).select("member book issueDate returnDate").lean();
+
+    const overdueByMember = {};
+    overdueIssues.forEach((i) => {
+      const key = String(i.member);
+      overdueByMember[key] = (overdueByMember[key] || 0) + 1;
+    });
+
+    // Find members missing daily reports in last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+
+    // Get all users linked to these members
+    const linkedUsers = await User.find({ member: { $in: memberIds } })
+      .select("_id member")
+      .lean();
+    const memberToUser = {};
+    linkedUsers.forEach((u) => { memberToUser[String(u.member)] = u._id; });
+
+    const userIds = linkedUsers.map((u) => u._id);
+    const recentReports = await DailyReport.find({
+      createdBy: { $in: userIds },
+      readingDate: { $gte: sevenDaysAgo },
+    }).select("createdBy readingDate").lean();
+
+    const usersWithRecentReports = new Set(recentReports.map((r) => String(r.createdBy)));
+
+    // Build enriched member list
+    const enrichedMembers = members.map((m) => {
+      const userId = memberToUser[String(m._id)];
+      const hasRecentReport = userId ? usersWithRecentReports.has(String(userId)) : false;
+      const overdueCount = overdueByMember[String(m._id)] || 0;
+      return {
+        ...m,
+        overdueCount,
+        missingRecentReport: !hasRecentReport,
+        lowActivity: !hasRecentReport && overdueCount === 0,
+      };
+    });
+
+    const summary = {
+      totalAssigned: members.length,
+      withOverdue: Object.keys(overdueByMember).length,
+      missingReports: enrichedMembers.filter((m) => m.missingRecentReport).length,
+      lowActivity: enrichedMembers.filter((m) => m.lowActivity).length,
+    };
+
+    return res.status(200).json({
+      data: {
+        moderator: user,
+        summary,
+        members: enrichedMembers,
+      },
+    });
   } catch (err) {
     return next(err);
   }

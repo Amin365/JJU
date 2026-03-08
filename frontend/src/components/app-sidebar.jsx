@@ -4,6 +4,7 @@
 import * as React from "react"
 import {
   AudioWaveform,
+  Award,
   BookOpen,
   Bot,
   Command,
@@ -19,6 +20,8 @@ import {
   User,
   ActivityIcon,
   StickyNote,
+  Target,
+  Trophy,
   UserPlus2,
   ListOrdered,
   BookMarked,
@@ -119,6 +122,12 @@ const data = {
    
     },
     {
+      title: "Moderator Workspace ",
+      url: "/dashboard/moderator-workspace",
+      icon: User,
+   
+    },
+    {
       title: "Blogs ",
       url: "/dashboard/blogs",
       icon: StickyNote,
@@ -128,6 +137,24 @@ const data = {
       title: "Join Requests ",
       url: "/dashboard/join-clubs",
       icon: UserPlus2,
+   
+    },
+    {
+      title: "Challenges",
+      url: "/dashboard/challenges",
+      icon: Trophy,
+   
+    },
+    {
+      title: "Achievements",
+      url: "/dashboard/achievements",
+      icon: Award,
+   
+    },
+    {
+      title: "Goals",
+      url: "/dashboard/goals",
+      icon: Target,
    
     },
     {
@@ -171,12 +198,12 @@ if(!token){
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
       // Members: only Request Books, Reservations, and Reading Reports
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report","/dashboard/report-recap", "/dashboard/leaderboard"]);
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report", "/dashboard/report-recap", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {
-      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations
-      const allowed = new Set(["/dashboard/activity","/dashboard/members","/dashboard/issues","/dashboard/issues/request","/dashboard/reservations","/dashboard/leaderboard"]);
+      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations, Workspace
+      const allowed = new Set(["/dashboard/activity", "/dashboard/members", "/dashboard/issues", "/dashboard/issues/request", "/dashboard/reservations", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/moderator-workspace"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

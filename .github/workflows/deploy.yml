@@ -14,7 +14,23 @@ jobs:
     - name: Checkout code
       uses: actions/checkout@v3
 
+    - name: Check deployment secrets
+      id: secrets-check
+      env:
+        SSH_KEY: ${{ secrets.SSH_KEY }}
+        SERVER_IP: ${{ secrets.SERVER_IP }}
+        SERVER_USER: ${{ secrets.SERVER_USER }}
+      run: |
+        if [ -n "$SSH_KEY" ] && [ -n "$SERVER_IP" ] && [ -n "$SERVER_USER" ]; then
+          echo "available=true" >> "$GITHUB_OUTPUT"
+        else
+          echo "available=false" >> "$GITHUB_OUTPUT"
+          echo "⚠️  Deployment secrets (SERVER_IP, SERVER_USER, SSH_KEY) are not configured."
+          echo "    Skipping SSH deploy step. Configure the secrets to enable auto-deployment."
+        fi
+
     - name: Deploy to DigitalOcean Server
+      if: steps.secrets-check.outputs.available == 'true'
       uses: appleboy/ssh-action@v1
       with:
         host: ${{ secrets.SERVER_IP }}

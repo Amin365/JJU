@@ -9,10 +9,10 @@ import {
 const ChallengeRouter = express.Router();
 
 ChallengeRouter.post("/challenges", apiLimiter, protect, createChallenge);
-ChallengeRouter.get("/challenges", getChallenges);
-ChallengeRouter.get("/challenges/:id", getChallengeById);
+ChallengeRouter.get("/challenges", protect, getChallenges);
+ChallengeRouter.get("/challenges/:id", protect, getChallengeById);
 ChallengeRouter.post("/challenges/:id/join", apiLimiter, protect, joinChallenge);
-ChallengeRouter.get("/challenges/:id/leaderboard", getChallengeLeaderboard);
+ChallengeRouter.get("/challenges/:id/leaderboard", protect, getChallengeLeaderboard);
 ChallengeRouter.get("/challenges/:id/my-progress", protect, getMyProgress);
 ChallengeRouter.patch("/challenges/:id/status", apiLimiter, protect, updateChallengeStatus);
 

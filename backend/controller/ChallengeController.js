@@ -2,6 +2,7 @@ import User from "../models/user.js";
 import DailyReport from "../models/DailyReport.js";
 import ReadingChallenge from "../models/ReadingChallenge.js";
 import ChallengeParticipation from "../models/ChallengeParticipation.js";
+import ModeratorMember from "../models/ModeratorMember.js";
 import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
 
 
@@ -20,13 +21,93 @@ async function computeProgress(userId, challenge) {
   return { pagesRead, minutesRead, reportsCount, streak };
 }
 
+function getRoleFlags(roleName = "") {
+  const normalizedRole = String(roleName || "").toLowerCase();
+  return {
+    roleName: normalizedRole,
+    isSuperAdmin: /super\s*admin/i.test(normalizedRole),
+    isModerator: /moderator/i.test(normalizedRole),
+  };
+}
+
+async function getChallengeAccessContext(userId) {
+  const currentUser = await User.findById(userId)
+    .select("_id first_name last_name username email profile_picture role member")
+    .populate("role", "role plural")
+    .lean();
+
+  if (!currentUser) return null;
+
+  const { roleName, isSuperAdmin, isModerator } = getRoleFlags(
+    currentUser?.role?.role || currentUser?.role?.plural || ""
+  );
+
+  let assignedModeratorId = null;
+
+  if (!isSuperAdmin && !isModerator && currentUser.member) {
+    const assignment = await ModeratorMember.findOne({ member: currentUser.member })
+      .select("moderator")
+      .lean();
+
+    assignedModeratorId = assignment?.moderator ? String(assignment.moderator) : null;
+  }
+
+  return {
+    currentUser,
+    roleName,
+    isSuperAdmin,
+    isModerator,
+    assignedModeratorId,
+  };
+}
+
+function buildChallengeAccessFilter(accessContext, extraFilter = {}) {
+  if (!accessContext) {
+    return { ...extraFilter, _id: null };
+  }
+
+  if (accessContext.isSuperAdmin) {
+    return { ...extraFilter };
+  }
+
+  if (accessContext.isModerator) {
+    return { ...extraFilter, createdBy: accessContext.currentUser._id };
+  }
+
+  if (accessContext.assignedModeratorId) {
+    return { ...extraFilter, createdBy: accessContext.assignedModeratorId };
+  }
+
+  return { ...extraFilter, _id: null };
+}
+
+async function getParticipantCounts(challengeIds = []) {
+  if (!challengeIds.length) return {};
+
+  const rows = await ChallengeParticipation.aggregate([
+    { $match: { challenge: { $in: challengeIds } } },
+    { $group: { _id: "$challenge", count: { $sum: 1 } } },
+  ]);
+
+  return rows.reduce((acc, row) => {
+    acc[String(row._id)] = row.count;
+    return acc;
+  }, {});
+}
+
+function withParticipantCount(challenge, participantCounts = {}) {
+  return {
+    ...challenge,
+    participantCount: participantCounts[String(challenge._id)] || 0,
+  };
+}
+
 // POST /challenges - admin/moderator only
 export const createChallenge = async (req, res, next) => {
   try {
-    const currentUser = await User.findById(req.user._id).populate("role", "role plural").lean();
-    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
-    const isSuperAdmin = /super\s*admin/i.test(roleName);
-    const isModerator = /moderator/i.test(roleName);
+    const accessContext = await getChallengeAccessContext(req.user._id);
+    const { currentUser, isSuperAdmin, isModerator } = accessContext || {};
+
     if (!isSuperAdmin && !isModerator) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -36,18 +117,33 @@ export const createChallenge = async (req, res, next) => {
       return res.status(400).json({ message: "title, type, startDate, and endDate are required" });
     }
 
+    if (new Date(startDate) > new Date(endDate)) {
+      return res.status(400).json({ message: "startDate must be before endDate" });
+    }
+
+    const normalizedRules = {
+      minPagesPerDay: Number(rules?.minPagesPerDay || 0),
+      minMinutesPerDay: Number(rules?.minMinutesPerDay || 0),
+      requiredConsecutiveDays: Number(rules?.requiredConsecutiveDays || 0),
+      targetTotal: Number(rules?.targetTotal || 0),
+    };
+
     const challenge = await ReadingChallenge.create({
       title,
       type,
       startDate,
       endDate,
       description,
-      rules,
+      rules: normalizedRules,
       status: status || "Draft",
-      createdBy: req.user._id,
+      createdBy: currentUser._id,
     });
 
-    return res.status(201).json({ data: challenge });
+    const createdChallenge = await ReadingChallenge.findById(challenge._id)
+      .populate("createdBy", "first_name last_name username email profile_picture")
+      .lean();
+
+    return res.status(201).json({ data: { ...createdChallenge, participantCount: 0 } });
   } catch (err) {
     return next(err);
   }
@@ -56,8 +152,9 @@ export const createChallenge = async (req, res, next) => {
 // GET /challenges
 export const getChallenges = async (req, res, next) => {
   try {
+    const accessContext = await getChallengeAccessContext(req.user._id);
     const { status, page = 1, limit = 20 } = req.query;
-    const filter = {};
+    const filter = buildChallengeAccessFilter(accessContext);
     if (status) filter.status = status;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -66,7 +163,7 @@ export const getChallenges = async (req, res, next) => {
 
     const [items, total] = await Promise.all([
       ReadingChallenge.find(filter)
-        .populate("createdBy", "first_name last_name email")
+        .populate("createdBy", "first_name last_name username email profile_picture")
         .sort({ startDate: -1 })
         .skip(skip)
         .limit(perPage)
@@ -74,7 +171,10 @@ export const getChallenges = async (req, res, next) => {
       ReadingChallenge.countDocuments(filter),
     ]);
 
-    return res.status(200).json({ data: items, total, page: pageNum, limit: perPage, totalPages: Math.ceil(total / perPage) });
+    const participantCounts = await getParticipantCounts(items.map((item) => item._id));
+    const data = items.map((item) => withParticipantCount(item, participantCounts));
+
+    return res.status(200).json({ data, total, page: pageNum, limit: perPage, totalPages: Math.ceil(total / perPage) });
   } catch (err) {
     return next(err);
   }
@@ -83,11 +183,17 @@ export const getChallenges = async (req, res, next) => {
 // GET /challenges/:id
 export const getChallengeById = async (req, res, next) => {
   try {
-    const challenge = await ReadingChallenge.findById(req.params.id)
-      .populate("createdBy", "first_name last_name email")
+    const accessContext = await getChallengeAccessContext(req.user._id);
+    const challenge = await ReadingChallenge.findOne(
+      buildChallengeAccessFilter(accessContext, { _id: req.params.id })
+    )
+      .populate("createdBy", "first_name last_name username email profile_picture")
       .lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
-    return res.status(200).json({ data: challenge });
+
+    const participantCounts = await getParticipantCounts([challenge._id]);
+
+    return res.status(200).json({ data: withParticipantCount(challenge, participantCounts) });
   } catch (err) {
     return next(err);
   }
@@ -96,7 +202,20 @@ export const getChallengeById = async (req, res, next) => {
 // POST /challenges/:id/join
 export const joinChallenge = async (req, res, next) => {
   try {
-    const challenge = await ReadingChallenge.findById(req.params.id).lean();
+    const accessContext = await getChallengeAccessContext(req.user._id);
+
+    if (!accessContext) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (accessContext.isModerator || accessContext.isSuperAdmin) {
+      return res.status(403).json({ message: "Only members can join challenges" });
+    }
+
+    const challenge = await ReadingChallenge.findOne(
+      buildChallengeAccessFilter(accessContext, { _id: req.params.id })
+    ).lean();
+
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
     if (challenge.status !== "Active") {
       return res.status(400).json({ message: "Challenge is not active" });
@@ -121,7 +240,10 @@ export const joinChallenge = async (req, res, next) => {
 // GET /challenges/:id/leaderboard
 export const getChallengeLeaderboard = async (req, res, next) => {
   try {
-    const challenge = await ReadingChallenge.findById(req.params.id).lean();
+    const accessContext = await getChallengeAccessContext(req.user._id);
+    const challenge = await ReadingChallenge.findOne(
+      buildChallengeAccessFilter(accessContext, { _id: req.params.id })
+    ).lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
     const participations = await ChallengeParticipation.find({ challenge: challenge._id })
@@ -156,10 +278,9 @@ export const getChallengeLeaderboard = async (req, res, next) => {
 // PATCH /challenges/:id/status - admin/moderator only
 export const updateChallengeStatus = async (req, res, next) => {
   try {
-    const currentUser = await User.findById(req.user._id).populate("role", "role plural").lean();
-    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
-    const isSuperAdmin = /super\s*admin/i.test(roleName);
-    const isModerator = /moderator/i.test(roleName);
+    const accessContext = await getChallengeAccessContext(req.user._id);
+    const { isSuperAdmin, isModerator } = accessContext || {};
+
     if (!isSuperAdmin && !isModerator) {
       return res.status(403).json({ message: "Access denied" });
     }
@@ -170,14 +291,16 @@ export const updateChallengeStatus = async (req, res, next) => {
       return res.status(400).json({ message: `status must be one of: ${validStatuses.join(", ")}` });
     }
 
-    const challenge = await ReadingChallenge.findByIdAndUpdate(
-      req.params.id,
+    const challenge = await ReadingChallenge.findOneAndUpdate(
+      buildChallengeAccessFilter(accessContext, { _id: req.params.id }),
       { status },
       { new: true }
-    ).populate("createdBy", "first_name last_name email");
+    ).populate("createdBy", "first_name last_name username email profile_picture");
 
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
-    return res.status(200).json({ data: challenge });
+
+    const participantCounts = await getParticipantCounts([challenge._id]);
+    return res.status(200).json({ data: withParticipantCount(challenge.toObject(), participantCounts) });
   } catch (err) {
     return next(err);
   }
@@ -186,7 +309,10 @@ export const updateChallengeStatus = async (req, res, next) => {
 // GET /challenges/:id/my-progress
 export const getMyProgress = async (req, res, next) => {
   try {
-    const challenge = await ReadingChallenge.findById(req.params.id).lean();
+    const accessContext = await getChallengeAccessContext(req.user._id);
+    const challenge = await ReadingChallenge.findOne(
+      buildChallengeAccessFilter(accessContext, { _id: req.params.id })
+    ).lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
     const participation = await ChallengeParticipation.findOne({

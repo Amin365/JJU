@@ -7,6 +7,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
+import { extractArrayPayload } from '@/lib/utils';
 
 function formatDate(d) {
   if (!d) return '';
@@ -33,7 +34,7 @@ export default function AchievementsPage() {
     queryKey: ['achievements'],
     queryFn: async () => {
       const res = await api.get('/achievements');
-      return res.data?.data || res.data || [];
+      return extractArrayPayload(res.data);
     },
   });
 
@@ -41,7 +42,7 @@ export default function AchievementsPage() {
     queryKey: ['my-achievements'],
     queryFn: async () => {
       const res = await api.get('/users/me/achievements');
-      return res.data?.data || res.data || [];
+      return extractArrayPayload(res.data);
     },
     enabled: !!user,
   });

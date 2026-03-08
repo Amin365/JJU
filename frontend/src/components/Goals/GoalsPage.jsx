@@ -18,6 +18,7 @@ import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogClose,
 } from '@/components/ui/dialog';
 import { Separator } from '@/components/ui/separator';
+import { extractArrayPayload } from '@/lib/utils';
 
 const GOAL_TYPE_LABELS = {
   pages_per_day: 'Pages / Day',
@@ -65,7 +66,7 @@ export default function GoalsPage() {
     queryKey: ['my-goals'],
     queryFn: async () => {
       const res = await api.get('/users/me/goals');
-      return res.data?.data || res.data || [];
+      return extractArrayPayload(res.data);
     },
     enabled: !!user,
   });

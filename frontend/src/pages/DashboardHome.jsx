@@ -33,8 +33,9 @@ import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
 import api from "@/app/api/apislice";
 import ChartsDashboard from "./ChartsDashboard";
+import { extractArrayPayload } from "@/lib/utils";
 
-/* ──────────────────── helpers ──────────────────── */
+/*  helpers  */
 
 const timeAgo = (date) => {
   if (!date) return "—";
@@ -50,7 +51,7 @@ const timeAgo = (date) => {
   return `${day}d ago`;
 };
 
-const asArray = (value) => (Array.isArray(value) ? value : []);
+const asArray = (value) => extractArrayPayload(value);
 
 const activityIcon = (type) => {
   const map = {
@@ -65,7 +66,7 @@ const activityIcon = (type) => {
   return map[type] ?? <Activity className="h-4 w-4 text-muted-foreground" />;
 };
 
-/* ──────────────────── sub-components ──────────────────── */
+/*  sub-components  */
 
 function StatCard({ title, value, icon: Icon, colorClass = "text-primary", loading }) {
   return (
@@ -338,14 +339,14 @@ function PendingApprovals({ data, loading }) {
   );
 }
 
-/* ──────────────────── main page ──────────────────── */
+/*  main page  */
 
 function ActiveChallengesWidget() {
   const { data: challenges = [], isLoading } = useQuery({
     queryKey: ["challenges", "active-widget"],
     queryFn: async () => {
       const res = await api.get("/challenges", { params: { status: "Active" } });
-      const list = res.data?.data || res.data || [];
+      const list = extractArrayPayload(res.data);
       return list.slice(0, 3);
     },
     staleTime: 120_000,
@@ -412,7 +413,7 @@ function RecentAchievementsWidget() {
     queryKey: ["my-achievements-widget"],
     queryFn: async () => {
       const res = await api.get("/users/me/achievements");
-      const list = res.data?.data || res.data || [];
+      const list = extractArrayPayload(res.data);
       // Keep only unlocked entries (those with an unlockedAt date or a nested achievement object)
       return [...list]
         .filter((a) => a.unlockedAt || a.achievement)
@@ -480,7 +481,7 @@ function RecentAchievementsWidget() {
   );
 }
 
-/* ──────────────────── main page ──────────────────── */
+/*  main page  */
 
 export default function DashboardHome() {
   const statsQ = useQuery({

@@ -3,8 +3,9 @@ import { useParams, useNavigate } from 'react-router';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
-  Trophy, Calendar, BookOpen, Clock, FileText, Flame, ArrowLeft, Loader2, Users,
+  Trophy, Calendar, BookOpen, Clock, FileText, Flame, ArrowLeft, Loader2, Users, UserRound,
 } from 'lucide-react';
+import { toast } from 'sonner';
 import api from '@/app/api/apislice';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -15,6 +16,7 @@ import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
 import { Separator } from '@/components/ui/separator';
+import { extractArrayPayload } from '@/lib/utils';
 
 const STATUS_COLORS = {
   Active: 'bg-green-500/20 text-green-400 border-green-500/30',
@@ -32,6 +34,37 @@ function getUserName(user) {
   if (typeof user === 'string') return user;
   return [user.first_name, user.middle_name, user.last_name].filter(Boolean).join(' ')
     || user.username || user.email || 'Unknown';
+}
+
+function getRoleName(user) {
+  return String(user?.role?.role || user?.role?.plural || '').toLowerCase();
+}
+
+function isModeratorUser(user) {
+  return /moderator|super\s*admin/i.test(getRoleName(user));
+}
+
+function getRuleItems(rules = {}, challengeType) {
+  const items = [];
+
+  if ((rules.targetTotal || 0) > 0) {
+    items.push(`Target total: ${rules.targetTotal} ${challengeType}`);
+  }
+  if ((rules.minPagesPerDay || 0) > 0) {
+    items.push(`Minimum ${rules.minPagesPerDay} pages per day`);
+  }
+  if ((rules.minMinutesPerDay || 0) > 0) {
+    items.push(`Minimum ${rules.minMinutesPerDay} minutes per day`);
+  }
+  if ((rules.requiredConsecutiveDays || 0) > 0) {
+    items.push(`${rules.requiredConsecutiveDays} consecutive days required`);
+  }
+
+  return items;
+}
+
+function getErrorMessage(error, fallback) {
+  return error?.response?.data?.message || fallback;
 }
 
 function SkeletonBlock() {
@@ -53,6 +86,7 @@ export default function ChallengeDetails() {
   const navigate = useNavigate();
   const user = useSelector((state) => state.auth.user);
   const queryClient = useQueryClient();
+  const canManageChallenges = isModeratorUser(user);
 
   const { data: challenge, isLoading, isError } = useQuery({
     queryKey: ['challenge', id],
@@ -60,16 +94,16 @@ export default function ChallengeDetails() {
       const res = await api.get(`/challenges/${id}`);
       return res.data?.data || res.data;
     },
-    enabled: !!id,
+    enabled: !!id && !!user,
   });
 
   const { data: leaderboard = [], isLoading: lbLoading } = useQuery({
     queryKey: ['challenge-leaderboard', id],
     queryFn: async () => {
       const res = await api.get(`/challenges/${id}/leaderboard`);
-      return res.data?.data || res.data || [];
+      return extractArrayPayload(res.data);
     },
-    enabled: !!id,
+    enabled: !!id && !!user,
   });
 
   const { data: myProgress } = useQuery({
@@ -84,9 +118,14 @@ export default function ChallengeDetails() {
   const joinMutation = useMutation({
     mutationFn: () => api.post(`/challenges/${id}/join`),
     onSuccess: () => {
-      queryClient.invalidateQueries(['challenge', id]);
-      queryClient.invalidateQueries(['challenge-progress', id]);
-      queryClient.invalidateQueries(['challenge-leaderboard', id]);
+      toast.success('You joined the challenge.');
+      queryClient.invalidateQueries({ queryKey: ['challenge', id] });
+      queryClient.invalidateQueries({ queryKey: ['challenge-progress', id] });
+      queryClient.invalidateQueries({ queryKey: ['challenge-leaderboard', id] });
+      queryClient.invalidateQueries({ queryKey: ['challenges'] });
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'Failed to join challenge.'));
     },
   });
 
@@ -109,6 +148,7 @@ export default function ChallengeDetails() {
 
   const isJoined = myProgress != null;
   const targetValue = challenge.rules?.targetTotal || 0;
+  const ruleItems = getRuleItems(challenge.rules, challenge.type);
 
   // Compute progress percent from available data based on challenge type
   const currentValue = myProgress
@@ -157,34 +197,37 @@ export default function ChallengeDetails() {
                 <Calendar className="h-4 w-4" />
                 <span>{formatDate(challenge.startDate)} – {formatDate(challenge.endDate)}</span>
               </div>
-              {challenge.participants != null && (
-                <div className="flex items-center gap-1.5">
-                  <Users className="h-4 w-4" />
-                  <span>
-                    {Array.isArray(challenge.participants)
-                      ? challenge.participants.length
-                      : challenge.participants} participants
-                  </span>
-                </div>
-              )}
+              <div className="flex items-center gap-1.5">
+                <Users className="h-4 w-4" />
+                <span>{challenge.participantCount ?? 0} participants</span>
+              </div>
+              <div className="flex items-center gap-1.5">
+                <UserRound className="h-4 w-4" />
+                <span>Created by {getUserName(challenge.createdBy)}</span>
+              </div>
               {targetValue > 0 && (
                 <div className="flex items-center gap-1.5">
                   <Trophy className="h-4 w-4 text-yellow-400" />
                   <span>Goal: {targetValue} {challenge.type}</span>
                 </div>
-              )}            </div>
+              )}
+            </div>
 
-            {challenge.rules && (
+            {ruleItems.length > 0 && (
               <>
                 <Separator />
                 <div>
                   <p className="text-sm font-semibold mb-1">Rules</p>
-                  <p className="text-sm text-muted-foreground whitespace-pre-line">{challenge.rules}</p>
+                  <ul className="space-y-1 text-sm text-muted-foreground">
+                    {ruleItems.map((item) => (
+                      <li key={item}>• {item}</li>
+                    ))}
+                  </ul>
                 </div>
               </>
             )}
 
-            {challenge.status === 'Active' && user && !isJoined && (
+            {challenge.status === 'Active' && user && !canManageChallenges && !isJoined && (
               <Button
                 onClick={() => joinMutation.mutate()}
                 disabled={joinMutation.isPending}
@@ -193,6 +236,12 @@ export default function ChallengeDetails() {
                 {joinMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
                 Join Challenge
               </Button>
+            )}
+
+            {canManageChallenges && (
+              <p className="text-xs text-muted-foreground">
+                This challenge is visible to the moderator who created it and their assigned members only.
+              </p>
             )}
           </CardContent>
         </Card>
@@ -257,7 +306,7 @@ export default function ChallengeDetails() {
                 </TableHeader>
                 <TableBody>
                   {leaderboard.map((entry, idx) => (
-                    <TableRow key={entry._id ?? idx}>
+                    <TableRow key={entry.user?._id ?? idx}>
                       <TableCell className="font-bold text-muted-foreground">
                         {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                       </TableCell>

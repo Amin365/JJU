@@ -58,6 +58,13 @@ function SortIcon({ field, sortField, sortDir }) {
     : <ChevronDown className="w-3 h-3 text-yellow-400" />;
 }
 
+const SORT_FIELD_MAP = {
+  streak: 'streak',
+  pages: 'pagesRead',
+  minutes: 'minutesRead',
+  reports: 'reportsCount',
+};
+
 export default function Leaderboard() {
   const location = useLocation();
   const hideHero = location.pathname === '/dashboard/leaderboard' || location.pathname === '/dashboard/Leaderboard';
@@ -105,8 +112,7 @@ export default function Leaderboard() {
           reportsCount: entry.reportsCount ?? 0,
         }))
         .sort((a, b) => {
-          const fieldMap = { streak: 'streak', pages: 'pagesRead', minutes: 'minutesRead', reports: 'reportsCount' };
-          const key = fieldMap[sortField] || 'streak';
+          const key = SORT_FIELD_MAP[sortField] || 'streak';
           return sortDir === 'desc' ? b[key] - a[key] : a[key] - b[key];
         });
     }
@@ -131,8 +137,7 @@ export default function Leaderboard() {
         reportsCount: u.reportsCount,
       }))
       .sort((a, b) => {
-        const fieldMap = { streak: 'streak', pages: 'pagesRead', minutes: 'minutesRead', reports: 'reportsCount' };
-        const key = fieldMap[sortField] || 'streak';
+        const key = SORT_FIELD_MAP[sortField] || 'streak';
         return sortDir === 'desc' ? b[key] - a[key] : a[key] - b[key];
       })
       .slice(0, 1000);

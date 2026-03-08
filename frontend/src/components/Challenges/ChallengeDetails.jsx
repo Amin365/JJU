@@ -108,8 +108,16 @@ export default function ChallengeDetails() {
   }
 
   const isJoined = myProgress != null;
-  const progressPercent = myProgress?.progressPercent ?? 0;
-  const targetValue = challenge.targetValue ?? 0;
+  const targetValue = challenge.rules?.targetTotal || 0;
+
+  // Compute progress percent from available data based on challenge type
+  const currentValue = myProgress
+    ? challenge.type === 'pages' ? (myProgress.pagesRead ?? 0)
+    : challenge.type === 'minutes' ? (myProgress.minutesRead ?? 0)
+    : challenge.type === 'streak' ? (myProgress.streak ?? 0)
+    : (myProgress.reportsCount ?? 0)
+    : 0;
+  const progressPercent = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
 
   return (
     <div className="px-4 lg:px-6 py-6 space-y-6 max-w-5xl mx-auto">
@@ -164,8 +172,7 @@ export default function ChallengeDetails() {
                   <Trophy className="h-4 w-4 text-yellow-400" />
                   <span>Goal: {targetValue} {challenge.type}</span>
                 </div>
-              )}
-            </div>
+              )}            </div>
 
             {challenge.rules && (
               <>

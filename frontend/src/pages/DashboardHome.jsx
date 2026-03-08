@@ -413,7 +413,9 @@ function RecentAchievementsWidget() {
     queryFn: async () => {
       const res = await api.get("/users/me/achievements");
       const list = res.data?.data || res.data || [];
+      // Keep only unlocked entries (those with an unlockedAt date or a nested achievement object)
       return [...list]
+        .filter((a) => a.unlockedAt || a.achievement)
         .sort((a, b) => new Date(b.unlockedAt || b.createdAt || 0) - new Date(a.unlockedAt || a.createdAt || 0))
         .slice(0, 3);
     },

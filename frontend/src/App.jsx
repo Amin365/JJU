@@ -23,6 +23,7 @@ const MemberDetails = lazy(() => import("./components/Members/MemberDetails"));
 const SectionCards = lazy(() =>
   import("./components/Section-cards").then((m) => ({ default: m.SectionCards }))
 );
+const DashboardHome = lazy(() => import("./pages/DashboardHome"));
 
 const Users = lazy(() => import("./components/Users/UserTable"));
 const UsersFromMember = lazy(() => import("./components/Users/UserFromMember"));
@@ -81,7 +82,7 @@ function App() {
             index
             element={
               <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}>
-                <SectionCards />
+                <DashboardHome />
               </Suspense>
             }
           />

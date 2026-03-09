@@ -3,6 +3,14 @@ import mongoose from "mongoose";
 const ReadingChallengeSchema = new mongoose.Schema({
   title: { type: String, required: true, trim: true },
   description: { type: String, default: "" },
+  book: { type: mongoose.Schema.Types.ObjectId, ref: "Book", default: null },
+  winner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
+  completedAt: { type: Date, default: null },
+  completionReason: {
+    type: String,
+    enum: ["target_reached", "date_ended", null],
+    default: null,
+  },
   type: {
     type: String,
     enum: ["streak", "pages", "minutes", "reports"],
@@ -16,7 +24,7 @@ const ReadingChallengeSchema = new mongoose.Schema({
     requiredConsecutiveDays: { type: Number, default: 0 },
     targetTotal: { type: Number, default: 0 },
   },
-  status: { type: String, enum: ["Draft", "Active", "Completed"], default: "Draft" },
+  status: { type: String, enum: ["Draft", "Active", "Completed"], default: "Active" },
   createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
 }, { timestamps: true });
 

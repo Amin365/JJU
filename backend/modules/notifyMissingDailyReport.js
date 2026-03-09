@@ -5,9 +5,9 @@ import Notification from "../models/Notification.js";
 import Role from "../models/Role.js";
 import { sendPushToUser } from "../utility/push.js";
 
-/* ===========================
+/* 
    DATE UTILS (UTC SAFE)
-=========================== */
+ */
 
 function toUTCDateOnly(date) {
   const d = new Date(date);
@@ -20,9 +20,9 @@ function getYesterdayUTC(date) {
   return d;
 }
 
-/* ===========================
+/* 
    MAIN NOTIFICATION LOGIC
-=========================== */
+ */
 
 export async function notifyUsersMissingDailyReport() {
   const today = toUTCDateOnly(new Date());
@@ -94,9 +94,9 @@ export async function notifyUsersMissingDailyReport() {
   }
 }
 
-/* ===========================
+/* 
    SCHEDULER
-=========================== */
+ */
 
 export function startDailyReportMissingScheduler(
   intervalMs = 60 * 60 * 1000 // every 1 hour

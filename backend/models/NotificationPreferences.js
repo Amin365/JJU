@@ -26,6 +26,7 @@ const NotificationPreferencesSchema = new mongoose.Schema(
     emailOnDueTomorrow: { type: Boolean, default: false },
     emailOnWeeklyDigest: { type: Boolean, default: true },
     emailOnJoinRequestUpdate: { type: Boolean, default: true },
+    emailOnGoalProgress: { type: Boolean, default: true },
     emailOnAnnouncement: { type: Boolean, default: true },
     
     // Quiet hours (optional)

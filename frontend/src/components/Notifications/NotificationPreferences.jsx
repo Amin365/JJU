@@ -164,6 +164,11 @@ export default function NotificationPreferences() {
       description: "Email updates on membership requests",
     },
     {
+      key: "emailOnGoalProgress",
+      label: "Goal Progress",
+      description: "Email congratulations when you complete a reading goal",
+    },
+    {
       key: "emailOnAnnouncement",
       label: "Announcements",
       description: "Receive important announcements via email",

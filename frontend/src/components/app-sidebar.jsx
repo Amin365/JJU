@@ -137,6 +137,11 @@ const data = {
    
     },
     {
+      title: "Pending Reports",
+      url: "/dashboard/pending-reports",
+      icon: ClipboardList,
+    },
+    {
       title: "Blogs ",
       url: "/dashboard/blogs",
       icon: StickyNote,
@@ -263,6 +268,7 @@ if(!token){
     "/dashboard/goals",
     "/dashboard/leaderboard",
     "/dashboard/moderator-workspace",
+    "/dashboard/pending-reports",
     "/dashboard/notifications",
     "/dashboard/notification-settings",
   ];

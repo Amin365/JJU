@@ -109,10 +109,18 @@ export default function ChallengeDetails() {
   const { data: myProgress } = useQuery({
     queryKey: ['challenge-progress', id],
     queryFn: async () => {
-      const res = await api.get(`/challenges/${id}/my-progress`);
-      return res.data?.data || res.data;
+      try {
+        const res = await api.get(`/challenges/${id}/my-progress`);
+        return res.data?.data || res.data;
+      } catch (error) {
+        if (error?.response?.status === 404) {
+          return null;
+        }
+        throw error;
+      }
     },
     enabled: !!id && !!user,
+    retry: false,
   });
 
   const joinMutation = useMutation({
@@ -146,7 +154,7 @@ export default function ChallengeDetails() {
     );
   }
 
-  const isJoined = myProgress != null;
+  const isJoined = Boolean(challenge.isJoined || myProgress != null);
   const targetValue = challenge.rules?.targetTotal || 0;
   const ruleItems = getRuleItems(challenge.rules, challenge.type);
 
@@ -188,6 +196,11 @@ export default function ChallengeDetails() {
                 <Badge variant="outline" className="border-blue-500/30 text-blue-400">
                   {challenge.type}
                 </Badge>
+                {isJoined && (
+                  <Badge variant="outline" className="border-emerald-500/30 text-emerald-300">
+                    Joined
+                  </Badge>
+                )}
               </div>
             </div>
           </CardHeader>
@@ -205,6 +218,12 @@ export default function ChallengeDetails() {
                 <UserRound className="h-4 w-4" />
                 <span>Created by {getUserName(challenge.createdBy)}</span>
               </div>
+              {challenge.book && (
+                <div className="flex items-center gap-1.5">
+                  <BookOpen className="h-4 w-4 text-blue-400" />
+                  <span>{challenge.book.title} • ISBN {challenge.book.isbn}</span>
+                </div>
+              )}
               {targetValue > 0 && (
                 <div className="flex items-center gap-1.5">
                   <Trophy className="h-4 w-4 text-yellow-400" />
@@ -225,6 +244,26 @@ export default function ChallengeDetails() {
                   </ul>
                 </div>
               </>
+            )}
+
+            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3 text-sm text-muted-foreground">
+              Progress is calculated from approved reading reports only. Reports are reviewed by moderators or super admins.
+              {challenge.book
+                ? ` Only reports for ${challenge.book.title} count in this challenge.`
+                : ' Reports from any book can count in this challenge.'}
+            </div>
+
+            {challenge.winner && (
+              <div className="rounded-xl border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm">
+                <p className="font-medium text-emerald-300">Winner: {getUserName(challenge.winner)}</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  {challenge.completionReason === 'target_reached'
+                    ? 'This challenge finished because the target was reached first.'
+                    : challenge.completionReason === 'date_ended'
+                      ? 'This challenge finished because the end date was reached.'
+                      : 'This challenge has been completed.'}
+                </p>
+              </div>
             )}
 
             {challenge.status === 'Active' && user && !canManageChallenges && !isJoined && (
@@ -261,6 +300,17 @@ export default function ChallengeDetails() {
               <StatPill icon={Clock} label="Minutes" value={myProgress.minutesRead ?? 0} color="text-purple-400" />
               <StatPill icon={FileText} label="Reports" value={myProgress.reportsCount ?? 0} color="text-orange-400" />
               <StatPill icon={Flame} label="Streak" value={myProgress.streak ?? 0} color="text-yellow-400" />
+            </div>
+            <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+                Active reading days: <span className="font-semibold text-foreground">{myProgress.activeDays ?? 0}</span>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+                Avg pages / day: <span className="font-semibold text-foreground">{myProgress.averagePagesPerDay ?? 0}</span>
+              </div>
+              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+                Books counted: <span className="font-semibold text-foreground">{myProgress.booksCount ?? 0}</span>
+              </div>
             </div>
             {targetValue > 0 && (
               <div>

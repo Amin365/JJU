@@ -11,8 +11,21 @@ import DailyReport from "../models/DailyReport.js";
 import MemberNote from "../models/MemberNote.js";
 import { logMemberAction, logUserAction, logJoinRequestAction } from "../utility/auditLog.js";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
+import { joinApprovalTemplate, joinRejectionTemplate, welcomeEmailTemplate } from "../utility/emailTemplates.js";
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+async function findDefaultMemberRole() {
+  return Role.findOne({
+    $or: [
+      { role: { $regex: /^members?$/i } },
+      { plural: { $regex: /^members?$/i } },
+    ],
+  })
+    .select("_id role plural")
+    .lean()
+    .exec();
+}
 
 /**
  * Create a new member
@@ -133,22 +146,19 @@ export const createMember = async (req, res, next) => {
         const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
 
         try {
+          const welcomeEmail = welcomeEmailTemplate({
+            firstName: saved.first_name,
+            lastName: saved.last_name,
+            memberCode: saved.code || String(saved._id),
+            username,
+            setupUrl,
+          });
+
           await sendMail({
             to: saved.email,
-            subject: "Welcome! Set up your account",
-            html: buildEmailHtml({
-              title: "Welcome to the Reading Club!",
-              preheader: "Set up your account password",
-              greeting: `Hello ${saved.first_name}`,
-              bodyLines: [
-                "You've been invited to join the JJU Reading Club!",
-                "Please click the button below to set up your password and activate your account.",
-                "This link will expire in 72 hours.",
-              ],
-              ctaLabel: "Set Up Password",
-              ctaUrl: setupUrl,
-              footerNote: "If you didn't expect this email, you can safely ignore it.",
-            }),
+            subject: welcomeEmail.subject,
+            text: welcomeEmail.text,
+            html: welcomeEmail.html,
           });
         } catch (emailErr) {
           console.error("Failed to send invite email:", emailErr.message);
@@ -828,8 +838,10 @@ export const updateJoinClubStatus = async (req, res, next) => {
     let linkedUser = null;
 
     if (status === "Approved") {
+      const defaultMemberRole = await findDefaultMemberRole();
+
       // Check if a member with this email already exists
-      let member = await Member.findOne({ email: clubReq.email }).lean();
+      let member = await Member.findOne({ email: clubReq.email });
 
       if (!member) {
         // Create member from request data
@@ -843,20 +855,44 @@ export const updateJoinClubStatus = async (req, res, next) => {
           email: clubReq.email,
           phone: clubReq.phone,
           status: "Active",
+          isArchived: false,
+          role: defaultMemberRole?._id || null,
         });
         member = await newMember.save();
         createdMember = member;
+      } else {
+        let memberChanged = false;
+
+        if (member.status !== "Active") {
+          member.status = "Active";
+          memberChanged = true;
+        }
+
+        if (member.isArchived) {
+          member.isArchived = false;
+          memberChanged = true;
+        }
+
+        if (!member.role && defaultMemberRole?._id) {
+          member.role = defaultMemberRole._id;
+          memberChanged = true;
+        }
+
+        if (memberChanged) {
+          await member.save();
+        }
       }
 
       update.memberId = member._id;
 
+      const inviteToken = crypto.randomBytes(32).toString("hex");
+      const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
       // Check if a user with this email already exists
       let user = await User.findOne({ email: clubReq.email }).lean();
       if (!user) {
-        // Generate a random temporary password and force reset on next login
-        const tempPassword = crypto.randomBytes(12).toString("hex");
-        const resetCode = crypto.randomBytes(6).toString("hex").toUpperCase();
-        const resetExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+        // Generate a random temporary password and invite-based password setup
+        const tempPassword = crypto.randomBytes(32).toString("hex");
 
         const rawBase = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "");
         const baseUsername = rawBase.length > 0 ? rawBase : `user${Date.now().toString().slice(-6)}`;
@@ -873,11 +909,15 @@ export const updateJoinClubStatus = async (req, res, next) => {
             email: clubReq.email,
             password: tempPassword,
             member_id: member.code || String(member._id),
+            role: member.role || defaultMemberRole?._id || null,
             member: member._id,
             status: "pending",
-            resetPasswordCode: resetCode,
-            resetPasswordExpires: resetExpires,
             added_by: req.user?._id || null,
+            mustChangePassword: true,
+            inviteToken,
+            inviteTokenExpires,
+            invitedBy: req.user?._id || null,
+            invitedAt: new Date(),
           });
           linkedUser = user;
         } catch (userErr) {
@@ -886,6 +926,32 @@ export const updateJoinClubStatus = async (req, res, next) => {
         }
       } else {
         linkedUser = user;
+
+        try {
+          linkedUser = await User.findByIdAndUpdate(
+            user._id,
+            {
+              $set: {
+                mustChangePassword: true,
+                inviteToken,
+                inviteTokenExpires,
+                invitedBy: req.user?._id || null,
+                invitedAt: new Date(),
+                status: "pending",
+                member: member._id,
+                member_id: member.code || String(member._id),
+                role: user.role || member.role || defaultMemberRole?._id || null,
+              },
+              $unset: {
+                resetPasswordCode: 1,
+                resetPasswordExpires: 1,
+              },
+            },
+            { new: true }
+          ).lean();
+        } catch (updateUserErr) {
+          console.error("updateJoinClubStatus: invite token update failed", updateUserErr?.message);
+        }
       }
 
       // Send notification to linked user
@@ -899,6 +965,42 @@ export const updateJoinClubStatus = async (req, res, next) => {
             meta: { kind: "join-request-approved", clubreqId: clubReq._id },
           });
         } catch (_) { /* non-fatal */ }
+      }
+
+      try {
+        if (clubReq.email) {
+          const appUrl = process.env.APP_URL || "http://localhost:5173";
+          const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
+          const approvalEmail = joinApprovalTemplate({
+            firstName: createdMember?.first_name || linkedUser?.first_name || clubReq.FullName?.split(/\s+/)[0] || "",
+            lastName:
+              createdMember?.last_name ||
+              linkedUser?.last_name ||
+              clubReq.FullName?.split(/\s+/).slice(1).join(" ") ||
+              "",
+            memberCode: createdMember?.code || linkedUser?.member_id || "N/A",
+          });
+          const welcomeEmail = welcomeEmailTemplate({
+            firstName: createdMember?.first_name || linkedUser?.first_name || clubReq.FullName?.split(/\s+/)[0] || "",
+            lastName:
+              createdMember?.last_name ||
+              linkedUser?.last_name ||
+              clubReq.FullName?.split(/\s+/).slice(1).join(" ") ||
+              "",
+            memberCode: createdMember?.code || linkedUser?.member_id || "N/A",
+            username: linkedUser?.username,
+            setupUrl,
+          });
+
+          await sendMail({
+            to: clubReq.email,
+            subject: welcomeEmail.subject,
+            text: `${approvalEmail.text}\n\nUsername: ${linkedUser?.username || "N/A"}\nSet your password: ${setupUrl}`,
+            html: welcomeEmail.html,
+          });
+        }
+      } catch (emailErr) {
+        console.error("updateJoinClubStatus: approval email failed", emailErr?.message);
       }
     } else {
       // Rejected – send notification if user exists
@@ -915,6 +1017,25 @@ export const updateJoinClubStatus = async (req, res, next) => {
             meta: { kind: "join-request-rejected", clubreqId: clubReq._id },
           });
         } catch (_) { /* non-fatal */ }
+      }
+
+      try {
+        if (clubReq.email) {
+          const rejectionEmail = joinRejectionTemplate({
+            firstName: clubReq.FullName?.split(/\s+/)[0] || "",
+            lastName: clubReq.FullName?.split(/\s+/).slice(1).join(" ") || "",
+            reason: rejectionReason,
+          });
+
+          await sendMail({
+            to: clubReq.email,
+            subject: rejectionEmail.subject,
+            text: rejectionEmail.text,
+            html: rejectionEmail.html,
+          });
+        }
+      } catch (emailErr) {
+        console.error("updateJoinClubStatus: rejection email failed", emailErr?.message);
       }
     }
 

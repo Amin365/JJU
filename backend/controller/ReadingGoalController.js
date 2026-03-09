@@ -1,18 +1,107 @@
 import DailyReport from "../models/DailyReport.js";
+import Notification from "../models/Notification.js";
 import ReadingGoal from "../models/ReadingGoal.js";
+import User from "../models/user.js";
+import { checkUserPreference, isInQuietHours } from "./NotificationPreferencesController.js";
+import { sendMail } from "./EmailController.js";
 import { calcPagesRead } from "../utility/streakUtils.js";
+import { goalCompletedTemplate } from "../utility/emailTemplates.js";
+import { sendPushToUser } from "../utility/push.js";
+
+const GOAL_STATUS = {
+  ACTIVE: "Active",
+  COMPLETED: "Completed",
+  EXPIRED: "Expired",
+};
+
+const GOAL_TYPE_LABELS = {
+  pages_per_day: "Pages / Day",
+  minutes_per_day: "Minutes / Day",
+  reports_per_week: "Reports / Week",
+};
+
+function startOfUtcDay(value) {
+  const date = new Date(value);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+}
+
+function endOfUtcDay(value) {
+  const date = new Date(value);
+  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+}
+
+function diffDaysInclusive(start, end) {
+  const startDay = startOfUtcDay(start);
+  const endDay = startOfUtcDay(end);
+  return Math.max(1, Math.floor((endDay - startDay) / (1000 * 60 * 60 * 24)) + 1);
+}
+
+function getGoalRange(goal, now = new Date()) {
+  const goalStart = goal?.startDate ? startOfUtcDay(goal.startDate) : startOfUtcDay(now);
+  const goalEnd = goal?.endDate ? endOfUtcDay(goal.endDate) : null;
+  const effectiveEnd = goalEnd && goalEnd < now ? goalEnd : now;
+
+  return {
+    goalStart,
+    goalEnd,
+    effectiveEnd,
+    hasEnded: Boolean(goalEnd && now > goalEnd),
+  };
+}
+
+function getGoalCompletionState(goal, progress, now = new Date()) {
+  if (goal?.status === GOAL_STATUS.COMPLETED && goal?.completedAt) {
+    return {
+      status: GOAL_STATUS.COMPLETED,
+      completedAt: goal.completedAt,
+    };
+  }
+
+  const currentValue = Number(progress?.currentValue || 0);
+  const targetValue = Number(goal?.targetValue || 0);
+  const { hasEnded } = getGoalRange(goal, now);
+
+  if (targetValue > 0 && currentValue >= targetValue) {
+    return {
+      status: GOAL_STATUS.COMPLETED,
+      completedAt: goal?.completedAt || now,
+    };
+  }
+
+  if (hasEnded) {
+    return {
+      status: GOAL_STATUS.EXPIRED,
+      completedAt: null,
+    };
+  }
+
+  return {
+    status: GOAL_STATUS.ACTIVE,
+    completedAt: null,
+  };
+}
+
+function getGoalLabel(goal) {
+  return GOAL_TYPE_LABELS[goal?.goalType] || goal?.goalType || "Reading Goal";
+}
 
 async function computeGoalProgress(goal) {
   const now = new Date();
   const { goalType, targetValue } = goal;
+  const { goalStart, effectiveEnd } = getGoalRange(goal, now);
+
+  if (effectiveEnd < goalStart) {
+    return { currentValue: 0, percentage: 0 };
+  }
 
   if (goalType === "pages_per_day" || goalType === "minutes_per_day") {
-    const lookbackDate = new Date(now);
-    lookbackDate.setDate(lookbackDate.getDate() - 7);
+    const lookbackDate = startOfUtcDay(now);
+    lookbackDate.setUTCDate(lookbackDate.getUTCDate() - 6);
+    const rangeStart = goalStart > lookbackDate ? goalStart : lookbackDate;
 
     const reports = await DailyReport.find({
       createdBy: goal.user,
-      readingDate: { $gte: lookbackDate, $lte: now },
+      readingDate: { $gte: rangeStart, $lte: effectiveEnd },
     }).lean();
 
     let total = 0;
@@ -22,20 +111,20 @@ async function computeGoalProgress(goal) {
       total = reports.reduce((sum, r) => sum + (r.timeSpent || 0), 0);
     }
 
-    const average = total / 7;
+    const average = total / diffDaysInclusive(rangeStart, effectiveEnd);
     const percentage = Math.min(100, Math.round((average / targetValue) * 100));
     return { currentValue: Math.round(average), percentage };
   }
 
   if (goalType === "reports_per_week") {
     const dayOfWeek = now.getUTCDay();
-    const startOfWeek = new Date(now);
-    startOfWeek.setUTCDate(now.getUTCDate() - dayOfWeek);
-    startOfWeek.setUTCHours(0, 0, 0, 0);
+    const startOfWeek = startOfUtcDay(now);
+    startOfWeek.setUTCDate(startOfWeek.getUTCDate() - dayOfWeek);
+    const rangeStart = goalStart > startOfWeek ? goalStart : startOfWeek;
 
     const count = await DailyReport.countDocuments({
       createdBy: goal.user,
-      readingDate: { $gte: startOfWeek, $lte: now },
+      readingDate: { $gte: rangeStart, $lte: effectiveEnd },
     });
 
     const percentage = Math.min(100, Math.round((count / targetValue) * 100));
@@ -45,16 +134,134 @@ async function computeGoalProgress(goal) {
   return { currentValue: 0, percentage: 0 };
 }
 
+async function sendGoalCompletionNotifications(goal, user, progress) {
+  const goalLabel = getGoalLabel(goal);
+  const currentValue = Number(progress?.currentValue || 0);
+  const targetValue = Number(goal?.targetValue || 0);
+  const recipientName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.username || "Reader";
+
+  await Notification.create({
+    user: user._id,
+    title: `Goal completed: ${goalLabel}`,
+    message: `Congratulations ${recipientName}! You reached ${currentValue}/${targetValue} on your ${goalLabel.toLowerCase()} goal.`,
+    type: "success",
+    category: "goal",
+    meta: {
+      goal: goal._id,
+      kind: "goal-completed",
+      goalType: goal.goalType,
+      targetValue,
+      currentValue,
+    },
+  });
+
+  try {
+    const canSendPush = await checkUserPreference(user._id, "pushOnGoalProgress");
+    const inQuietHours = await isInQuietHours(user._id);
+
+    if (canSendPush && !inQuietHours) {
+      await sendPushToUser(user._id, {
+        title: "🎯 Goal completed!",
+        body: `You reached ${currentValue}/${targetValue} on your ${goalLabel.toLowerCase()} goal.`,
+        data: { url: "/dashboard/goals", goalId: String(goal._id) },
+      });
+    }
+  } catch (pushError) {
+    console.error(`Goal push notification failed for user ${user._id}:`, pushError.message);
+  }
+
+  try {
+    const canSendEmail = await checkUserPreference(user._id, "emailOnGoalProgress");
+    if (canSendEmail && user?.email) {
+      const emailContent = goalCompletedTemplate({
+        firstName: user.first_name,
+        lastName: user.last_name,
+        goalLabel,
+        currentValue,
+        targetValue,
+      });
+
+      await sendMail({
+        to: user.email,
+        subject: emailContent.subject,
+        text: emailContent.text,
+        html: emailContent.html,
+      });
+    }
+  } catch (emailError) {
+    console.error(`Goal completion email failed for user ${user._id}:`, emailError.message);
+  }
+}
+
+export async function syncGoalStatesForUser(userId, options = {}) {
+  if (!userId) return [];
+
+  const now = options.now || new Date();
+  const sendNotifications = options.sendNotifications !== false;
+  const goals = await ReadingGoal.find({ user: userId }).lean();
+
+  if (!goals.length) return [];
+
+  const user = sendNotifications
+    ? await User.findById(userId).select("_id first_name last_name username email").lean().exec()
+    : null;
+
+  const results = [];
+
+  for (const goal of goals) {
+    const progress = await computeGoalProgress(goal);
+    const completionState = getGoalCompletionState(goal, progress, now);
+
+    const updates = {};
+    if ((goal.status || GOAL_STATUS.ACTIVE) !== completionState.status) {
+      updates.status = completionState.status;
+    }
+
+    if (completionState.status === GOAL_STATUS.COMPLETED) {
+      if (!goal.completedAt && completionState.completedAt) {
+        updates.completedAt = completionState.completedAt;
+      }
+    } else if (goal.completedAt) {
+      updates.completedAt = null;
+    }
+
+    let completionNotifiedAt = goal.completionNotifiedAt || null;
+    const shouldNotify =
+      sendNotifications &&
+      completionState.status === GOAL_STATUS.COMPLETED &&
+      !goal.completionNotifiedAt &&
+      Boolean(user);
+
+    if (shouldNotify) {
+      try {
+        await sendGoalCompletionNotifications({ ...goal, ...updates }, user, progress);
+        completionNotifiedAt = now;
+        updates.completionNotifiedAt = now;
+      } catch (notificationError) {
+        console.error(`Goal completion notification failed for goal ${goal._id}:`, notificationError.message);
+      }
+    }
+
+    if (Object.keys(updates).length > 0) {
+      await ReadingGoal.findByIdAndUpdate(goal._id, { $set: updates }).exec();
+    }
+
+    results.push({
+      ...goal,
+      ...progress,
+      status: updates.status || goal.status || GOAL_STATUS.ACTIVE,
+      completedAt: Object.prototype.hasOwnProperty.call(updates, "completedAt") ? updates.completedAt : goal.completedAt || null,
+      completionNotifiedAt,
+    });
+  }
+
+  return results;
+}
+
 // GET /users/me/goals
 export const getMyGoals = async (req, res, next) => {
   try {
-    const goals = await ReadingGoal.find({ user: req.user._id }).lean();
-    const goalsWithProgress = await Promise.all(
-      goals.map(async (goal) => {
-        const progress = await computeGoalProgress(goal);
-        return { ...goal, ...progress };
-      })
-    );
+    const goalsWithProgress = await syncGoalStatesForUser(req.user._id, { sendNotifications: true });
     return res.status(200).json({ data: goalsWithProgress });
   } catch (err) {
     return next(err);
@@ -82,6 +289,7 @@ export const createGoal = async (req, res, next) => {
       targetValue: Number(targetValue),
       startDate,
       endDate: endDate || null,
+      status: GOAL_STATUS.ACTIVE,
     });
 
     return res.status(201).json({ data: goal });
@@ -101,6 +309,11 @@ export const updateGoal = async (req, res, next) => {
       update.targetValue = val;
     }
     if (endDate !== undefined) update.endDate = endDate;
+    if (Object.keys(update).length > 0) {
+      update.status = GOAL_STATUS.ACTIVE;
+      update.completedAt = null;
+      update.completionNotifiedAt = null;
+    }
 
     const goal = await ReadingGoal.findOneAndUpdate(
       { _id: req.params.id, user: req.user._id },
@@ -109,7 +322,9 @@ export const updateGoal = async (req, res, next) => {
     ).lean();
 
     if (!goal) return res.status(404).json({ message: "Goal not found" });
-    return res.status(200).json({ data: goal });
+    const goalsWithProgress = await syncGoalStatesForUser(req.user._id, { sendNotifications: false });
+    const goalWithProgress = goalsWithProgress.find((item) => String(item._id) === String(goal._id));
+    return res.status(200).json({ data: goalWithProgress || goal });
   } catch (err) {
     return next(err);
   }

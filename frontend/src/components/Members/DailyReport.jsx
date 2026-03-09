@@ -239,6 +239,7 @@ export default function DailyReadingReport() {
     },
     onSuccess: () => {
       qc.invalidateQueries({ queryKey: ["daily-reports", selectedBookId] });
+      qc.invalidateQueries({ queryKey: ["my-goals"] });
       // Refresh notifications immediately so the bell updates without reload
       qc.invalidateQueries({ queryKey: ["notifications"] });
       toast.success("Reading report submitted successfully!");

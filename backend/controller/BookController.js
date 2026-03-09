@@ -89,6 +89,7 @@ export const getBooks = async (req, res, next) => {
       limit = 20,
       sort = "-createdAt",
       q,
+      isbn,
       author,
       BookType,
       status,
@@ -97,6 +98,10 @@ export const getBooks = async (req, res, next) => {
     } = req.query;
 
     const filter = {};
+
+    if (isbn) {
+      filter.isbn = String(isbn).trim();
+    }
 
     if (q) {
       // safe regex search across title, author, isbn

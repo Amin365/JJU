@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
-  Calendar, Trophy, Users, ChevronRight, Loader2, Plus, ShieldCheck, UserRound,
+  Calendar, Trophy, Users, ChevronRight, Loader2, Plus, ShieldCheck, UserRound, BookOpen,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/app/api/apislice';
@@ -43,11 +43,14 @@ const EMPTY_FORM = {
   type: 'pages',
   startDate: new Date().toISOString().slice(0, 10),
   endDate: new Date(Date.now() + (7 * 24 * 60 * 60 * 1000)).toISOString().slice(0, 10),
-  status: 'Draft',
+  status: 'Active',
   targetTotal: '',
   minPagesPerDay: '',
   minMinutesPerDay: '',
   requiredConsecutiveDays: '',
+  bookIsbn: '',
+  bookId: '',
+  bookPreview: null,
 };
 
 function formatDate(d) {
@@ -100,7 +103,9 @@ function ChallengeCreateDialog({
   formData,
   setFormData,
   onSubmit,
+  onLookupBook,
   isSaving,
+  isLookingUpBook,
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
@@ -134,6 +139,58 @@ function ChallengeCreateDialog({
                 placeholder="Describe the goal, timeline, and what members should do to complete it."
                 rows={4}
               />
+            </div>
+
+            <div className="space-y-3 md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4">
+              <div>
+                <h3 className="text-sm font-semibold">Reading report source</h3>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  Challenge scores come from approved reading reports. Leave ISBN empty to allow any book,
+                  or find one book to make all reports count only for that title.
+                </p>
+              </div>
+
+              <div className="flex flex-col gap-3 md:flex-row md:items-end">
+                <div className="flex-1 space-y-2">
+                  <Label htmlFor="bookIsbn">Book ISBN</Label>
+                  <Input
+                    id="bookIsbn"
+                    value={formData.bookIsbn}
+                    onChange={(e) => setFormData((prev) => ({
+                      ...prev,
+                      bookIsbn: e.target.value,
+                      bookId: '',
+                      bookPreview: null,
+                    }))}
+                    placeholder="Enter exact ISBN"
+                  />
+                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  onClick={onLookupBook}
+                  disabled={isLookingUpBook || !formData.bookIsbn.trim()}
+                >
+                  {isLookingUpBook ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <BookOpen className="mr-2 h-4 w-4" />}
+                  Find Book
+                </Button>
+              </div>
+
+              {formData.bookPreview ? (
+                <div className="rounded-lg border border-emerald-500/20 bg-emerald-500/5 p-3 text-sm">
+                  <p className="font-medium text-foreground">{formData.bookPreview.title}</p>
+                  <p className="text-muted-foreground">
+                    {formData.bookPreview.author || 'Unknown author'} • ISBN {formData.bookPreview.isbn}
+                  </p>
+                  <p className="mt-1 text-xs text-emerald-300">
+                    Only approved reports for this book will count in the challenge. Reports are reviewed by moderators or super admins.
+                  </p>
+                </div>
+              ) : (
+                <p className="text-xs text-muted-foreground">
+                  No book selected. Members can submit approved reports for any book and still earn progress.
+                </p>
+              )}
             </div>
 
             <div className="space-y-2">
@@ -299,6 +356,33 @@ export default function ChallengesList() {
     },
   });
 
+  const lookupBookMutation = useMutation({
+    mutationFn: async (isbn) => {
+      const trimmed = String(isbn || '').trim();
+      const res = await api.get('/books', { params: { isbn: trimmed, limit: 1 } });
+      const books = extractArrayPayload(res.data);
+      const match = books.find((book) => String(book.isbn || '').toLowerCase() === trimmed.toLowerCase()) || books[0];
+
+      if (!match) {
+        throw new Error('Book not found');
+      }
+
+      return match;
+    },
+    onSuccess: (book) => {
+      setFormData((prev) => ({
+        ...prev,
+        bookId: book._id,
+        bookIsbn: book.isbn || prev.bookIsbn,
+        bookPreview: book,
+      }));
+      toast.success('Book linked to challenge.');
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'No book was found for that ISBN.'));
+    },
+  });
+
   const joinMutation = useMutation({
     mutationFn: (id) => api.post(`/challenges/${id}/join`),
     onSuccess: () => {
@@ -340,6 +424,7 @@ export default function ChallengesList() {
       startDate: formData.startDate,
       endDate: formData.endDate,
       status: formData.status,
+      bookId: formData.bookId || undefined,
       rules: {
         targetTotal: Number(formData.targetTotal || 0),
         minPagesPerDay: Number(formData.minPagesPerDay || 0),
@@ -347,6 +432,15 @@ export default function ChallengesList() {
         requiredConsecutiveDays: Number(formData.requiredConsecutiveDays || 0),
       },
     });
+  }
+
+  function handleLookupBook() {
+    if (!formData.bookIsbn.trim()) {
+      toast.error('Enter an ISBN first.');
+      return;
+    }
+
+    lookupBookMutation.mutate(formData.bookIsbn);
   }
 
   return (
@@ -451,8 +545,22 @@ export default function ChallengesList() {
                       <span>Created by {getUserName(challenge.createdBy)}</span>
                     </div>
 
+                    {challenge.book && (
+                      <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                        <BookOpen className="h-3.5 w-3.5" />
+                        <span>{challenge.book.title} • ISBN {challenge.book.isbn}</span>
+                      </div>
+                    )}
+
+                    {challenge.winner && (
+                      <div className="flex items-center gap-2 text-xs text-emerald-300">
+                        <Trophy className="h-3.5 w-3.5" />
+                        <span>Winner: {getUserName(challenge.winner)}</span>
+                      </div>
+                    )}
+
                     <div className="flex gap-2 pt-1">
-                      {!canCreateChallenges && challenge.status === 'Active' && user && (
+                      {!canCreateChallenges && challenge.status === 'Active' && user && !challenge.isJoined && (
                         <Button
                           size="sm"
                           className="flex-1"
@@ -468,6 +576,11 @@ export default function ChallengesList() {
                           ) : null}
                           Join
                         </Button>
+                      )}
+                      {!canCreateChallenges && challenge.isJoined && (
+                        <Badge className="flex-1 justify-center border border-emerald-500/30 bg-emerald-500/10 py-2 text-emerald-300">
+                          Joined
+                        </Badge>
                       )}
                       <Button
                         size="sm"
@@ -500,7 +613,9 @@ export default function ChallengesList() {
         formData={formData}
         setFormData={setFormData}
         onSubmit={handleCreateSubmit}
+        onLookupBook={handleLookupBook}
         isSaving={createMutation.isPending}
+        isLookingUpBook={lookupBookMutation.isPending}
       />
     </div>
   );

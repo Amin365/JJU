@@ -10,6 +10,13 @@ const ReadingGoalSchema = new mongoose.Schema({
   targetValue: { type: Number, required: true, min: 1 },
   startDate: { type: Date, required: true },
   endDate: { type: Date, default: null },
+  status: {
+    type: String,
+    enum: ["Active", "Completed", "Expired"],
+    default: "Active",
+  },
+  completedAt: { type: Date, default: null },
+  completionNotifiedAt: { type: Date, default: null },
 }, { timestamps: true });
 
 const ReadingGoal = mongoose.model("ReadingGoal", ReadingGoalSchema);

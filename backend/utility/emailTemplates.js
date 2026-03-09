@@ -12,8 +12,20 @@ const APP_URL = process.env.APP_URL || "https://jjureadingclub.com";
 /**
  * Welcome email for new members
  */
-export function welcomeEmailTemplate({ firstName, lastName, memberCode }) {
+export function welcomeEmailTemplate({ firstName, lastName, memberCode, username, setupUrl, expiresIn = "72 hours" }) {
   const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Reader";
+  const bodyLines = [
+    `Welcome to <strong>${APP_NAME}</strong>! We're thrilled to have you as a member of our reading community.`,
+    `<strong>Your Member Code:</strong> ${memberCode || "N/A"}`,
+    username ? `<strong>Username:</strong> ${username}` : "",
+    "Here's what you can do now:",
+    "• Browse our collection of books",
+    "• Submit daily reading reports",
+    "• Join reading challenges",
+    "• Track your progress on the leaderboard",
+    setupUrl ? `Use the button below to set your password and activate your account. This link expires in ${expiresIn}.` : "",
+    "Happy reading!",
+  ].filter(Boolean);
   
   return {
     subject: `Welcome to ${APP_NAME}! 🎉`,
@@ -22,12 +34,18 @@ export function welcomeEmailTemplate({ firstName, lastName, memberCode }) {
 Welcome to ${APP_NAME}! We're thrilled to have you as a member of our reading community.
 
 Your Member Code: ${memberCode || "N/A"}
+${username ? `
+Username: ${username}` : ""}
 
 Here's what you can do now:
 - Browse our collection of books
 - Submit daily reading reports
 - Join reading challenges
 - Track your progress on the leaderboard
+
+${setupUrl ? `Set your password here: ${setupUrl}
+This link expires in ${expiresIn}.
+` : ""}
 
 Happy reading!
 
@@ -37,18 +55,9 @@ The ${APP_NAME} Team`,
       title: `Welcome to ${APP_NAME}! 🎉`,
       preheader: "Your reading journey starts now",
       greeting: `Dear ${fullName}`,
-      bodyLines: [
-        `Welcome to <strong>${APP_NAME}</strong>! We're thrilled to have you as a member of our reading community.`,
-        `<strong>Your Member Code:</strong> ${memberCode || "N/A"}`,
-        "Here's what you can do now:",
-        "• Browse our collection of books",
-        "• Submit daily reading reports",
-        "• Join reading challenges",
-        "• Track your progress on the leaderboard",
-        "Happy reading!",
-      ],
-      ctaLabel: "Get Started",
-      ctaUrl: `${APP_URL}/dashboard`,
+      bodyLines,
+      ctaLabel: setupUrl ? "Set Up Password" : "Get Started",
+      ctaUrl: setupUrl || `${APP_URL}/dashboard`,
       footerNote: `You're receiving this because you joined ${APP_NAME}.`,
     }),
   };
@@ -359,6 +368,48 @@ The ${APP_NAME} Team`,
   };
 }
 
+/**
+ * Goal completed notification
+ */
+export function goalCompletedTemplate({
+  firstName,
+  lastName,
+  goalLabel,
+  currentValue,
+  targetValue,
+}) {
+  const fullName = `${firstName || ""} ${lastName || ""}`.trim() || "Reader";
+
+  return {
+    subject: `🎯 Goal completed: ${goalLabel}`,
+    text: `Dear ${fullName},
+
+Congratulations! You have reached your reading goal.
+
+Goal: ${goalLabel}
+Progress: ${currentValue}/${targetValue}
+
+Keep going and set your next reading target!
+
+Best regards,
+The ${APP_NAME} Team`,
+    html: buildEmailHtml({
+      title: "Goal Completed! 🎯",
+      preheader: `You reached your ${goalLabel.toLowerCase()} goal`,
+      greeting: `Dear ${fullName}`,
+      bodyLines: [
+        "Congratulations! You have reached your reading goal.",
+        `<strong>Goal:</strong> ${goalLabel}`,
+        `<strong>Progress:</strong> ${currentValue}/${targetValue}`,
+        "Keep going and set your next reading target!",
+      ],
+      ctaLabel: "View My Goals",
+      ctaUrl: `${APP_URL}/dashboard/goals`,
+      footerNote: `You are receiving this because you completed a goal on ${APP_NAME}.`,
+    }),
+  };
+}
+
 export default {
   welcomeEmailTemplate,
   issueDueTomorrowTemplate,
@@ -368,5 +419,6 @@ export default {
   readingReminderTemplate,
   challengeReminderTemplate,
   achievementUnlockedTemplate,
+  goalCompletedTemplate,
   announcementTemplate,
 };

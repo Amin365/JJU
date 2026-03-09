@@ -21,7 +21,8 @@ import {
   Building,
   GraduationCap,
 } from "lucide-react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useSelector } from "react-redux";
 import api from "@/app/api/apislice";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "../ui/card";
 import { Button } from "../ui/button";
@@ -96,6 +97,8 @@ function StatCard({ title, value, subtitle, icon: Icon, trend, trendValue, color
 }
 
 export default function AdminReportingCenter() {
+  const queryClient = useQueryClient();
+  const user = useSelector((state) => state.auth?.user);
   const [activeTab, setActiveTab] = useState("overview");
   const [filters, setFilters] = useState({
     from: "",
@@ -105,6 +108,25 @@ export default function AdminReportingCenter() {
     study_year: "",
   });
   const [isExporting, setIsExporting] = useState(false);
+  const roleName = String(user?.role?.role || user?.role?.plural || user?.role || "").toLowerCase();
+  const canReviewReports = /moderator|super\s*admin/i.test(roleName);
+
+  const reviewMutation = useMutation({
+    mutationFn: async ({ reportId, status }) => {
+      const res = await api.patch(`/daily-reports/${reportId}/status`, { status });
+      return res.data?.data || res.data;
+    },
+    onSuccess: (_, variables) => {
+      toast.success(`Report marked as ${variables.status}.`);
+      queryClient.invalidateQueries({ queryKey: ["reporting", "admin-reports"] });
+      queryClient.invalidateQueries({ queryKey: ["dashboard", "pending-approvals"] });
+      queryClient.invalidateQueries({ queryKey: ["challenge"] });
+      queryClient.invalidateQueries({ queryKey: ["challenges"] });
+    },
+    onError: (error) => {
+      toast.error(error?.response?.data?.message || "Failed to update report status.");
+    },
+  });
 
   // Fetch monthly comparison
   const { data: comparisonData, isLoading: comparisonLoading, refetch: refetchComparison } = useQuery({
@@ -925,6 +947,7 @@ export default function AdminReportingCenter() {
                       <TableHead className="text-right">Time</TableHead>
                       <TableHead className="text-right">Rating</TableHead>
                       <TableHead>Status</TableHead>
+                      {canReviewReports && <TableHead className="text-right">Actions</TableHead>}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -965,6 +988,28 @@ export default function AdminReportingCenter() {
                             {report.status}
                           </Badge>
                         </TableCell>
+                        {canReviewReports && (
+                          <TableCell className="text-right">
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={reviewMutation.isPending || report.status === "Approved"}
+                                onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Approved" })}
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={reviewMutation.isPending || report.status === "Needs Improvement"}
+                                onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Needs Improvement" })}
+                              >
+                                Needs work
+                              </Button>
+                            </div>
+                          </TableCell>
+                        )}
                       </TableRow>
                     ))}
                   </TableBody>

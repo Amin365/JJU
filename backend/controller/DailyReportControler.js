@@ -8,6 +8,7 @@ import User from "../models/user.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import StreakRestore from "../models/StreakRestore.js";
 import { checkAndUnlockAchievements } from "./AchievementController.js";
+import { syncGoalStatesForUser } from "./ReadingGoalController.js";
 import { calcLongestStreak } from "../utility/streakUtils.js";
                        
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
@@ -27,6 +28,35 @@ const isAllowed48Hours = (readingDate) => {
   const rd = toDateOnlyUTC(readingDate);
   return rd.getTime() === today.getTime() || rd.getTime() === yesterday.getTime();
 };
+
+const getRoleName = (user) => String(user?.role?.role || user?.role?.plural || user?.role || "").toLowerCase();
+
+const isSuperAdminUser = (user) => /super\s*admin/i.test(getRoleName(user));
+const isModeratorUser = (user) => /moderator/i.test(getRoleName(user));
+
+const intersectObjectIdArrays = (left = [], right = []) => {
+  const rightSet = new Set(right.map((id) => String(id)));
+  return left.filter((id) => rightSet.has(String(id)));
+};
+
+async function getScopedReportUserIds(currentUser) {
+  if (!currentUser?._id) return [];
+
+  if (isSuperAdminUser(currentUser)) {
+    return null;
+  }
+
+  if (isModeratorUser(currentUser)) {
+    const assignments = await ModeratorMember.find({ moderator: currentUser._id }).select("member").lean().exec();
+    const memberIds = assignments.map((assignment) => assignment.member).filter(Boolean);
+    if (!memberIds.length) return [];
+
+    const users = await User.find({ member: { $in: memberIds } }).select("_id").lean().exec();
+    return users.map((user) => user._id);
+  }
+
+  return [currentUser._id];
+}
 
 // POST /daily-reports
 export const createDailyReport = async (req, res, next) => {
@@ -155,6 +185,9 @@ if (!last) {
     }
 
     checkAndUnlockAchievements(req.user._id).catch((err) => console.error("Achievement check failed:", err));
+    syncGoalStatesForUser(req.user._id, { sendNotifications: true }).catch((err) =>
+      console.error("Goal sync failed:", err)
+    );
 
     return res.status(201).json({ data: populated });
   } catch (err) {
@@ -214,6 +247,85 @@ export const getDailyReports = async (req, res, next) => {
       limit: perPage,
       totalPages: Math.ceil(total / perPage),
     });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+// PATCH /daily-reports/:id/status
+export const updateDailyReportStatus = async (req, res, next) => {
+  try {
+    const currentUser = req.user;
+    if (!currentUser?._id) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    if (!isSuperAdminUser(currentUser) && !isModeratorUser(currentUser)) {
+      return res.status(403).json({ message: "Only moderators or super admins can review reports" });
+    }
+
+    const { id } = req.params;
+    const { status } = req.body || {};
+
+    if (!mongoose.Types.ObjectId.isValid(id)) {
+      return res.status(400).json({ message: "Invalid report id" });
+    }
+
+    const allowedStatuses = ["Approved", "Needs Improvement", "Pending"];
+    if (!allowedStatuses.includes(status)) {
+      return res.status(400).json({ message: `status must be one of: ${allowedStatuses.join(", ")}` });
+    }
+
+    const report = await DailyReport.findById(id)
+      .populate({ path: "createdBy", select: "_id first_name last_name username member" })
+      .populate("book", "title author isbn")
+      .exec();
+
+    if (!report) {
+      return res.status(404).json({ message: "Report not found" });
+    }
+
+    if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
+      const assignment = await ModeratorMember.findOne({
+        moderator: currentUser._id,
+        member: report.createdBy?.member,
+      })
+        .select("_id")
+        .lean()
+        .exec();
+
+      if (!assignment) {
+        return res.status(403).json({ message: "You can only review reports from your assigned members" });
+      }
+    }
+
+    report.status = status;
+    await report.save();
+
+    try {
+      await Notification.create({
+        user: report.createdBy?._id,
+        title: `Report ${status.toLowerCase()}: ${report.book?.title || "Book"}`,
+        message:
+          status === "Approved"
+            ? `Your reading report for "${report.book?.title || "this book"}" was approved.`
+            : status === "Needs Improvement"
+              ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
+              : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
+        type: status === "Approved" ? "success" : status === "Needs Improvement" ? "warning" : "info",
+        meta: { report: report._id, kind: "report-status-updated", status },
+      });
+    } catch (error) {
+      // ignore notification failure
+    }
+
+    const populated = await DailyReport.findById(report._id)
+      .populate("createdBy", "username first_name last_name email role member")
+      .populate("book", "title author isbn status")
+      .lean()
+      .exec();
+
+    return res.status(200).json({ data: populated });
   } catch (err) {
     return next(err);
   }

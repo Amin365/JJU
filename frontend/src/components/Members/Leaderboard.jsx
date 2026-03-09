@@ -212,18 +212,18 @@ export default function Leaderboard() {
           ))} */}
 
           <div className="ml-auto">
-            <Input
+            {/* <Input
               placeholder="Filter by department..."
               value={department}
               onChange={(e) => setDepartment(e.target.value)}
               className="h-8 w-48 text-sm bg-zinc-800 border-zinc-700"
-            />
+            /> */}
           </div>
         </div>
       </div>
 
       {/* Podium */}
-      <div className="flex flex-col sm:flex-row justify-center items-end gap-6 mb-12 md:mb-20">
+      <div className="flex mt-12 flex-col sm:flex-row justify-center items-end gap-6 mb-12 md:mb-20">
         {top3[1] && (
           <PodiumCard
             rank="2nd Place"

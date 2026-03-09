@@ -10,7 +10,17 @@ import User from "../models/user.js";
 import Issue from "../models/Issue.js";
 import Book from "../models/Books.js";
 import Role from "../models/Role.js";
+import ModeratorMember from "../models/ModeratorMember.js";
 import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
+
+const getRoleName = (user) => String(user?.role?.role || user?.role?.plural || user?.role || "").toLowerCase();
+const isSuperAdminUser = (user) => /super\s*admin/i.test(getRoleName(user));
+const isModeratorUser = (user) => /moderator/i.test(getRoleName(user));
+
+const intersectIds = (left = [], right = []) => {
+  const rightSet = new Set(right.map((id) => String(id)));
+  return left.filter((id) => rightSet.has(String(id)));
+};
 
 // Helper to get date boundaries
 const getDateBoundaries = (from, to) => {
@@ -50,6 +60,28 @@ export const getAdminReports = async (req, res, next) => {
     } = req.query;
 
     const filter = {};
+    const currentUser = await User.findById(req.user?._id)
+      .select("_id role member")
+      .populate("role", "role plural")
+      .lean();
+
+    let scopedUserIds = null;
+    if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
+      const assignments = await ModeratorMember.find({ moderator: currentUser._id }).select("member").lean();
+      const memberIds = assignments.map((item) => item.member).filter(Boolean);
+      if (!memberIds.length) {
+        return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
+      }
+
+      const scopedUsers = await User.find({ member: { $in: memberIds } }).select("_id").lean();
+      scopedUserIds = scopedUsers.map((user) => user._id);
+      if (!scopedUserIds.length) {
+        return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
+      }
+      filter.createdBy = { $in: scopedUserIds };
+    } else if (!isSuperAdminUser(currentUser)) {
+      filter.createdBy = currentUser?._id;
+    }
     
     // Date range filter
     if (from || to) {
@@ -65,6 +97,11 @@ export const getAdminReports = async (req, res, next) => {
 
     // User filter
     if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+      if (filter.createdBy?.$in) {
+        if (!filter.createdBy.$in.some((id) => String(id) === String(userId))) {
+          return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
+        }
+      }
       filter.createdBy = userId;
     }
 
@@ -80,6 +117,13 @@ export const getAdminReports = async (req, res, next) => {
       
       const users = await User.find({ member: { $in: memberIds } }).select("_id").lean();
       userIdsToFilter = users.map((u) => u._id);
+
+      if (filter.createdBy?.$in) {
+        userIdsToFilter = intersectIds(userIdsToFilter, filter.createdBy.$in);
+      }
+      if (filter.createdBy && !filter.createdBy.$in && !Array.isArray(filter.createdBy) && String(filter.createdBy) !== "[object Object]") {
+        userIdsToFilter = userIdsToFilter.filter((id) => String(id) === String(filter.createdBy));
+      }
       
       if (userIdsToFilter.length === 0) {
         return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });

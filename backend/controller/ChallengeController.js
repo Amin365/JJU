@@ -1,24 +1,243 @@
+import mongoose from "mongoose";
 import User from "../models/user.js";
 import DailyReport from "../models/DailyReport.js";
 import ReadingChallenge from "../models/ReadingChallenge.js";
 import ChallengeParticipation from "../models/ChallengeParticipation.js";
 import ModeratorMember from "../models/ModeratorMember.js";
+import Book from "../models/Books.js";
 import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
 
 
+function getChallengeBookId(challenge) {
+  return challenge?.book?._id || challenge?.book || null;
+}
+
+function roundMetric(value) {
+  return Math.round((Number(value) || 0) * 10) / 10;
+}
+
+function getChallengeTargetValue(challenge) {
+  const explicitTarget = Number(challenge?.rules?.targetTotal || 0);
+  if (explicitTarget > 0) return explicitTarget;
+
+  if (challenge?.type === "pages") {
+    const bookPages = Number(challenge?.book?.totalPages || 0);
+    if (bookPages > 0) return bookPages;
+  }
+
+  if (challenge?.type === "streak") {
+    const consecutiveDays = Number(challenge?.rules?.requiredConsecutiveDays || 0);
+    if (consecutiveDays > 0) return consecutiveDays;
+  }
+
+  return 0;
+}
+
+function getProgressValue(progress, challenge) {
+  if (!progress) return 0;
+
+  switch (challenge?.type) {
+    case "pages":
+      return progress.pagesRead ?? 0;
+    case "minutes":
+      return progress.minutesRead ?? 0;
+    case "streak":
+      return progress.streak ?? 0;
+    default:
+      return progress.reportsCount ?? 0;
+  }
+}
+
+function getMetricValueForReport(report, challenge) {
+  switch (challenge?.type) {
+    case "pages":
+      return calcPagesRead(report);
+    case "minutes":
+      return Number(report.timeSpent || 0);
+    case "reports":
+      return 1;
+    default:
+      return 0;
+  }
+}
+
+function findCompletionAt(reports, challenge, targetValue) {
+  if (!targetValue || !Array.isArray(reports) || reports.length === 0) {
+    return null;
+  }
+
+  const orderedReports = [...reports].sort((a, b) => {
+    const dateDiff = new Date(a.readingDate).getTime() - new Date(b.readingDate).getTime();
+    if (dateDiff !== 0) return dateDiff;
+    return new Date(a.createdAt || a.readingDate).getTime() - new Date(b.createdAt || b.readingDate).getTime();
+  });
+
+  if (challenge?.type === "streak") {
+    const uniqueDates = [...new Set(
+      orderedReports
+        .map((report) => new Date(report.readingDate).toISOString().slice(0, 10))
+    )].sort();
+
+    let currentStreak = 0;
+    let previousDate = null;
+
+    for (const isoDate of uniqueDates) {
+      const currentDate = new Date(`${isoDate}T00:00:00.000Z`);
+      if (!previousDate) {
+        currentStreak = 1;
+      } else {
+        const diffDays = Math.round((currentDate.getTime() - previousDate.getTime()) / 86400000);
+        currentStreak = diffDays === 1 ? currentStreak + 1 : 1;
+      }
+
+      if (currentStreak >= targetValue) {
+        return currentDate;
+      }
+
+      previousDate = currentDate;
+    }
+
+    return null;
+  }
+
+  let runningTotal = 0;
+  for (const report of orderedReports) {
+    runningTotal += getMetricValueForReport(report, challenge);
+    if (runningTotal >= targetValue) {
+      return new Date(report.createdAt || report.readingDate);
+    }
+  }
+
+  return null;
+}
+
 async function computeProgress(userId, challenge) {
-  const reports = await DailyReport.find({
+  const query = {
     createdBy: userId,
     readingDate: { $gte: challenge.startDate, $lte: challenge.endDate },
     status: "Approved",
-  }).lean();
+  };
+
+  const challengeBookId = getChallengeBookId(challenge);
+  if (challengeBookId) {
+    query.book = challengeBookId;
+  }
+
+  const reports = await DailyReport.find(query)
+    .populate("book", "title author isbn totalPages")
+    .sort({ readingDate: -1 })
+    .lean();
 
   const pagesRead = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
   const minutesRead = reports.reduce((sum, r) => sum + (r.timeSpent || 0), 0);
   const reportsCount = reports.length;
   const streak = calcLongestStreak(reports.map((r) => r.readingDate));
+  const reportDays = new Set(
+    reports
+      .map((r) => (r.readingDate ? new Date(r.readingDate).toISOString().slice(0, 10) : null))
+      .filter(Boolean)
+  );
+  const uniqueBooks = new Set(
+    reports
+      .map((r) => String(r.book?._id || r.book || ""))
+      .filter(Boolean)
+  );
+  const averagePagesPerDay = reportDays.size ? roundMetric(pagesRead / reportDays.size) : 0;
+  const averageMinutesPerDay = reportDays.size ? roundMetric(minutesRead / reportDays.size) : 0;
+  const averagePagesPerReport = reportsCount ? roundMetric(pagesRead / reportsCount) : 0;
+  const targetValue = getChallengeTargetValue(challenge);
+  const completionAt = findCompletionAt(reports, challenge, targetValue);
 
-  return { pagesRead, minutesRead, reportsCount, streak };
+  return {
+    pagesRead,
+    minutesRead,
+    reportsCount,
+    streak,
+    booksCount: uniqueBooks.size,
+    activeDays: reportDays.size,
+    averagePagesPerDay,
+    averageMinutesPerDay,
+    averagePagesPerReport,
+    lastReportDate: reports[0]?.readingDate || null,
+    targetValue,
+    completionAt,
+  };
+}
+
+async function syncChallengeState(challenge) {
+  if (!challenge) return challenge;
+
+  const challengeObject = challenge.toObject ? challenge.toObject() : { ...challenge };
+  const now = new Date();
+  const targetValue = getChallengeTargetValue(challengeObject);
+
+  const participations = await ChallengeParticipation.find({ challenge: challengeObject._id })
+    .select("user joinedAt")
+    .lean();
+
+  const participantProgress = await Promise.all(
+    participations.map(async (participation) => ({
+      participation,
+      progress: await computeProgress(participation.user, challengeObject),
+    }))
+  );
+
+  const finishers = participantProgress
+    .filter((entry) => Boolean(entry.progress.completionAt))
+    .sort((a, b) => {
+      const timeDiff = new Date(a.progress.completionAt).getTime() - new Date(b.progress.completionAt).getTime();
+      if (timeDiff !== 0) return timeDiff;
+      return new Date(a.participation.joinedAt).getTime() - new Date(b.participation.joinedAt).getTime();
+    });
+
+  let shouldComplete = challengeObject.status !== "Completed";
+  let completionReason = challengeObject.completionReason || null;
+  let completedAt = challengeObject.completedAt || null;
+  let winnerId = challengeObject.winner?._id || challengeObject.winner || null;
+
+  if (finishers.length > 0) {
+    completionReason = "target_reached";
+    completedAt = finishers[0].progress.completionAt;
+    winnerId = finishers[0].participation.user;
+  } else if (now > new Date(challengeObject.endDate)) {
+    completionReason = "date_ended";
+    completedAt = completedAt || challengeObject.endDate;
+
+    const ranked = [...participantProgress].sort((a, b) => {
+      const progressDiff = getProgressValue(b.progress, challengeObject) - getProgressValue(a.progress, challengeObject);
+      if (progressDiff !== 0) return progressDiff;
+
+      const activeDaysDiff = (b.progress.activeDays || 0) - (a.progress.activeDays || 0);
+      if (activeDaysDiff !== 0) return activeDaysDiff;
+
+      return new Date(a.participation.joinedAt).getTime() - new Date(b.participation.joinedAt).getTime();
+    });
+
+    winnerId = ranked[0]?.participation?.user || winnerId || null;
+  } else {
+    shouldComplete = false;
+  }
+
+  if (!shouldComplete) {
+    return challengeObject;
+  }
+
+  const updatedChallenge = await ReadingChallenge.findByIdAndUpdate(
+    challengeObject._id,
+    {
+      status: "Completed",
+      winner: winnerId || null,
+      completedAt: completedAt || now,
+      completionReason,
+    },
+    { new: true }
+  )
+    .populate("createdBy", "first_name last_name username email profile_picture")
+    .populate("book", "title author isbn totalPages")
+    .populate("winner", "first_name last_name username email profile_picture")
+    .lean();
+
+  return updatedChallenge || challengeObject;
 }
 
 function getRoleFlags(roleName = "") {
@@ -112,13 +331,25 @@ export const createChallenge = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { title, type, startDate, endDate, description, rules, status } = req.body;
+    const { title, type, startDate, endDate, description, rules, status, bookId } = req.body;
     if (!title || !type || !startDate || !endDate) {
       return res.status(400).json({ message: "title, type, startDate, and endDate are required" });
     }
 
     if (new Date(startDate) > new Date(endDate)) {
       return res.status(400).json({ message: "startDate must be before endDate" });
+    }
+
+    let selectedBook = null;
+    if (bookId) {
+      if (!mongoose.isValidObjectId(bookId)) {
+        return res.status(400).json({ message: "Invalid bookId" });
+      }
+
+      selectedBook = await Book.findById(bookId).select("_id title author isbn totalPages").lean();
+      if (!selectedBook) {
+        return res.status(404).json({ message: "Selected book not found" });
+      }
     }
 
     const normalizedRules = {
@@ -135,12 +366,15 @@ export const createChallenge = async (req, res, next) => {
       endDate,
       description,
       rules: normalizedRules,
-      status: status || "Draft",
+      status: status || "Active",
+      book: selectedBook?._id || null,
       createdBy: currentUser._id,
     });
 
     const createdChallenge = await ReadingChallenge.findById(challenge._id)
       .populate("createdBy", "first_name last_name username email profile_picture")
+      .populate("book", "title author isbn totalPages")
+      .populate("winner", "first_name last_name username email profile_picture")
       .lean();
 
     return res.status(201).json({ data: { ...createdChallenge, participantCount: 0 } });
@@ -164,6 +398,8 @@ export const getChallenges = async (req, res, next) => {
     const [items, total] = await Promise.all([
       ReadingChallenge.find(filter)
         .populate("createdBy", "first_name last_name username email profile_picture")
+        .populate("book", "title author isbn totalPages")
+        .populate("winner", "first_name last_name username email profile_picture")
         .sort({ startDate: -1 })
         .skip(skip)
         .limit(perPage)
@@ -171,8 +407,24 @@ export const getChallenges = async (req, res, next) => {
       ReadingChallenge.countDocuments(filter),
     ]);
 
-    const participantCounts = await getParticipantCounts(items.map((item) => item._id));
-    const data = items.map((item) => withParticipantCount(item, participantCounts));
+    const syncedItems = await Promise.all(items.map((item) => syncChallengeState(item)));
+
+    const challengeIds = syncedItems.map((item) => item._id);
+    const [participantCounts, joinedRows] = await Promise.all([
+      getParticipantCounts(challengeIds),
+      challengeIds.length
+        ? ChallengeParticipation.find({ challenge: { $in: challengeIds }, user: req.user._id })
+            .select("challenge")
+            .lean()
+        : [],
+    ]);
+
+    const joinedChallengeIds = new Set(joinedRows.map((row) => String(row.challenge)));
+    const data = syncedItems.map((item) => ({
+      ...withParticipantCount(item, participantCounts),
+      targetValue: getChallengeTargetValue(item),
+      isJoined: joinedChallengeIds.has(String(item._id)),
+    }));
 
     return res.status(200).json({ data, total, page: pageNum, limit: perPage, totalPages: Math.ceil(total / perPage) });
   } catch (err) {
@@ -188,12 +440,27 @@ export const getChallengeById = async (req, res, next) => {
       buildChallengeAccessFilter(accessContext, { _id: req.params.id })
     )
       .populate("createdBy", "first_name last_name username email profile_picture")
+      .populate("book", "title author isbn totalPages")
+      .populate("winner", "first_name last_name username email profile_picture")
       .lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
-    const participantCounts = await getParticipantCounts([challenge._id]);
+    const syncedChallenge = await syncChallengeState(challenge);
 
-    return res.status(200).json({ data: withParticipantCount(challenge, participantCounts) });
+    const [participantCounts, participation] = await Promise.all([
+      getParticipantCounts([syncedChallenge._id]),
+      ChallengeParticipation.findOne({ challenge: syncedChallenge._id, user: req.user._id })
+        .select("_id")
+        .lean(),
+    ]);
+
+    return res.status(200).json({
+      data: {
+        ...withParticipantCount(syncedChallenge, participantCounts),
+        targetValue: getChallengeTargetValue(syncedChallenge),
+        isJoined: Boolean(participation),
+      },
+    });
   } catch (err) {
     return next(err);
   }
@@ -246,13 +513,15 @@ export const getChallengeLeaderboard = async (req, res, next) => {
     ).lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
-    const participations = await ChallengeParticipation.find({ challenge: challenge._id })
+    const syncedChallenge = await syncChallengeState(challenge);
+
+    const participations = await ChallengeParticipation.find({ challenge: syncedChallenge._id })
       .populate("user", "first_name last_name username profile_picture")
       .lean();
 
     const entries = await Promise.all(
       participations.map(async (p) => {
-        const progress = await computeProgress(p.user._id, challenge);
+        const progress = await computeProgress(p.user._id, syncedChallenge);
         return {
           user: p.user,
           joinedAt: p.joinedAt,
@@ -263,9 +532,9 @@ export const getChallengeLeaderboard = async (req, res, next) => {
     );
 
     const sortField =
-      challenge.type === "pages" ? "pagesRead" :
-      challenge.type === "minutes" ? "minutesRead" :
-      challenge.type === "streak" ? "streak" : "reportsCount";
+      syncedChallenge.type === "pages" ? "pagesRead" :
+      syncedChallenge.type === "minutes" ? "minutesRead" :
+      syncedChallenge.type === "streak" ? "streak" : "reportsCount";
 
     entries.sort((a, b) => b[sortField] - a[sortField]);
 
@@ -295,12 +564,20 @@ export const updateChallengeStatus = async (req, res, next) => {
       buildChallengeAccessFilter(accessContext, { _id: req.params.id }),
       { status },
       { new: true }
-    ).populate("createdBy", "first_name last_name username email profile_picture");
+    )
+      .populate("createdBy", "first_name last_name username email profile_picture")
+      .populate("book", "title author isbn totalPages")
+      .populate("winner", "first_name last_name username email profile_picture");
 
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
     const participantCounts = await getParticipantCounts([challenge._id]);
-    return res.status(200).json({ data: withParticipantCount(challenge.toObject(), participantCounts) });
+    return res.status(200).json({
+      data: {
+        ...withParticipantCount(challenge.toObject(), participantCounts),
+        targetValue: getChallengeTargetValue(challenge.toObject()),
+      },
+    });
   } catch (err) {
     return next(err);
   }
@@ -315,8 +592,10 @@ export const getMyProgress = async (req, res, next) => {
     ).lean();
     if (!challenge) return res.status(404).json({ message: "Challenge not found" });
 
+    const syncedChallenge = await syncChallengeState(challenge);
+
     const participation = await ChallengeParticipation.findOne({
-      challenge: challenge._id,
+      challenge: syncedChallenge._id,
       user: req.user._id,
     }).lean();
 
@@ -324,7 +603,7 @@ export const getMyProgress = async (req, res, next) => {
       return res.status(404).json({ message: "You are not participating in this challenge" });
     }
 
-    const progress = await computeProgress(req.user._id, challenge);
+    const progress = await computeProgress(req.user._id, syncedChallenge);
     return res.status(200).json({ data: { ...participation, ...progress } });
   } catch (err) {
     return next(err);

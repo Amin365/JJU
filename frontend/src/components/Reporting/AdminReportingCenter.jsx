@@ -297,7 +297,7 @@ export default function AdminReportingCenter() {
       </div>
 
       {/* Filters Panel */}
-      <Card>
+      <Card className="mb-8">
         <CardHeader className="pb-4">
           <CardTitle className="text-lg flex items-center gap-2">
             <Filter className="h-5 w-5" />
@@ -390,7 +390,7 @@ export default function AdminReportingCenter() {
       </Card>
 
       {/* Tabs */}
-      <Tabs value={activeTab} onValueChange={setActiveTab}>
+      <Tabs className="mb-8" value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-4 lg:w-auto lg:inline-grid">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="comparison">Comparison</TabsTrigger>
@@ -399,7 +399,7 @@ export default function AdminReportingCenter() {
         </TabsList>
 
         {/* Overview Tab */}
-        <TabsContent value="overview" className="space-y-6">
+        <TabsContent value="overview" className="space-y-6 mt-4">
           {/* Monthly Stats */}
           {comparisonData?.currentMonth && (
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -610,7 +610,7 @@ export default function AdminReportingCenter() {
         </TabsContent>
 
         {/* Comparison Tab */}
-        <TabsContent value="comparison" className="space-y-6">
+        <TabsContent value="comparison" className="space-y-6 mt-4">
           {/* Monthly Comparison */}
           <Card>
             <CardHeader>
@@ -738,7 +738,7 @@ export default function AdminReportingCenter() {
         </TabsContent>
 
         {/* Health Tab */}
-        <TabsContent value="health" className="space-y-6">
+        <TabsContent value="health" className="space-y-6 mt-4">
           {/* Health Summary */}
           {healthData?.summary && (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
@@ -898,7 +898,7 @@ export default function AdminReportingCenter() {
         </TabsContent>
 
         {/* Reports Tab */}
-        <TabsContent value="reports" className="space-y-6">
+        <TabsContent value="reports" className="space-y-6 mt-4">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">

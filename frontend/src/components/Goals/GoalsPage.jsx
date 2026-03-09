@@ -130,7 +130,7 @@ export default function GoalsPage() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="space-y-6 px-4 lg:px-6 py-6 max-w-7xl mx-auto">
+    <div className="space-y-6 px-4 lg:px-6 py-6 max-w-7xl ">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
@@ -157,7 +157,7 @@ export default function GoalsPage() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Card className="border-zinc-700 bg-zinc-900">
+            <Card className="border-zinc-700 ml-6 bg-zinc-900">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">
                   {editingGoal ? 'Edit Goal' : 'Create New Goal'}
@@ -247,7 +247,7 @@ export default function GoalsPage() {
                   <Card className="border-zinc-800 bg-zinc-900/50">
                     <CardContent className="pt-5 space-y-3">
                       <div className="flex items-start justify-between gap-3">
-                        <div className="space-y-1 min-w-0">
+                        <div className="space-y-3 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap">
                             <Badge
                               variant="outline"

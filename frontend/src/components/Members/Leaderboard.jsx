@@ -197,8 +197,8 @@ export default function Leaderboard() {
 
         {/* Sort + Department row */}
         <div className="flex flex-wrap items-center gap-3">
-          <div className="flex items-center gap-1 text-sm text-gray-400">Sort by:</div>
-          {SORT_FIELDS.map((sf) => (
+          <div className="flex items-center gap-1 text-sm text-gray-400"></div>
+          {/* {SORT_FIELDS.map((sf) => (
             <Button
               key={sf.value}
               size="sm"
@@ -209,7 +209,7 @@ export default function Leaderboard() {
               {sf.label}
               <SortIcon field={sf.value} sortField={sortField} sortDir={sortDir} />
             </Button>
-          ))}
+          ))} */}
 
           <div className="ml-auto">
             <Input

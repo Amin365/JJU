@@ -78,13 +78,6 @@ const BlogEdit = () => {
   const [authorPictureUrl, setAuthorPictureUrl] = useState("");
   const [selectedAuthorImage, setSelectedAuthorImage] = useState(null);
 
-  // Phase 7: SEO and Scheduling state
-  const [slug, setSlug] = useState("");
-  const [seoTitle, setSeoTitle] = useState("");
-  const [seoDescription, setSeoDescription] = useState("");
-  const [publishAt, setPublishAt] = useState("");
-  const [showAdvanced, setShowAdvanced] = useState(false);
-
   const fileInputRef = useRef(null);
   const authorFileInputRef = useRef(null);
   const editorRef = useRef(null);
@@ -118,12 +111,6 @@ const BlogEdit = () => {
     setAuthorType(normalizedAuthorName ? "another" : "me");
     setAuthorName(normalizedAuthorName || "");
     setAuthorPictureUrl(post.author_picture || "");
-
-    // Phase 7: Load SEO and scheduling fields
-    setSlug(post.slug || "");
-    setSeoTitle(post.seoTitle || "");
-    setSeoDescription(post.seoDescription || "");
-    setPublishAt(post.publishAt ? new Date(post.publishAt).toISOString().slice(0, 16) : "");
   }, [isEditMode, post, user, navigate]);
 
   const createMutation = useMutation({
@@ -215,7 +202,7 @@ const BlogEdit = () => {
     toast.success("Author image selected (will be uploaded with the form).");
   };
 
-  const handleSave = async (publish, schedulePublish = false) => {
+  const handleSave = async (publish) => {
     if (!title.trim()) {
       return toast.error("Please add a title to your article.");
     }
@@ -243,14 +230,6 @@ const BlogEdit = () => {
       }
     }
 
-    // Determine status
-    let status = "Draft";
-    if (schedulePublish && publishAt) {
-      status = "Scheduled";
-    } else if (publish) {
-      status = "Published";
-    }
-
     // If there is a file, send FormData. Must append file under field name "image"
     // because router uses upload.single("image").
     const hasFile = Boolean(selectedImage);
@@ -263,18 +242,12 @@ const BlogEdit = () => {
       payload.append("content", content);
       // send tags as JSON string; server will JSON.parse if needed
       payload.append("tags", JSON.stringify(selectedTags));
-      payload.append("status", status);
+      payload.append("status", publish ? "Published" : "Draft");
       payload.append("author_type", authorType);
       if (authorType === "another") {
         payload.append("author_name", finalAuthorName);
         payload.append("author_picture", authorPictureUrl);
       }
-      // Phase 7: Add SEO and scheduling fields
-      if (slug.trim()) payload.append("slug", slug.trim());
-      if (seoTitle.trim()) payload.append("seoTitle", seoTitle.trim());
-      if (seoDescription.trim()) payload.append("seoDescription", seoDescription.trim());
-      if (publishAt) payload.append("publishAt", publishAt);
-      
       // field name must match multer: "image"
       if (hasFile) payload.append("image", selectedImage, selectedImage.name);
       if (hasAuthorFile) payload.append("author_picture", selectedAuthorImage, selectedAuthorImage.name); // Assuming multer fields setup
@@ -285,17 +258,12 @@ const BlogEdit = () => {
         content,
         tags: selectedTags,
         blog_picture: featuredImageUrl || "",
-        status,
+        status: publish ? "Published" : "Draft",
         author_type: authorType,
         ...(authorType === "another" && {
           author_name: finalAuthorName,
           author_picture: authorPictureUrl,
         }),
-        // Phase 7: SEO and scheduling fields
-        ...(slug.trim() && { slug: slug.trim() }),
-        ...(seoTitle.trim() && { seoTitle: seoTitle.trim() }),
-        ...(seoDescription.trim() && { seoDescription: seoDescription.trim() }),
-        ...(publishAt && { publishAt }),
       };
     }
 
@@ -571,91 +539,8 @@ const BlogEdit = () => {
         </div>
       </div>
 
-      {/* Phase 7: Advanced Settings (SEO & Scheduling) */}
-      <div className="mb-6 border border-gray-200 rounded-lg overflow-hidden">
-        <button
-          type="button"
-          onClick={() => setShowAdvanced(!showAdvanced)}
-          className="w-full px-4 py-3 text-left flex items-center justify-between bg-gray-50 hover:bg-gray-100 transition-colors"
-        >
-          <span className="text-sm font-medium text-gray-700">
-            Advanced Settings (SEO & Scheduling)
-          </span>
-          <span className="text-gray-500">{showAdvanced ? "−" : "+"}</span>
-        </button>
-        
-        {showAdvanced && (
-          <div className="p-4 space-y-4 bg-white">
-            {/* URL Slug */}
-            <div>
-              <label htmlFor="slug" className="block text-sm font-medium text-gray-700">
-                URL Slug
-              </label>
-              <input
-                type="text"
-                id="slug"
-                value={slug}
-                onChange={(e) => setSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-]/g, "-"))}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="url-friendly-slug (auto-generated if empty)"
-              />
-              <p className="mt-1 text-xs text-gray-500">Leave empty to auto-generate from title</p>
-            </div>
-
-            {/* SEO Title */}
-            <div>
-              <label htmlFor="seoTitle" className="block text-sm font-medium text-gray-700">
-                SEO Title
-              </label>
-              <input
-                type="text"
-                id="seoTitle"
-                value={seoTitle}
-                onChange={(e) => setSeoTitle(e.target.value)}
-                maxLength={70}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="Custom title for search engines"
-              />
-              <p className="mt-1 text-xs text-gray-500">{seoTitle.length}/70 characters</p>
-            </div>
-
-            {/* SEO Description */}
-            <div>
-              <label htmlFor="seoDescription" className="block text-sm font-medium text-gray-700">
-                SEO Description
-              </label>
-              <textarea
-                id="seoDescription"
-                value={seoDescription}
-                onChange={(e) => setSeoDescription(e.target.value)}
-                maxLength={160}
-                rows={2}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-                placeholder="Custom description for search engines and social sharing"
-              />
-              <p className="mt-1 text-xs text-gray-500">{seoDescription.length}/160 characters</p>
-            </div>
-
-            {/* Schedule Publishing */}
-            <div>
-              <label htmlFor="publishAt" className="block text-sm font-medium text-gray-700">
-                Schedule Publishing
-              </label>
-              <input
-                type="datetime-local"
-                id="publishAt"
-                value={publishAt}
-                onChange={(e) => setPublishAt(e.target.value)}
-                className="mt-1 block w-full border border-gray-300 rounded-md shadow-sm py-2 px-3 focus:outline-none focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
-              />
-              <p className="mt-1 text-xs text-gray-500">Set a future date/time to automatically publish</p>
-            </div>
-          </div>
-        )}
-      </div>
-
       {/* Bottom actions */}
-      <div className="px-6 py-4 md:px-10 flex flex-wrap justify-end gap-3">
+      <div className="px-6 py-4 md:px-10 flex justify-end space-x-4">
         <button
           onClick={() => handleSave(false)}
           disabled={isSaving}
@@ -663,16 +548,6 @@ const BlogEdit = () => {
         >
           {isEditMode ? "Update as Draft" : "Save as Draft"}
         </button>
-
-        {publishAt && (
-          <button
-            onClick={() => handleSave(false, true)}
-            disabled={isSaving}
-            className="px-6 py-3 border border-blue-300 rounded-md shadow-sm text-blue-700 bg-blue-50 hover:bg-blue-100 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer"
-          >
-            Schedule for {new Date(publishAt).toLocaleDateString()}
-          </button>
-        )}
 
         <button
           onClick={() => handleSave(true)}

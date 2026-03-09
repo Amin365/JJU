@@ -107,9 +107,21 @@ export default function ReadingRecaps() {
     staleTime: 300_000,
   });
 
+  // Fetch monthly comparison data from reporting API
+  const { data: monthlyComparisonResp } = useQuery({
+    queryKey: ['reporting', 'monthly-comparison'],
+    queryFn: async () => {
+      const res = await api.get('/reporting/monthly-comparison');
+      return res.data?.data || {};
+    },
+    staleTime: 120_000,
+    enabled: canViewRecap,
+  });
+
   const reports = reportsResp || [];
   const issues = issuesResp || [];
   const books = booksResp || [];
+  const monthlyComparison = monthlyComparisonResp || {};
 
   const bookTotals = useMemo(() => {
     const map = {};
@@ -243,6 +255,9 @@ export default function ReadingRecaps() {
     // High Rating: average rating >= 4.5
     if (averageRating >= 4.5) achievements.push("Critic's Choice");
 
+    // Calculate comparison percentage from monthly comparison API data
+    const comparisonPagesChange = monthlyComparison?.changes?.pagesChange || 0;
+
     return {
       month: monthName,
       year,
@@ -255,9 +270,11 @@ export default function ReadingRecaps() {
       averageRating,
       dailyData,
       achievements,
-      comparisonLastMonth: 0,
+      comparisonLastMonth: comparisonPagesChange,
+      monthlyStats: monthlyComparison?.currentMonth || {},
+      prevMonthStats: monthlyComparison?.previousMonth || {},
     };
-  }, [reports, issues, bookTotals, monthName, year]);
+  }, [reports, issues, bookTotals, monthName, year, monthlyComparison]);
 
   const data = aggregates;
 

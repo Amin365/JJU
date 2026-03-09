@@ -3,6 +3,7 @@ import User from "../models/user.js";
 import Member from "../models/Members.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
+import Role from "../models/Role.js";
 import mongoose from "mongoose";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 import { sendPushToUser } from "../utility/push.js";
@@ -32,7 +33,7 @@ async function getTargetAudience(targetAudience) {
 
     case "members": {
       // Users with "Members" role
-      const memberRole = await mongoose.model("Role").findOne({ role: { $regex: /^members?$/i } }).lean();
+      const memberRole = await Role.findOne({ role: { $regex: /^members?$/i } }).lean();
       if (!memberRole) return [];
       return User.find({ role: memberRole._id, status: "Active" })
         .select("_id email member")
@@ -43,7 +44,7 @@ async function getTargetAudience(targetAudience) {
 
     case "moderators": {
       // Users with "Moderator" role
-      const modRole = await mongoose.model("Role").findOne({ role: { $regex: /^moderator$/i } }).lean();
+      const modRole = await Role.findOne({ role: { $regex: /^moderator$/i } }).lean();
       if (!modRole) return [];
       return User.find({ role: modRole._id, status: "Active" })
         .select("_id email member")
@@ -80,16 +81,16 @@ async function getTargetAudience(targetAudience) {
     }
 
     case "overdue": {
-      // Users with overdue book issues
-      const overdueIssues = await Issue.find({
+      // Users with overdue book issues - use distinct() for efficient deduplication
+      const overdueMemberIds = await Issue.distinct("member", {
         returnDate: { $lt: today },
         returnedAt: null,
-      }).select("member").lean();
+      }).exec();
 
-      const overdueMemberIds = [...new Set(overdueIssues.map((i) => String(i.member)))];
+      if (!overdueMemberIds.length) return [];
 
       return User.find({
-        member: { $in: overdueMemberIds.map((id) => new mongoose.Types.ObjectId(id)) },
+        member: { $in: overdueMemberIds },
         status: "Active",
       })
         .select("_id email member")

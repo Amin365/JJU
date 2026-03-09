@@ -116,6 +116,19 @@ export async function checkUserPreference(userId, preferenceKey) {
   return prefs[preferenceKey] ?? defaultPreferences[preferenceKey] ?? true;
 }
 
+// Helper to parse time string safely
+function parseTimeString(timeStr) {
+  if (!timeStr || typeof timeStr !== "string") return null;
+  const parts = timeStr.split(":");
+  if (parts.length !== 2) return null;
+  const hours = parseInt(parts[0], 10);
+  const minutes = parseInt(parts[1], 10);
+  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
+    return null;
+  }
+  return hours * 60 + minutes;
+}
+
 // Check if current time is within quiet hours for user
 export async function isInQuietHours(userId) {
   if (!userId) return false;
@@ -128,10 +141,14 @@ export async function isInQuietHours(userId) {
   const currentMinute = now.getMinutes();
   const currentTime = currentHour * 60 + currentMinute;
 
-  const [startHour, startMinute] = prefs.quietHoursStart.split(":").map(Number);
-  const [endHour, endMinute] = prefs.quietHoursEnd.split(":").map(Number);
-  const startTime = startHour * 60 + startMinute;
-  const endTime = endHour * 60 + endMinute;
+  const startTime = parseTimeString(prefs.quietHoursStart);
+  const endTime = parseTimeString(prefs.quietHoursEnd);
+
+  // If parsing failed, default to not in quiet hours
+  if (startTime === null || endTime === null) {
+    console.warn(`Invalid quiet hours format for user ${userId}:`, prefs.quietHoursStart, prefs.quietHoursEnd);
+    return false;
+  }
 
   // Handle overnight quiet hours (e.g., 22:00 - 08:00)
   if (startTime > endTime) {

@@ -213,17 +213,48 @@ if(!token){
     return String(roleSource).toLowerCase();
   }, [profileData, user]);
 
+  // Route arrays for role-based filtering
+  const memberAllowedRoutes = [
+    "/dashboard/issues/request",
+    "/dashboard/reservations",
+    "/dashboard/report",
+    "/dashboard/report-recap",
+    "/dashboard/challenges",
+    "/dashboard/achievements",
+    "/dashboard/goals",
+    "/dashboard/leaderboard",
+    "/dashboard/notifications",
+    "/dashboard/notification-settings",
+  ];
+
+  const moderatorAllowedRoutes = [
+    "/dashboard/activity",
+    "/dashboard/members",
+    "/dashboard/issues",
+    "/dashboard/issues/request",
+    "/dashboard/reservations",
+    "/dashboard/challenges",
+    "/dashboard/achievements",
+    "/dashboard/goals",
+    "/dashboard/leaderboard",
+    "/dashboard/moderator-workspace",
+    "/dashboard/notifications",
+    "/dashboard/notification-settings",
+  ];
+
+  // Announcements is admin-only
+  const adminOnlyRoutes = ["/dashboard/announcements"];
+
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
-      // Members: only Request Books, Reservations, Reading Reports, Notifications, Settings
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report", "/dashboard/report-recap", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/notifications", "/dashboard/notification-settings"]);
+      const allowed = new Set(memberAllowedRoutes);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
-    if( roleName === "moderator") {
-      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations, Workspace, Notifications
-      const allowed = new Set(["/dashboard/activity", "/dashboard/members", "/dashboard/issues", "/dashboard/issues/request", "/dashboard/reservations", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/moderator-workspace", "/dashboard/notifications", "/dashboard/notification-settings"]);
+    if (roleName === "moderator") {
+      const allowed = new Set(moderatorAllowedRoutes);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
+    // Admin/SuperAdmin gets all routes
     return data.navMain;
   }, [roleName]);
 

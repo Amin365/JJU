@@ -26,6 +26,9 @@ import {
   ListOrdered,
   BookMarked,
   ClipboardList,
+  Bell,
+  Settings,
+  Megaphone,
 } from "lucide-react"
 
 
@@ -163,6 +166,21 @@ const data = {
       icon: ListOrdered,
    
     },
+    {
+      title: "Notifications",
+      url: "/dashboard/notifications",
+      icon: Bell,
+    },
+    {
+      title: "Notification Settings",
+      url: "/dashboard/notification-settings",
+      icon: Settings,
+    },
+    {
+      title: "Announcements",
+      url: "/dashboard/announcements",
+      icon: Megaphone,
+    },
   
   ],
 
@@ -197,13 +215,13 @@ if(!token){
 
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {
-      // Members: only Request Books, Reservations, and Reading Reports
-      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report", "/dashboard/report-recap", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard"]);
+      // Members: only Request Books, Reservations, Reading Reports, Notifications, Settings
+      const allowed = new Set(["/dashboard/issues/request", "/dashboard/reservations", "/dashboard/report", "/dashboard/report-recap", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/notifications", "/dashboard/notification-settings"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     if( roleName === "moderator") {
-      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations, Workspace
-      const allowed = new Set(["/dashboard/activity", "/dashboard/members", "/dashboard/issues", "/dashboard/issues/request", "/dashboard/reservations", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/moderator-workspace"]);
+      // Moderators: Reading Reports, Daily Activity, Members, Issues, Reservations, Workspace, Notifications
+      const allowed = new Set(["/dashboard/activity", "/dashboard/members", "/dashboard/issues", "/dashboard/issues/request", "/dashboard/reservations", "/dashboard/challenges", "/dashboard/achievements", "/dashboard/goals", "/dashboard/leaderboard", "/dashboard/moderator-workspace", "/dashboard/notifications", "/dashboard/notification-settings"]);
       return data.navMain.filter((item) => allowed.has(item.url));
     }
     return data.navMain;

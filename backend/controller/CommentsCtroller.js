@@ -23,8 +23,13 @@ export const getCommentsByPostId = async (req, res) => {
     const exists = await BlogPost.exists({ _id: id });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
-    const comments = await Comment.find({ postId: id })
-      .sort({ createdAt: -1 })
+    // Phase 7: Only show approved comments in public view
+    // Deleted and hidden comments are excluded
+    const comments = await Comment.find({ 
+      postId: id,
+      status: { $in: ["approved", "pending"] } // Show approved and pending, hide deleted/hidden
+    })
+      .sort({ isPinned: -1, isBestInsight: -1, createdAt: -1 })
       .lean();
 
     return res.status(200).json({ data: comments });

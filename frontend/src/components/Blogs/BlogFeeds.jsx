@@ -1,7 +1,7 @@
 import { useMemo, useState, useEffect } from "react";
 import { useNavigate } from "react-router";
 import { useQuery } from "@tanstack/react-query";
-import { Search, Clock, Eye, Filter, ChevronRight } from "lucide-react";
+import { Search, Clock, Eye, Filter, ChevronRight, Star, Pin, Award } from "lucide-react";
 
 import api from "@/app/api/apislice";
 // import BlogHeros from "./BlogHero";
@@ -93,6 +93,16 @@ export default function BlogFeed({ onPostClick }) {
     staleTime: 60_000,
   });
 
+  /* -------- fetch featured posts -------- */
+  const { data: featuredData } = useQuery({
+    queryKey: ["featured-posts"],
+    queryFn: async () => {
+      const res = await api.get("/blogposts/featured", { params: { limit: 5 } });
+      return res.data;
+    },
+    staleTime: 60_000,
+  });
+
   /* -------- normalize posts -------- */
 
   const posts = useMemo(() => {
@@ -125,9 +135,26 @@ export default function BlogFeed({ onPostClick }) {
         views: post?.views || 0,
         tags,
         tagsNorm: tags.map(normTag),
+        isFeatured: post?.isFeatured || false,
+        isPinned: post?.isPinned || false,
+        isEditorsPick: post?.isEditorsPick || false,
       };
     });
   }, [data]);
+
+  const featuredPosts = useMemo(() => {
+    return (featuredData?.data || []).map((post, index) => ({
+      id: String(post?._id || post?.id || `featured-${index}`),
+      title: stripHtml(post?.title) || "Untitled",
+      excerpt: stripHtml(post?.seoDescription) || `${stripHtml(post?.content || "").slice(0, 140)}...`,
+      coverImage: post?.blog_picture || FALLBACK_IMAGE,
+      author: { name: post?.author_name || "Unknown" },
+      views: post?.views || 0,
+      isFeatured: post?.isFeatured,
+      isPinned: post?.isPinned,
+      isEditorsPick: post?.isEditorsPick,
+    }));
+  }, [featuredData]);
 
   /* -------- collect all tags -------- */
 
@@ -271,6 +298,66 @@ export default function BlogFeed({ onPostClick }) {
               onChange={(e) => setSearchTerm(e.target.value)}
             />
           </div>
+
+          {/* Featured Posts Section */}
+          {featuredPosts.length > 0 && !searchTerm && !selectedTagKey && (
+            <div className="mb-12">
+              <h3 className="text-xl font-bold text-gray-900 dark:text-gray-100 mb-4 flex items-center gap-2">
+                <Star className="w-5 h-5 text-yellow-500" />
+                Featured Stories
+              </h3>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {featuredPosts.slice(0, 2).map((post) => (
+                  <Card
+                    key={post.id}
+                    onClick={() => handlePostClick(post.id)}
+                    className="cursor-pointer hover:shadow-xl transition-all transform hover:-translate-y-1 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950 dark:to-yellow-950 border-orange-200 dark:border-orange-800"
+                  >
+                    <div className="flex flex-col md:flex-row">
+                      <div className="relative md:w-1/2">
+                        <img
+                          src={post.coverImage}
+                          alt={post.title}
+                          className="h-48 md:h-full w-full object-cover"
+                        />
+                        <div className="absolute top-3 left-3 flex gap-2">
+                          {post.isFeatured && (
+                            <Badge className="bg-yellow-500 text-white border-0">
+                              <Star className="w-3 h-3 mr-1" /> Featured
+                            </Badge>
+                          )}
+                          {post.isPinned && (
+                            <Badge className="bg-blue-500 text-white border-0">
+                              <Pin className="w-3 h-3 mr-1" /> Pinned
+                            </Badge>
+                          )}
+                          {post.isEditorsPick && (
+                            <Badge className="bg-purple-500 text-white border-0">
+                              <Award className="w-3 h-3 mr-1" /> Editor's Pick
+                            </Badge>
+                          )}
+                        </div>
+                      </div>
+                      <CardContent className="p-5 md:w-1/2 flex flex-col justify-center">
+                        <h3 className="font-bold text-lg text-gray-900 dark:text-white mb-2 line-clamp-2">
+                          {post.title}
+                        </h3>
+                        <p className="text-gray-600 dark:text-gray-300 text-sm mb-4 line-clamp-3">
+                          {post.excerpt}
+                        </p>
+                        <div className="flex items-center justify-between text-xs text-gray-500">
+                          <span>By {post.author.name}</span>
+                          <span className="flex items-center gap-1">
+                            <Eye className="w-3 h-3" /> {post.views}
+                          </span>
+                        </div>
+                      </CardContent>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            </div>
+          )}
 
           {/* Tags */}
           <div className="mb-10 max-w-xl mx-auto">

@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import crypto from "crypto";
 import User from "../models/user.js";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
@@ -12,6 +13,7 @@ import Permission from "../models/Permissions.js";
 import RefreshToken from "../models/RefreshToken.js";
 import { signAccessToken, signRefreshToken, hashToken, verifyRefreshToken } from "../utility/tokenUtils.js";
 import { logAuthAction } from "../utility/auditLog.js";
+import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -370,8 +372,7 @@ export const resendInvite = async (req, res, next) => {
     }
 
     // Generate new invite token
-    const crypto = await import("crypto");
-    const inviteToken = crypto.default.randomBytes(32).toString("hex");
+    const inviteToken = crypto.randomBytes(32).toString("hex");
     const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
     user.inviteToken = inviteToken;
@@ -379,7 +380,6 @@ export const resendInvite = async (req, res, next) => {
     await user.save({ validateBeforeSave: false });
 
     // Send invite email
-    const { sendMail, buildEmailHtml } = await import("./EmailController.js");
     const appUrl = process.env.APP_URL || "http://localhost:5173";
     const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
 

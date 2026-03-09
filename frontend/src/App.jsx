@@ -67,6 +67,12 @@ const ResourceDetails = lazy(() => import("./components/Resources/ResourceDetail
 const ResourceTable = lazy(() => import("./components/Resources/ResourceTable"));
 const ResourceEdit = lazy(() => import("./components/Resources/ResourceEdit"));
 
+// Phase 8: Admin Governance and Safety components
+const AuditLogViewer = lazy(() => import("./components/Admin/AuditLogViewer"));
+const SystemHealth = lazy(() => import("./components/Admin/SystemHealth"));
+const PermissionMatrix = lazy(() => import("./components/Admin/PermissionMatrix"));
+const SetupPassword = lazy(() => import("./components/login/SetupPassword"));
+
 function App() {
   return (
     <>
@@ -93,6 +99,8 @@ function App() {
  <Route path="/forgot-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ForgotPassword /></Suspense>} />
 <Route path="/verify-otp" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><VerifyOtp /></Suspense>} />
 <Route path="/reset-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResetPassword /></Suspense>} />
+{/* Phase 8: Invite-based password setup */}
+<Route path="/setup-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><SetupPassword /></Suspense>} />
         {/* protected routes */}
         <Route
           path="/dashboard"
@@ -155,6 +163,11 @@ function App() {
   <Route path="resources" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceTable /></Suspense>} />
   <Route path="resources/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceEdit /></Suspense>} />
   <Route path="resources/edit/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceEdit /></Suspense>} />
+  
+  {/* Phase 8: Admin Governance and Safety routes */}
+  <Route path="audit-log" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AuditLogViewer /></Suspense>} />
+  <Route path="system-health" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><SystemHealth /></Suspense>} />
+  <Route path="permissions" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><PermissionMatrix /></Suspense>} />
         </Route>
       </Routes>
       </>

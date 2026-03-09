@@ -9,6 +9,7 @@ import { sendMemberEmail, sendMail, buildEmailHtml } from "../controller/EmailCo
 import { sendPushToUser } from "../utility/push.js";
 import { checkBorrowingRules } from "../utility/borrowingRules.js";
 import { notifyNextReservation } from "../controller/ReservationController.js";
+import { logIssueAction } from "../utility/auditLog.js";
 
 export const IssueCreate = async (req, res, next) => {
   try {
@@ -73,6 +74,11 @@ export const IssueCreate = async (req, res, next) => {
       .populate("member", "first_name middle_name last_name full_name email code")
       .lean()
       .exec();
+
+    // Phase 8: Audit log
+    await logIssueAction("created", populated, req.user, req, {
+      description: `Book "${bookDoc.title}" issued to "${memberDoc.first_name} ${memberDoc.last_name}"`,
+    });
 
     // Notify the member's linked user about the new issue
     try {
@@ -431,6 +437,11 @@ export const markIssueReturned = async (req, res, next) => {
       .populate("member", "first_name middle_name last_name full_name email code")
       .lean()
       .exec();
+
+    // Phase 8: Audit log
+    await logIssueAction("returned", populated, req.user, req, {
+      description: `Book "${bookDoc?.title || "Unknown"}" was returned`,
+    });
 
     // Optionally notify user that the book was returned
     try {

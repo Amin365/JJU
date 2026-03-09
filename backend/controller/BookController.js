@@ -1,6 +1,7 @@
 import mongoose from "mongoose";
 import Book from "../models/Books.js";
 import Issue from "../models/Issue.js";
+import { logBookAction, buildChanges } from "../utility/auditLog.js";
 
 /**
  * Helper: escape user input for use in a RegExp
@@ -53,6 +54,12 @@ export const createBook = async (req, res, next) => {
 
     try {
       const saved = await book.save();
+      
+      // Phase 8: Audit log
+      await logBookAction("created", saved, req.user, req, {
+        description: `Book "${saved.title}" was created`,
+      });
+      
       return res.status(201).json(saved);
     } catch (err) {
       // Duplicate key (e.g., ISBN unique constraint)

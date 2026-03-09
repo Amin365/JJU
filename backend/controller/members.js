@@ -9,6 +9,8 @@ import Notification from "../models/Notification.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
 import MemberNote from "../models/MemberNote.js";
+import { logMemberAction, logUserAction, logJoinRequestAction } from "../utility/auditLog.js";
+import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 
@@ -85,7 +87,8 @@ export const createMember = async (req, res, next) => {
     try {
       const saved = await member.save();
 
-      // Create user automatically with default password
+      // Create user with secure invite-based onboarding (Phase 8)
+      // Generate a secure random password and invite token
       const baseUsername = String(saved.email || `${saved.first_name}${saved.last_name}`)
         .toLowerCase()
         .replace(/\s+/g, "")
@@ -97,20 +100,67 @@ export const createMember = async (req, res, next) => {
         username = `${username}-${String(saved._id).slice(-4)}`;
       }
 
+      // Generate secure random password (user won't know this - they must reset)
+      const securePassword = crypto.randomBytes(32).toString("hex");
+      
+      // Generate invite token for password setup
+      const inviteToken = crypto.randomBytes(32).toString("hex");
+      const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+
       try {
-        await User.create({
+        const newUser = await User.create({
           first_name: saved.first_name,
           middle_name: saved.middle_name || "",
           last_name: saved.last_name,
           username,
           email: saved.email,
-          password: "jju1234",
+          password: securePassword,
           member_id: saved.code || String(saved._id),
           role: saved.role || null,
-          status: saved.status || "Active",
+          status: "pending", // User must set password before becoming active
           member: saved._id,
           added_by: req.user?._id || null,
           updated_by: req.user?._id || null,
+          mustChangePassword: true,
+          inviteToken,
+          inviteTokenExpires,
+          invitedBy: req.user?._id || null,
+          invitedAt: new Date(),
+        });
+
+        // Send invite email with password setup link
+        const appUrl = process.env.APP_URL || "http://localhost:5173";
+        const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
+
+        try {
+          await sendMail({
+            to: saved.email,
+            subject: "Welcome! Set up your account",
+            html: buildEmailHtml({
+              title: "Welcome to the Reading Club!",
+              preheader: "Set up your account password",
+              greeting: `Hello ${saved.first_name}`,
+              bodyLines: [
+                "You've been invited to join the JJU Reading Club!",
+                "Please click the button below to set up your password and activate your account.",
+                "This link will expire in 72 hours.",
+              ],
+              ctaLabel: "Set Up Password",
+              ctaUrl: setupUrl,
+              footerNote: "If you didn't expect this email, you can safely ignore it.",
+            }),
+          });
+        } catch (emailErr) {
+          console.error("Failed to send invite email:", emailErr.message);
+          // Don't fail the operation if email fails
+        }
+
+        // Audit log
+        await logMemberAction("created", saved, req.user, req, {
+          description: `Member "${saved.first_name} ${saved.last_name}" was created`,
+        });
+        await logUserAction("invited", newUser, req.user, req, {
+          description: `User account created with invite for ${saved.email}`,
         });
       } catch (userErr) {
         // rollback member if user creation fails

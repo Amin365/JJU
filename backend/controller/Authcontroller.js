@@ -1,6 +1,7 @@
 import dotenv from "dotenv";
 dotenv.config();
 
+import crypto from "crypto";
 import User from "../models/user.js";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
@@ -11,6 +12,8 @@ import UserPermission from "../models/UserPermission.js";
 import Permission from "../models/Permissions.js";
 import RefreshToken from "../models/RefreshToken.js";
 import { signAccessToken, signRefreshToken, hashToken, verifyRefreshToken } from "../utility/tokenUtils.js";
+import { logAuthAction } from "../utility/auditLog.js";
+import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -144,6 +147,12 @@ export const loginUser = async (req, res) => {
 
     res.cookie("refreshToken", refreshToken, cookieOptions);
 
+    // Phase 8 - Audit log successful login
+    await logAuthAction("login", user, req, {
+      description: `User "${user.email}" logged in successfully`,
+    });
+
+    // Phase 8 - Include mustChangePassword flag in login response
     return res.json({
       token: accessToken, // keep same response key your client expects
       user: {
@@ -153,6 +162,7 @@ export const loginUser = async (req, res) => {
         status: user.status,
         role: roleDoc ? { _id: roleDoc._id, role: roleDoc.role } : user.role,
         permissions: Array.from(permissionSet),
+        mustChangePassword: user.mustChangePassword || false,
       },
     });
   } catch (error) {
@@ -256,6 +266,163 @@ export const GetProfile = async (req, res, next) => {
     if (!user) return res.status(404).json({ message: "User not found" });
 
     res.json({ success: true, user });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Phase 8 - Validate invite token
+ * GET /auth/validate-invite/:token
+ */
+export const validateInviteToken = async (req, res, next) => {
+  try {
+    const { token } = req.params;
+
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    const user = await User.findOne({
+      inviteToken: token,
+      inviteTokenExpires: { $gt: new Date() },
+    })
+      .select("first_name last_name email inviteTokenExpires")
+      .lean();
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired invite token" });
+    }
+
+    return res.json({
+      valid: true,
+      user: {
+        firstName: user.first_name,
+        lastName: user.last_name,
+        email: user.email,
+        expiresAt: user.inviteTokenExpires,
+      },
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Phase 8 - Set password from invite
+ * POST /auth/setup-password
+ * Body: { token, password }
+ */
+export const setupPasswordFromInvite = async (req, res, next) => {
+  try {
+    const { token, password } = req.body;
+
+    if (!token) {
+      return res.status(400).json({ message: "Token is required" });
+    }
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ message: "Password must be at least 8 characters" });
+    }
+
+    const user = await User.findOne({
+      inviteToken: token,
+      inviteTokenExpires: { $gt: new Date() },
+    });
+
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired invite token" });
+    }
+
+    // Update user with new password and clear invite token
+    user.password = password;
+    user.status = "Active";
+    user.mustChangePassword = false;
+    user.inviteToken = undefined;
+    user.inviteTokenExpires = undefined;
+
+    await user.save();
+
+    return res.json({
+      success: true,
+      message: "Password set successfully. You can now log in.",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Phase 8 - Resend invite email
+ * POST /auth/resend-invite
+ * Body: { email }
+ */
+export const resendInvite = async (req, res, next) => {
+  try {
+    const { email } = req.body;
+
+    if (!email) {
+      return res.status(400).json({ message: "Email is required" });
+    }
+
+    const user = await User.findOne({ email, mustChangePassword: true });
+
+    if (!user) {
+      return res.status(404).json({ message: "No pending invite found for this email" });
+    }
+
+    // Generate new invite token
+    const inviteToken = crypto.randomBytes(32).toString("hex");
+    const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
+
+    user.inviteToken = inviteToken;
+    user.inviteTokenExpires = inviteTokenExpires;
+    await user.save({ validateBeforeSave: false });
+
+    // Send invite email
+    const appUrl = process.env.APP_URL || "http://localhost:5173";
+    const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
+
+    await sendMail({
+      to: user.email,
+      subject: "Set up your account - Reminder",
+      html: buildEmailHtml({
+        title: "Complete Your Account Setup",
+        preheader: "Set up your account password",
+        greeting: `Hello ${user.first_name}`,
+        bodyLines: [
+          "This is a reminder to set up your JJU Reading Club account.",
+          "Please click the button below to set up your password.",
+          "This link will expire in 72 hours.",
+        ],
+        ctaLabel: "Set Up Password",
+        ctaUrl: setupUrl,
+        footerNote: "If you didn't expect this email, you can safely ignore it.",
+      }),
+    });
+
+    return res.json({
+      success: true,
+      message: "Invite email has been resent",
+    });
+  } catch (err) {
+    next(err);
+  }
+};
+
+/**
+ * Phase 8 - Check if user must change password
+ * Middleware to use after login
+ */
+export const checkMustChangePassword = async (req, res, next) => {
+  try {
+    if (req.user?.mustChangePassword) {
+      return res.status(403).json({
+        message: "Password change required",
+        mustChangePassword: true,
+      });
+    }
+    next();
   } catch (err) {
     next(err);
   }

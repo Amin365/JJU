@@ -41,6 +41,33 @@ resetPasswordExpires: {
   type: Date,
 },
 
+// Phase 8 - Safer onboarding fields
+mustChangePassword: {
+  type: Boolean,
+  default: false,
+},
+inviteToken: {
+  type: String,
+  index: true,
+},
+inviteTokenExpires: {
+  type: Date,
+},
+invitedBy: {
+  type: mongoose.Schema.Types.ObjectId,
+  ref: "User",
+  default: null,
+},
+invitedAt: {
+  type: Date,
+},
+lastPasswordChange: {
+  type: Date,
+},
+passwordChangedCount: {
+  type: Number,
+  default: 0,
+},
 
   },
   { timestamps: true }
@@ -52,6 +79,12 @@ userSchema.pre("save", async function () {
 
   const salt = await bcrypt.genSalt(10);
   this.password = await bcrypt.hash(this.password, salt);
+  
+  // Track password change
+  this.lastPasswordChange = new Date();
+  if (!this.isNew) {
+    this.passwordChangedCount = (this.passwordChangedCount || 0) + 1;
+  }
 });
 
 // ✅ Compare entered password
@@ -74,3 +107,4 @@ userSchema.set("toJSON", { virtuals: true });
 const User = mongoose.model("User", userSchema);
 
 export default User;
+

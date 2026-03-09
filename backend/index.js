@@ -37,6 +37,9 @@ import { startScheduledReporting } from "./modules/scheduledReporting.js";
 import CommentModerationRouter from './routers/CommentModerationRouter.js';
 import ResourceRouter from './routers/ResourceRouter.js';
 import { startScheduledPublishing } from "./modules/scheduledPublishing.js";
+// Phase 8 - Admin Governance and Safety
+import AuditLogRouter from './routers/AuditLogRouter.js';
+import SystemHealthRouter from './routers/SystemHealthRouter.js';
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -126,6 +129,9 @@ app.use('/api', ReadingGoalRouter);
 app.use('/api', ReportingRouter);
 app.use('/api', CommentModerationRouter);
 app.use('/api', ResourceRouter);
+// Phase 8 - Admin Governance and Safety
+app.use('/api', AuditLogRouter);
+app.use('/api', SystemHealthRouter);
 
 app.get("/api/health/email", (req, res) => {
   return res.json({

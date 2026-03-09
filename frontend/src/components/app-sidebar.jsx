@@ -186,6 +186,23 @@ const data = {
          title: "Reporting Center",
       url: "/dashboard/reporting",
       icon: BarChart3,
+    },
+    
+    // Phase 8: Admin Governance and Safety
+    {
+      title: "Audit Log",
+      url: "/dashboard/audit-log",
+      icon: FileChartColumn,
+    },
+    {
+      title: "System Health",
+      url: "/dashboard/system-health",
+      icon: ActivityIcon,
+    },
+    {
+      title: "Permissions",
+      url: "/dashboard/permissions",
+      icon: Settings,
     }
   
    
@@ -249,8 +266,13 @@ if(!token){
     "/dashboard/notification-settings",
   ];
 
-  // Announcements is admin-only
-  const adminOnlyRoutes = ["/dashboard/announcements"];
+  // Phase 8: Admin-only routes including governance features
+  const adminOnlyRoutes = [
+    "/dashboard/announcements",
+    "/dashboard/audit-log",
+    "/dashboard/system-health",
+    "/dashboard/permissions",
+  ];
 
   const filteredNav = React.useMemo(() => {
     if (roleName === "members") {

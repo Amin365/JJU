@@ -26,6 +26,7 @@ import {
   ListOrdered,
   BookMarked,
   ClipboardList,
+  BarChart3,
 } from "lucide-react"
 
 
@@ -161,11 +162,13 @@ const data = {
       title: "Leaderboard ",
       url: "/dashboard/leaderboard",
       icon: ListOrdered,
-   
     },
-  
+    {
+      title: "Reporting Center",
+      url: "/dashboard/reporting",
+      icon: BarChart3,
+    },
   ],
-
 }
 
 export function AppSidebar({ ...props }) {

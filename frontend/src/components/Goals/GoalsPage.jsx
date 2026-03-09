@@ -130,7 +130,7 @@ export default function GoalsPage() {
   const isSaving = createMutation.isPending || updateMutation.isPending;
 
   return (
-    <div className="space-y-6 px-4 lg:px-6 py-6 max-w-3xl mx-auto">
+    <div className="space-y-6 px-4 lg:px-6 py-6 max-w-7xl mx-auto">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">

@@ -34,6 +34,9 @@ import AchievementRouter from './routers/AchievementRouter.js';
 import ReadingGoalRouter from './routers/ReadingGoalRouter.js';
 import ReportingRouter from './routers/ReportingRouter.js';
 import { startScheduledReporting } from "./modules/scheduledReporting.js";
+import CommentModerationRouter from './routers/CommentModerationRouter.js';
+import ResourceRouter from './routers/ResourceRouter.js';
+import { startScheduledPublishing } from "./modules/scheduledPublishing.js";
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -121,6 +124,8 @@ app.use('/api', ChallengeRouter);
 app.use('/api', AchievementRouter);
 app.use('/api', ReadingGoalRouter);
 app.use('/api', ReportingRouter);
+app.use('/api', CommentModerationRouter);
+app.use('/api', ResourceRouter);
 
 app.get("/api/health/email", (req, res) => {
   return res.json({
@@ -196,6 +201,7 @@ mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas
     startIssueDueScheduler();
     startDailyReportMissingScheduler();
     startScheduledReporting();
+    startScheduledPublishing();
   })
   .catch((error) => console.log('❌ MongoDB Connection Error:', error));
 

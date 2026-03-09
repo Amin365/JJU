@@ -55,6 +55,15 @@ const Profile = lazy(() => import("./components/Users/UserProfile"));
 const IDcard = lazy(() => import("./components/IDcard/PVCIDCard"));
 const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
 const AdminReportingCenter = lazy(() => import("./components/Reporting/AdminReportingCenter"));
+
+// Phase 7: Content Moderation and Resource Hub components
+const CommentModeration = lazy(() => import("./components/ContentModeration/CommentModeration"));
+const FeaturedContentManager = lazy(() => import("./components/ContentModeration/FeaturedContentManager"));
+const ResourceHub = lazy(() => import("./components/Resources/ResourceHub"));
+const ResourceDetails = lazy(() => import("./components/Resources/ResourceDetails"));
+const ResourceTable = lazy(() => import("./components/Resources/ResourceTable"));
+const ResourceEdit = lazy(() => import("./components/Resources/ResourceEdit"));
+
 function App() {
   return (
     <>
@@ -73,6 +82,10 @@ function App() {
           <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
                <Route path="/blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogFeeds /></Suspense>} />
         <Route path="/members/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersFormPublic /></Suspense>} />
+
+        {/* Phase 7: Public Resource Hub routes */}
+        <Route path="/resources" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceHub /></Suspense>} />
+        <Route path="/resources/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceDetails /></Suspense>} />
 
  <Route path="/forgot-password" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ForgotPassword /></Suspense>} />
 <Route path="/verify-otp" element= { <Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><VerifyOtp /></Suspense>} />
@@ -129,6 +142,13 @@ function App() {
   <Route path="achievements" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AchievementsPage /></Suspense>} />
   <Route path="goals" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><GoalsPage /></Suspense>} />
   <Route path="reporting" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AdminReportingCenter /></Suspense>} />
+  
+  {/* Phase 7: Content Moderation and Resource Admin routes */}
+  <Route path="comment-moderation" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><CommentModeration /></Suspense>} />
+  <Route path="featured-content" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><FeaturedContentManager /></Suspense>} />
+  <Route path="resources" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceTable /></Suspense>} />
+  <Route path="resources/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceEdit /></Suspense>} />
+  <Route path="resources/edit/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ResourceEdit /></Suspense>} />
         </Route>
       </Routes>
       </>

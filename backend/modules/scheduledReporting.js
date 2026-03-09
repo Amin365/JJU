@@ -9,7 +9,6 @@ import Member from "../models/Members.js";
 import User from "../models/user.js";
 import Role from "../models/Role.js";
 import Notification from "../models/Notification.js";
-import { calcLongestStreak } from "../utility/streakUtils.js";
 
 /**
  * Generate summary report data for a given period

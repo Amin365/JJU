@@ -267,6 +267,7 @@ export default function AdminReportingCenter() {
           <h1 className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-white flex items-center gap-3">
             <BarChart3 className="text-orange-600" />
             Admin Reporting Center
+            {isLoading && <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />}
           </h1>
           <p className="text-sm text-slate-500 dark:text-slate-400 mt-1">
             Comprehensive analytics and reporting dashboard

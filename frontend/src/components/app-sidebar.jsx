@@ -29,6 +29,7 @@ import {
   Bell,
   Settings,
   Megaphone,
+  BarChart3,
 } from "lucide-react"
 
 
@@ -164,7 +165,6 @@ const data = {
       title: "Leaderboard ",
       url: "/dashboard/leaderboard",
       icon: ListOrdered,
-   
     },
     {
       title: "Notifications",
@@ -182,8 +182,11 @@ const data = {
       icon: Megaphone,
     },
   
+      title: "Reporting Center",
+      url: "/dashboard/reporting",
+      icon: BarChart3,
+    },
   ],
-
 }
 
 export function AppSidebar({ ...props }) {

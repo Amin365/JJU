@@ -57,6 +57,7 @@ const MembersFormPublic = lazy(() => import("./components/Members/MemberForm"));
 const NotificationCenter = lazy(() => import('./components/Notifications/NotificationCenter'));
 const NotificationPreferences = lazy(() => import('./components/Notifications/NotificationPreferences'));
 const AdminAnnouncements = lazy(() => import('./components/Notifications/AdminAnnouncements'));
+const AdminReportingCenter = lazy(() => import("./components/Reporting/AdminReportingCenter"));
 function App() {
   return (
     <>
@@ -133,6 +134,7 @@ function App() {
   <Route path="notifications" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><NotificationCenter /></Suspense>} />
   <Route path="notification-settings" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><NotificationPreferences /></Suspense>} />
   <Route path="announcements" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AdminAnnouncements /></Suspense>} />
+  <Route path="reporting" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AdminReportingCenter /></Suspense>} />
         </Route>
       </Routes>
       </>

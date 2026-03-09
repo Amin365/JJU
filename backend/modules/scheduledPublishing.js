@@ -6,7 +6,8 @@ import Resource from "../models/Resource.js";
  * Runs periodically to publish scheduled content when their publishAt date has passed
  */
 
-const POLL_INTERVAL = 60 * 1000; // Check every minute
+// Poll interval - configurable via environment variable (default: 60 seconds)
+const POLL_INTERVAL = parseInt(process.env.SCHEDULED_PUBLISHING_INTERVAL || "60000", 10);
 
 /**
  * Publish scheduled blog posts

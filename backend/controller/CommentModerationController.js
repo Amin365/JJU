@@ -43,7 +43,7 @@ export const getModerationQueue = async (req, res) => {
 
     // Filter by comments with reports
     if (hasReports === "true") {
-      filter["reports.0"] = { $exists: true };
+      filter.reports = { $exists: true, $not: { $size: 0 } };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));

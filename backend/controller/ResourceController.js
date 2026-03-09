@@ -103,7 +103,7 @@ export const createResource = async (req, res) => {
 
     // Handle file upload for downloadable resources
     const coverImage = getUploadedFile(req.files?.coverImage?.[0]) || "";
-    const downloadFile = getUploadedFile(req.files?.file?.[0]);
+    const uploadedFile = getUploadedFile(req.files?.file?.[0]);
     
     // Generate slug
     let finalSlug = null;
@@ -147,7 +147,7 @@ export const createResource = async (req, res) => {
       seoTitle: seoTitle?.trim() || "",
       seoDescription: seoDescription?.trim() || "",
       coverImage,
-      fileUrl: downloadFile || "",
+      fileUrl: uploadedFile || "",
       fileName: req.files?.file?.[0]?.originalname || "",
       fileSize: req.files?.file?.[0]?.size || 0,
       fileType: req.files?.file?.[0]?.mimetype || "",

@@ -236,7 +236,7 @@ const CommentModeration = () => {
       const res = await api.put(`/comments/${commentId}/moderate`, { action, note });
       return res.data;
     },
-    onSuccess: (_, { action }) => {
+    onSuccess: (response, { action }) => {
       toast.success(`Comment ${action}d successfully`);
       queryClient.invalidateQueries({ queryKey: ["moderation-queue"] });
       queryClient.invalidateQueries({ queryKey: ["moderation-stats"] });

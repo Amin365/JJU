@@ -5,6 +5,7 @@ import cleanQuillHtml from "../utility/cleanQuillHtml.js";
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
 import User from "../models/user.js";
 import Role from "../models/Role.js";
+import sanitizeHtml from "sanitize-html";
 
 
 
@@ -513,8 +514,10 @@ export const blogMetaPage = async (req, res) => {
 
     // Phase 7: Use custom SEO fields if available, fallback to defaults
     const pageTitle = post.seoTitle?.trim() || post.title;
+    // Strip all HTML tags safely using sanitize-html with no allowed tags
+    const plainTextContent = sanitizeHtml(post.content || "", { allowedTags: [], allowedAttributes: {} });
     const description = post.seoDescription?.trim() || 
-      post.content.replace(/<[^>]*>/g, "").slice(0, 160);
+      plainTextContent.replace(/\s+/g, " ").trim().slice(0, 160);
     const image = post.socialImage?.trim() || 
       post.blog_picture || 
       `${BASE_URL}/default-og.jpg`;

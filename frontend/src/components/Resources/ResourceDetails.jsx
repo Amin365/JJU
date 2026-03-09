@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import Loader from "@/components/Loader";
 import Footers from "@/components/Homepage/Footer";
+import { toast } from "sonner";
 
 const FALLBACK_IMAGE = "https://images.unsplash.com/photo-1481627834876-b7833e8f5570?w=800&h=400&fit=crop";
 
@@ -103,7 +104,7 @@ const ResourceDetails = () => {
       });
     } else {
       navigator.clipboard.writeText(url);
-      alert("Link copied to clipboard!");
+      toast.success("Link copied to clipboard!");
     }
   };
 

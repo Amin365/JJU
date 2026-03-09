@@ -83,9 +83,3 @@ export const isValidSlug = (slug) => {
   const slugRegex = /^[a-z0-9]+(?:-[a-z0-9]+)*$/;
   return slugRegex.test(slug) && slug.length >= 3 && slug.length <= 100;
 };
-
-export default {
-  generateSlug,
-  generateUniqueSlug,
-  isValidSlug,
-};

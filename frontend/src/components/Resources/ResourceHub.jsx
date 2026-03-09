@@ -161,7 +161,9 @@ const ResourceHub = () => {
 
   const handleResourceClick = (resource) => {
     // Track view
-    api.post(`/resources/${resource._id}/views`).catch(() => {});
+    api.post(`/resources/${resource._id}/views`).catch((err) => {
+      console.error("Failed to track resource view:", err);
+    });
     navigate(`/resources/${resource.slug || resource._id}`);
   };
 

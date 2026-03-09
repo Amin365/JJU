@@ -146,7 +146,7 @@ const ResourceEdit = () => {
     },
   });
 
-  const isSaving = createMutation.isLoading || updateMutation.isLoading;
+  const isSaving = createMutation.isPending || updateMutation.isPending;
 
   const handleCoverImageChange = (e) => {
     const file = e.target.files?.[0];

@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
-import { Lock, Award } from 'lucide-react';
+import { Award } from 'lucide-react';
 import api from '@/app/api/apislice';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -49,19 +49,12 @@ export default function AchievementsPage() {
 
   const isLoading = loadingAll || (!!user && loadingMine);
 
-  // Build a lookup: achievementId -> unlock date
-  const unlockedMap = {};
-  myAchievements.forEach((a) => {
-    const id = a.achievement?._id || a.achievement || a._id;
-    unlockedMap[id] = a.unlockedAt || a.createdAt || true;
-  });
+  const unlockedAchievements = myAchievements.filter((achievement) => achievement.unlocked);
 
-  const sorted = [...allAchievements].sort((a, b) => {
-    const aUnlocked = !!unlockedMap[a._id];
-    const bUnlocked = !!unlockedMap[b._id];
-    if (aUnlocked && !bUnlocked) return -1;
-    if (!aUnlocked && bUnlocked) return 1;
-    return 0;
+  const sorted = [...unlockedAchievements].sort((a, b) => {
+    const left = a.unlockedAt ? new Date(a.unlockedAt).getTime() : 0;
+    const right = b.unlockedAt ? new Date(b.unlockedAt).getTime() : 0;
+    return right - left;
   });
 
   return (
@@ -80,7 +73,7 @@ export default function AchievementsPage() {
         {user && !loadingMine && (
           <div className="flex items-center gap-2">
             <Badge variant="secondary" className="text-sm">
-              {myAchievements.length} / {allAchievements.length} unlocked
+              {sorted.length} unlocked
             </Badge>
           </div>
         )}
@@ -89,10 +82,7 @@ export default function AchievementsPage() {
           {isLoading
             ? Array.from({ length: 10 }).map((_, i) => <AchievementSkeleton key={i} />)
             : sorted.map((achievement) => {
-                const isUnlocked = !!unlockedMap[achievement._id];
-                const unlockDate = typeof unlockedMap[achievement._id] === 'string'
-                  ? unlockedMap[achievement._id]
-                  : null;
+                const unlockDate = achievement.unlockedAt || null;
 
                 return (
                   <Tooltip key={achievement._id}>
@@ -103,20 +93,10 @@ export default function AchievementsPage() {
                         transition={{ duration: 0.2 }}
                       >
                         <Card
-                          className={`border transition-all cursor-default h-full ${
-                            isUnlocked
-                              ? 'border-yellow-500/40 bg-yellow-500/5 shadow-[0_0_16px_rgba(234,179,8,0.15)]'
-                              : 'border-zinc-800 bg-zinc-900/40 opacity-60'
-                          }`}
+                          className="border transition-all cursor-default h-full border-yellow-500/40 bg-yellow-500/5 shadow-[0_0_16px_rgba(234,179,8,0.15)]"
                         >
                           <CardContent className="pt-5 pb-4 flex flex-col items-center gap-2 text-center relative">
-                            {!isUnlocked && (
-                              <div className="absolute inset-0 flex items-center justify-center bg-black/30 rounded-xl z-10">
-                                <Lock className="h-6 w-6 text-zinc-400" />
-                              </div>
-                            )}
-
-                            <div className={`text-4xl leading-none ${!isUnlocked ? 'grayscale' : ''}`}>
+                            <div className="text-4xl leading-none">
                               {achievement.icon || '🏅'}
                             </div>
 
@@ -128,23 +108,15 @@ export default function AchievementsPage() {
                               {achievement.description}
                             </p>
 
-                            {achievement.hint && !isUnlocked && (
-                              <p className="text-xs text-muted-foreground/70 italic mt-1">
-                                💡 {achievement.hint}
-                              </p>
-                            )}
-
-                            {isUnlocked && unlockDate && (
+                            {unlockDate && (
                               <p className="text-xs text-yellow-500/80 mt-1">
                                 Unlocked {formatDate(unlockDate)}
                               </p>
                             )}
 
-                            {isUnlocked && (
-                              <Badge variant="outline" className="text-xs border-yellow-500/40 text-yellow-400 mt-1">
-                                ✓ Earned
-                              </Badge>
-                            )}
+                            <Badge variant="outline" className="text-xs border-yellow-500/40 text-yellow-400 mt-1">
+                              ✓ Earned
+                            </Badge>
                           </CardContent>
                         </Card>
                       </motion.div>
@@ -153,9 +125,6 @@ export default function AchievementsPage() {
                       <p className="font-medium">{achievement.title || achievement.name}</p>
                       {achievement.description && (
                         <p className="text-xs text-muted-foreground max-w-xs">{achievement.description}</p>
-                      )}
-                      {!isUnlocked && achievement.hint && (
-                        <p className="text-xs italic mt-1">Hint: {achievement.hint}</p>
                       )}
                     </TooltipContent>
                   </Tooltip>

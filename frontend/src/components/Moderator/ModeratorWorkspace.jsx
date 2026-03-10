@@ -37,11 +37,17 @@ const IndicatorBadge = ({ label, colorClass }) => (
   </span>
 );
 
+const getRoleName = (roleValue) =>
+  String(roleValue?.role || roleValue?.plural || roleValue || "").toLowerCase();
+
 /* ── main component ── */
 export default function ModeratorWorkspace() {
   const navigate = useNavigate();
   const user = useSelector((s) => s.auth?.user);
   const [selectedModerator, setSelectedModerator] = useState(user?._id || "");
+  const roleName = getRoleName(user?.role);
+  const isSuperAdmin = /super\s*admin/i.test(roleName);
+  const isModerator = /moderator/i.test(roleName);
 
   // Fetch moderators list for selector (admins can pick a moderator)
   const { data: modsData } = useQuery({
@@ -50,10 +56,16 @@ export default function ModeratorWorkspace() {
       const res = await api.get("/moderators");
       return res.data?.data ?? [];
     },
+    enabled: isSuperAdmin,
     staleTime: 60_000,
   });
 
-  const moderators = modsData ?? [];
+  const moderators = isSuperAdmin ? modsData ?? [] : user?._id ? [{
+    _id: user._id,
+    first_name: user.first_name,
+    last_name: user.last_name,
+    role: user.role,
+  }] : [];
 
   // Auto-select current user if they are in the list
   React.useEffect(() => {
@@ -83,7 +95,7 @@ export default function ModeratorWorkspace() {
   const moderator = wsData?.moderator ?? {};
 
   return (
-    <div className="flex flex-col gap-6 p-4 dark:bg-gray-900 min-h-screen">
+    <div className="flex flex-col gap-6 p-4  min-h-screen">
       {/* Header */}
       <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
         <div>
@@ -96,8 +108,8 @@ export default function ModeratorWorkspace() {
           </p>
         </div>
 
-        {/* Moderator selector (visible to admins) */}
-        {moderators.length > 1 && (
+        {/* Moderator selector (visible to super admins only) */}
+        {isSuperAdmin && moderators.length > 1 && (
           <select
             className="rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-3 py-2 text-sm"
             value={selectedModerator}
@@ -109,6 +121,12 @@ export default function ModeratorWorkspace() {
               </option>
             ))}
           </select>
+        )}
+
+        {!isSuperAdmin && isModerator && (
+          <div className="rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-800 dark:text-white px-3 py-2 text-sm">
+            {user?.first_name} {user?.last_name}
+          </div>
         )}
       </div>
 
@@ -142,13 +160,15 @@ export default function ModeratorWorkspace() {
               <h2 className="font-semibold text-slate-700 dark:text-white">
                 Assigned Members
               </h2>
-              <Button
-                size="sm"
-                variant="outline"
-                onClick={() => navigate(`/dashboard/moderators/${selectedModerator}/members`)}
-              >
-                Full View <ArrowRight size={14} className="ml-1" />
-              </Button>
+              {!isModerator && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => navigate(`/dashboard/moderators/${selectedModerator}/members`)}
+                >
+                  Full View <ArrowRight size={14} className="ml-1" />
+                </Button>
+              )}
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left text-sm">

@@ -338,19 +338,22 @@ export default function DailyReadingReport() {
         </div>
 
         {/* Summary header + Create button */}
-        <div className="flex items-center justify-between gap-3">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
             <h2 className="text-lg font-semibold dark:text-white text-gray-900">Summary</h2>
-            <p className="text-sm text-white text-gray-600">Quick overview for the selected book.</p>
+            <p className="text-sm text-gray-600 dark:text-white">Quick overview for the selected book.</p>
           </div>
-          <Button onClick={() => setIsCreateOpen(true)} className="bg-orange-600 hover:bg-orange-700">
+          <Button
+            onClick={() => setIsCreateOpen(true)}
+            className="w-full sm:w-auto bg-orange-600 hover:bg-orange-700"
+          >
             <Plus className="w-4 h-4 mr-2" /> Create report
           </Button>
         </div>
 
         {/* Summary Cards */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-16  md:gap-8">
-          <Card className="shadow-sm  md:w-65 w-50 ">
+        <div className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-4">
+          <Card className="h-full shadow-sm min-w-0">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-orange-600" />
@@ -360,7 +363,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-65 w-50">
+          <Card className="h-full shadow-sm min-w-0">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <BookOpen className="w-4 h-4 text-orange-600" />
@@ -371,7 +374,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-65 w-50">
+          <Card className="h-full shadow-sm min-w-0">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <Clock className="w-4 h-4  text-orange-600" />
@@ -384,10 +387,10 @@ export default function DailyReadingReport() {
           <Card
             className={
               isStreakBroken && !isStreakRestored
-                ? "shadow-sm md:w-65 w-50 border border-red-200 bg-red-50"
+                ? "h-full shadow-sm min-w-0 border border-red-200 bg-red-50"
                 : isStreakRestored
-                ? "shadow-sm md:w-65 w-50 border border-amber-200 bg-amber-50"
-                : "shadow-sm md:w-65 w-50"
+                ? "h-full shadow-sm min-w-0 border border-amber-200 bg-amber-50"
+                : "h-full shadow-sm min-w-0"
             }
           >
             <CardContent className="p-4">
@@ -415,7 +418,7 @@ export default function DailyReadingReport() {
             </CardContent>
           </Card>
 
-          <Card className="shadow-sm md:w-65 hidden lg:block ">
+          <Card className="hidden h-full shadow-sm min-w-0 xl:block">
             <CardContent className="p-4">
               <div className="flex items-center gap-2 mb-1">
                 <TrendingUp className="w-4 h-4 text-orange-600" />

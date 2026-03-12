@@ -13,6 +13,20 @@ The project has two separate test suites:
 
 ---
 
+## Prerequisites
+
+Before running any tests for the first time, install all dependencies:
+
+```bash
+# From the repository root — installs both root and frontend packages
+npm install
+npm install --prefix frontend
+```
+
+> **Windows users:** make sure you have [Node.js](https://nodejs.org/) installed. Open a terminal (PowerShell or cmd) in the repository root before running the commands below.
+
+---
+
 ## Quick Start
 
 Run **all tests** from the repository root:

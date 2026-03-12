@@ -7,7 +7,9 @@
     "dev": "concurrently \"npm run server\" \"npm run client\"",
     "build": "npm install && npm install --prefix frontend --production=false && npm run build --prefix frontend",
     "test:backend": "vitest run --config vitest.backend.config.js",
-    "test:frontend": "npm test --prefix frontend"
+    "test:frontend": "npm test --prefix frontend",
+    "install:all": "npm install && npm install --prefix frontend",
+    "pretest": "npm install && npm install --prefix frontend"
   },
   "keywords": [],
   "author": "",

@@ -104,6 +104,8 @@ export default function MemberDetails() {
 
   const member = data ?? null;
 
+  
+
   // Fetch member overview (issues, daily reports, notes, moderator)
   const { data: overviewData, isLoading: overviewLoading } = useQuery({
     queryKey: ["member-overview", routeId],
@@ -453,7 +455,7 @@ export default function MemberDetails() {
                     )}
 
                     <span className="inline-flex items-center gap-2 px-2 py-1 rounded-md bg-emerald-50 text-emerald-700 border border-emerald-200 dark:bg-emerald-900/30 dark:text-emerald-300">
-                      Role: {member.role.role || "Null"}
+                      Role: {member?.role?.role || "Null"}
                     </span>
                   </div>
                 </div>

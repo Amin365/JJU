@@ -1,6 +1,7 @@
 import express from "express"
 import dotenv from "dotenv"
 import mongoose from "mongoose"
+import { connectMySQL } from "./config/database.js";
 import BookRouter from "./routers/BookRouter.js"
 import { ErrorHandle } from "./middleware/ErorHandle.js"
 import { NotFound } from "./middleware/NotFound.js"
@@ -200,16 +201,26 @@ if (process.env.NODE_ENV === 'production') {
 app.use(NotFound)
 app.use(ErrorHandle);
 
-mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas : process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB successfully')
-    // start background scheduler for due/overdue notifications
-    startIssueDueScheduler();
-    startDailyReportMissingScheduler();
-    startScheduledReporting();
-    startScheduledPublishing();
-  })
-  .catch((error) => console.log('❌ MongoDB Connection Error:', error));
+if (process.env.DB_DIALECT === "mysql") {
+  connectMySQL()
+    .then(() => {
+      startIssueDueScheduler();
+      startDailyReportMissingScheduler();
+      startScheduledReporting();
+      startScheduledPublishing();
+    })
+    .catch((error) => console.log("❌ MySQL Connection Error:", error));
+} else {
+  mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas : process.env.MONGO_URI)
+    .then(() => {
+      console.log('✅ Connected to MongoDB successfully')
+      startIssueDueScheduler();
+      startDailyReportMissingScheduler();
+      startScheduledReporting();
+      startScheduledPublishing();
+    })
+    .catch((error) => console.log('❌ MongoDB Connection Error:', error));
+}
 
 // Start server
 app.listen(PORT, () => {

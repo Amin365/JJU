@@ -12,7 +12,11 @@
 
   "dev": "concurrently \"npm run server\" \"npm run client\"",
 
-  "build": "npm install && npm install --prefix frontend --production=false && npm run build --prefix frontend"
+  "build": "npm install && npm install --prefix frontend --production=false && npm run build --prefix frontend",
+  "db:migrate:mysql": "sequelize-cli db:migrate --config backend/sequelize/config/config.cjs --migrations-path backend/sequelize/migrations",
+  "db:seed:mysql": "sequelize-cli db:seed:all --config backend/sequelize/config/config.cjs --seeders-path backend/sequelize/seeders",
+  "db:reset:mysql": "sequelize-cli db:migrate:undo:all --config backend/sequelize/config/config.cjs --migrations-path backend/sequelize/migrations",
+  "db:migrate:data": "node backend/scripts/migrateMongoToMySQL.js"
 
  },
 
@@ -93,4 +97,3 @@
  }
 
 }
-

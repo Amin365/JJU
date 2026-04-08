@@ -40,7 +40,7 @@ const intersectObjectIdArrays = (left = [], right = []) => {
 };
 
 async function getScopedReportUserIds(currentUser) {
-  if (!currentUser?._id) return [];
+  if (!currentUser?.id) return [];
 
   if (isSuperAdminUser(currentUser)) {
     return null;
@@ -61,7 +61,7 @@ async function getScopedReportUserIds(currentUser) {
 // POST /daily-reports
 export const createDailyReport = async (req, res, next) => {
   try {
-    const createdBy = req.user?._id 
+    const createdBy = req.user?.id 
     const { book, readingDate, pagesFrom, pagesTo, timeSpent, summary, rating } = req.body;
 
     if (!createdBy) return res.status(401).json({ message: "Unauthorized" });
@@ -214,7 +214,7 @@ export const getDailyReports = async (req, res, next) => {
     const filter = {};
 
     // default: only current user's reports if auth exists and createdBy not provided
-    if (req.user?._id && !createdBy) filter.createdBy = req.user.id;
+    if (req.user?.id && !createdBy) filter.createdBy = req.user.id;
     if (createdBy) filter.createdBy = createdBy;
 
     if (book) filter.book = book;
@@ -256,7 +256,7 @@ export const getDailyReports = async (req, res, next) => {
 export const updateDailyReportStatus = async (req, res, next) => {
   try {
     const currentUser = req.user;
-    if (!currentUser?._id) {
+    if (!currentUser?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -304,7 +304,7 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     try {
       await Notification.create({
-        user: report.createdBy?._id,
+        user: report.createdBy?.id,
         title: `Report ${status.toLowerCase()}: ${report.book?.title || "Book"}`,
         message:
           status === "Approved"
@@ -385,7 +385,7 @@ export const getDailyReportById = async (req, res, next) => {
     if (!report) return res.status(404).json({ message: "Report not found" });
 
     // If you want strict privacy:
-    if (req.user?._id && String(report.createdBy?._id || report.createdBy) !== String(req.user.id)) {
+    if (req.user?.id && String(report.createdBy?.id || report.createdBy) !== String(req.user.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -402,7 +402,7 @@ export const getDailyReportsScope = async (req, res, next) => {
   try {
     const { memberId, from, to, limit = 5000 } = req.query;
     // require logged in
-    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     // load current user role (to determine if super admin or moderator)
     const currentUser = await User.findByPk(req.user.id).populate("role", "role plural");
@@ -492,7 +492,7 @@ const getMonthKey = (date = new Date()) => {
 // GET /daily-reports/streak-restore
 export const getStreakRestoreStatus = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const month = getMonthKey();
@@ -514,7 +514,7 @@ export const getStreakRestoreStatus = async (req, res, next) => {
 // POST /daily-reports/streak-restore
 export const restoreStreak = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { restoredForDate } = req.body || {};

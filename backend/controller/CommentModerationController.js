@@ -21,7 +21,7 @@ const isModeratorOrAdmin = async (userId) => {
  */
 export const getModerationQueue = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -80,7 +80,7 @@ export const getModerationQueue = async (req, res) => {
  */
 export const getModerationStats = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -116,7 +116,7 @@ export const getModerationStats = async (req, res) => {
  */
 export const moderateComment = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -178,7 +178,7 @@ export const moderateComment = async (req, res) => {
  */
 export const reportComment = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { commentId } = req.params;
@@ -231,7 +231,7 @@ export const reportComment = async (req, res) => {
  */
 export const clearReports = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -271,7 +271,7 @@ export const clearReports = async (req, res) => {
  */
 export const togglePinComment = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -309,7 +309,7 @@ export const togglePinComment = async (req, res) => {
  */
 export const toggleBestInsight = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);

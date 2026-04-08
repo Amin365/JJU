@@ -60,7 +60,7 @@ export const getAdminReports = async (req, res, next) => {
     } = req.query;
 
     const filter = {};
-    const currentUser = await User.findByPk(req.user?._id)
+    const currentUser = await User.findByPk(req.user?.id)
       .select("_id role member")
       .populate("role", "role plural")
       ;
@@ -80,7 +80,7 @@ export const getAdminReports = async (req, res, next) => {
       }
       filter.createdBy = { [Op.in]: scopedUserIds };
     } else if (!isSuperAdminUser(currentUser)) {
-      filter.createdBy = currentUser?._id;
+      filter.createdBy = currentUser?.id;
     }
     
     // Date range filter

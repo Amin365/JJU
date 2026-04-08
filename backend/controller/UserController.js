@@ -57,8 +57,8 @@ export const createUserFromMember = async (req, res, next) => {
       member: m.id,             // ✅ relation user -> member
 
       // optional audit fields (if you have auth middleware)
-      added_by: req.user?._id || null,
-      updated_by: req.user?._id || null,
+      added_by: req.user?.id || null,
+      updated_by: req.user?.id || null,
     });
 
     // 5) return populated
@@ -216,7 +216,7 @@ export const updateUserStatus = async (req, res, next) => {
 
     const updated = await User.findByIdAndUpdate(
       id,
-      { status, updated_by: req.user?._id || null },
+      { status, updated_by: req.user?.id || null },
       { new: true }
     )
       .populate("role", "role color plural system")

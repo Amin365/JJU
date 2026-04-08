@@ -65,7 +65,7 @@ const normalizeUserName = (user) => {
  */
 export const createResource = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canCreate = await isModeratorOrAdmin(userId);
@@ -291,7 +291,7 @@ export const getResourceById = async (req, res) => {
  */
 export const updateResource = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canUpdate = await isModeratorOrAdmin(userId);
@@ -441,7 +441,7 @@ export const updateResource = async (req, res) => {
  */
 export const deleteResource = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canDelete = await isModeratorOrAdmin(userId);

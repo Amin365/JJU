@@ -51,7 +51,7 @@ async function buildNotificationFilter(userId, roleInfo, extraFilters = {}) {
 // List notifications for the logged in user with proper scoping
 export const listNotifications = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { page = 1, limit = 10, type, category, read } = req.query;
@@ -95,7 +95,7 @@ export const listNotifications = async (req, res, next) => {
 // Mark ALL notifications for user (or scope) as read
 export const markAllRead = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const roleInfo = await getUserRoleInfo(userId);
@@ -111,7 +111,7 @@ export const markAllRead = async (req, res, next) => {
 // Mark ONE notification as read
 export const markOneRead = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     const { id } = req.params;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -150,7 +150,7 @@ export const markOneRead = async (req, res, next) => {
 // Get notification statistics for the current user
 export const getNotificationStats = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const roleInfo = await getUserRoleInfo(userId);
@@ -192,7 +192,7 @@ export const getNotificationStats = async (req, res, next) => {
 // Delete a single notification
 export const deleteNotification = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     const { id } = req.params;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
@@ -217,7 +217,7 @@ export const deleteNotification = async (req, res, next) => {
 // Delete all read notifications for user
 export const deleteAllRead = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const roleInfo = await getUserRoleInfo(userId);

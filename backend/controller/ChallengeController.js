@@ -9,7 +9,7 @@ import { calcLongestStreak, calcPagesRead } from "../utility/streakUtils.js";
 
 
 function getChallengeBookId(challenge) {
-  return challenge?.book?._id || challenge?.book || null;
+  return challenge?.book?.id || challenge?.book || null;
 }
 
 function roundMetric(value) {
@@ -139,7 +139,7 @@ async function computeProgress(userId, challenge) {
   );
   const uniqueBooks = new Set(
     reports
-      .map((r) => String(r.book?._id || r.book || ""))
+      .map((r) => String(r.book?.id || r.book || ""))
       .filter(Boolean)
   );
   const averagePagesPerDay = reportDays.size ? roundMetric(pagesRead / reportDays.size) : 0;
@@ -193,7 +193,7 @@ async function syncChallengeState(challenge) {
   let shouldComplete = challengeObject.status !== "Completed";
   let completionReason = challengeObject.completionReason || null;
   let completedAt = challengeObject.completedAt || null;
-  let winnerId = challengeObject.winner?._id || challengeObject.winner || null;
+  let winnerId = challengeObject.winner?.id || challengeObject.winner || null;
 
   if (finishers.length > 0) {
     completionReason = "target_reached";
@@ -367,7 +367,7 @@ export const createChallenge = async (req, res, next) => {
       description,
       rules: normalizedRules,
       status: status || "Active",
-      book: selectedBook?._id || null,
+      book: selectedBook?.id || null,
       createdBy: currentUser.id,
     });
 

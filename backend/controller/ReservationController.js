@@ -63,14 +63,14 @@ export const createReservation = async (req, res, next) => {
     const reservation = await Reservation.create({
       book: bookDoc.id,
       member: memberDoc.id,
-      createdBy: req.user?._id,
+      createdBy: req.user?.id,
       status: "Active",
     });
 
     // Notify the member's linked user
     try {
       const memberUser = await User.findOne({ member: memberDoc.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Reservation confirmed",
@@ -216,7 +216,7 @@ export const fulfillReservation = async (req, res, next) => {
     // Notify the member
     try {
       const memberUser = await User.findOne({ member: reservation.member.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Reservation fulfilled",
@@ -251,7 +251,7 @@ export async function notifyNextReservation(bookId) {
 
     // Notify the member's linked user
     const memberUser = await User.findOne({ member: next.member.id }).select("_id");
-    if (memberUser?._id) {
+    if (memberUser?.id) {
       await Notification.create({
         user: memberUser.id,
         title: "Book available!",

@@ -83,7 +83,7 @@ export const IssueCreate = async (req, res, next) => {
     // Notify the member's linked user about the new issue
     try {
       const memberUser = await User.findOne({ member: memberDoc.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Book issued",
@@ -123,7 +123,7 @@ export const IssueCreate = async (req, res, next) => {
 //     if (status) filter.status = status;
 
 //     // Role-based scoping: require auth (router enforces protect)
-//     const userId = req.user?._id;
+//     const userId = req.user?.id;
 //     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
 //     const currentUser = await User.findByPk(userId).populate('role', 'role plural');
@@ -201,7 +201,7 @@ export const IssueCreate = async (req, res, next) => {
 //     }
 
 //     // Attach borrowed counts per book
-//     const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
+//     const bookIds = Array.from(new Set(items.map((it) => String(it.book?.id)).filter(Boolean)));
 //     const validBookObjectIds = bookIds
 //       .filter((id) => Number.isInteger(Number(id)))
 //       .map((id) => id);
@@ -213,7 +213,7 @@ export const IssueCreate = async (req, res, next) => {
 //       ]);
 //       const map = counts.reduce((acc, c) => ({ ...acc, [String(c.id)]: c.count }), {});
 //       for (const it of items) {
-//         const bid = String(it.book?._id);
+//         const bid = String(it.book?.id);
 //         if (it.book) it.book.borrowedCount = map[bid] || 0;
 //       }
 //     }
@@ -232,7 +232,7 @@ export const getIssues = async (req, res, next) => {
     const perPage = Math.min(500, Math.max(1, parseInt(limit, 10)));
     const skip = (pageNum - 1) * perPage;
 
-    if (!req.user?._id) {
+    if (!req.user?.id) {
       return res.status(401).json({ message: "Unauthorized" });
     }
 
@@ -364,7 +364,7 @@ export const getIssues = async (req, res, next) => {
     // BORROWED COUNTS (FAST)
     // =========================
     const bookIds = items
-      .map(i => i.book?._id)
+      .map(i => i.book?.id)
       .filter(id => Number.isInteger(Number(id)));
 
     if (bookIds.length > 0) {
@@ -446,7 +446,7 @@ export const markIssueReturned = async (req, res, next) => {
     // Optionally notify user that the book was returned
     try {
       const memberUser = await User.findOne({ member: issue.member }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Book returned",
@@ -468,7 +468,7 @@ export const markIssueReturned = async (req, res, next) => {
 
 export const getMyIssues = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const user = await User.findByPk(userId).select("member");
@@ -520,7 +520,7 @@ export const ReminderEmail = async (req, res) => {
     if (issue.status === "Returned") return res.status(400).json({ message: "Book already returned" });
 
     const memberUser = issue.member;
-    if (!memberUser?._id) return res.status(400).json({ message: "Member not found" });
+    if (!memberUser?.id) return res.status(400).json({ message: "Member not found" });
 
     const memberName = `${memberUser.first_name || "Member"} ${memberUser.last_name || ""}`.trim();
     const bookTitle = issue.book?.title || "the book";

@@ -107,7 +107,7 @@ async function getTargetAudience(targetAudience) {
 // Create a bulk announcement
 export const createAnnouncement = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     // Check if user is admin
@@ -235,7 +235,7 @@ export const createAnnouncement = async (req, res, next) => {
 // Get announcement history (admin only)
 export const getAnnouncementHistory = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const adminCheck = await isAdmin(userId);
@@ -301,7 +301,7 @@ export const getAnnouncementHistory = async (req, res, next) => {
 // Get audience preview (count of users that would receive the announcement)
 export const getAudiencePreview = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const adminCheck = await isAdmin(userId);

@@ -67,7 +67,7 @@ const isModeratorOrAdmin = async (userId) => {
 
 export const createBlogPost = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const {
@@ -225,7 +225,7 @@ export const getBlogPosts = async (req, res) => {
     const filter = {};
 
     if (scope === "mine") {
-      if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+      if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
       filter.created_by = req.user.id;
     }
 
@@ -313,7 +313,7 @@ export const getBlogPostById = async (req, res) => {
 
 export const updateBlogPost = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
@@ -463,7 +463,7 @@ export const updateBlogPost = async (req, res) => {
 
 export const deleteBlogPost = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
@@ -637,7 +637,7 @@ export const getFeaturedPosts = async (req, res) => {
  */
 export const toggleFeature = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -672,7 +672,7 @@ export const toggleFeature = async (req, res) => {
  */
 export const togglePin = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -707,7 +707,7 @@ export const togglePin = async (req, res) => {
  */
 export const toggleEditorsPick = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -742,7 +742,7 @@ export const toggleEditorsPick = async (req, res) => {
  */
 export const updateDisplayOrder = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -782,7 +782,7 @@ export const updateDisplayOrder = async (req, res) => {
  */
 export const updateRelatedPosts = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
@@ -826,7 +826,7 @@ export const updateRelatedPosts = async (req, res) => {
  */
 export const getScheduledPosts = async (req, res) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);

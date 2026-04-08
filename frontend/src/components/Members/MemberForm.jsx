@@ -56,7 +56,7 @@ const MembersForm = () => {
   const roleOptions = useMemo(() => {
     const roles = Array.isArray(rolesData) ? rolesData : [];
     return roles.map((r) => ({
-      value: r._id,
+      value: r.id,
       label: r.role,
     }));
   }, [rolesData]);
@@ -173,7 +173,7 @@ const MembersForm = () => {
         // Do NOT set profile_picture here to avoid string value in file input
 
         // IMPORTANT: role could be populated object or string id
-        role: m.role?._id || m.role || "",
+        role: m.role?.id || m.role_id || m.role || "",
       });
     }
   }, [fetchedMemberData, isEditMode, reset]);

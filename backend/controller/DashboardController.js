@@ -249,7 +249,7 @@ export const getTopReaders = async (req, res) => {
       .sort((a, b) => b.reportCount - a.reportCount)
       .slice(0, 10);
 
-    const userIds = grouped.map((g) => g._id);
+    const userIds = grouped.map((g) => g.id);
     const users = userIds.length
       ? await User.findAll({
           where: { id: { [Op.in]: userIds } },
@@ -266,11 +266,11 @@ export const getTopReaders = async (req, res) => {
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const user = usersById.get(entry._id);
+        const user = usersById.get(entry.id);
         const member = user?.member_id_fk ? membersById.get(user.member_id_fk) : null;
 
         return {
-          _id: entry._id,
+          _id: entry.id,
           reportCount: entry.reportCount,
           lastReport: entry.lastReport,
           totalPages: entry.totalPages,
@@ -308,7 +308,7 @@ export const getPopularBooks = async (req, res) => {
       .sort((a, b) => b.issueCount - a.issueCount)
       .slice(0, 10);
 
-    const bookIds = grouped.map((g) => g._id);
+    const bookIds = grouped.map((g) => g.id);
     const books = bookIds.length
       ? await Book.findAll({ where: { id: { [Op.in]: bookIds } }, attributes: ["id", "title", "author", "availableCopies", "totalCopies", "book_picture"], raw: true })
       : [];
@@ -316,10 +316,10 @@ export const getPopularBooks = async (req, res) => {
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const book = booksById.get(entry._id);
+        const book = booksById.get(entry.id);
 
         return {
-          _id: entry._id,
+          _id: entry.id,
           issueCount: entry.issueCount,
           title: book?.title ?? "Unknown",
           author: book?.author ?? null,

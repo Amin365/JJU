@@ -63,7 +63,7 @@ export const createIssueRequest = async (req, res, next) => {
     const request = await IssueRequest.create({
       book: bookDoc.id,
       member: memberDoc.id,
-      requestedBy: req.user?._id,
+      requestedBy: req.user?.id,
       status: "Requested",
       requestedDays: days,
       note: note || undefined,
@@ -111,7 +111,7 @@ export const getIssueRequests = async (req, res, next) => {
     const perPage = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * perPage;
 
-    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     const currentUser = await User.findByPk(req.user.id)
       .populate("role", "role plural")
@@ -201,7 +201,7 @@ export const approveIssueRequest = async (req, res, next) => {
     // Notify the requesting member
     try {
       const memberUser = await User.findOne({ member: request.member.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Request approved",
@@ -254,7 +254,7 @@ export const rejectIssueRequest = async (req, res, next) => {
     // Notify the member
     try {
       const memberUser = await User.findOne({ member: request.member.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Request rejected",
@@ -384,7 +384,7 @@ export const convertToIssue = async (req, res, next) => {
     // Notify the member
     try {
       const memberUser = await User.findOne({ member: request.member.id }).select("_id");
-      if (memberUser?._id) {
+      if (memberUser?.id) {
         await Notification.create({
           user: memberUser.id,
           title: "Book issued",

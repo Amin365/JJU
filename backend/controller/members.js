@@ -132,12 +132,12 @@ export const createMember = async (req, res, next) => {
           role: saved.role || null,
           status: "pending", // User must set password before becoming active
           member: saved.id,
-          added_by: req.user?._id || null,
-          updated_by: req.user?._id || null,
+          added_by: req.user?.id || null,
+          updated_by: req.user?.id || null,
           mustChangePassword: true,
           inviteToken,
           inviteTokenExpires,
-          invitedBy: req.user?._id || null,
+          invitedBy: req.user?.id || null,
           invitedAt: new Date(),
         });
 
@@ -856,7 +856,7 @@ export const updateJoinClubStatus = async (req, res, next) => {
 
     const update = {
       status,
-      reviewedBy: req.user?._id || null,
+      reviewedBy: req.user?.id || null,
       reviewedAt: new Date(),
     };
     if (status === "Rejected" && rejectionReason) {
@@ -885,7 +885,7 @@ export const updateJoinClubStatus = async (req, res, next) => {
           phone: clubReq.phone,
           status: "Active",
           isArchived: false,
-          role: defaultMemberRole?._id || null,
+          role: defaultMemberRole?.id || null,
         });
         member = await newMember.save();
         createdMember = member;
@@ -902,7 +902,7 @@ export const updateJoinClubStatus = async (req, res, next) => {
           memberChanged = true;
         }
 
-        if (!member.role && defaultMemberRole?._id) {
+        if (!member.role && defaultMemberRole?.id) {
           member.role = defaultMemberRole.id;
           memberChanged = true;
         }
@@ -938,14 +938,14 @@ export const updateJoinClubStatus = async (req, res, next) => {
             email: clubReq.email,
             password: tempPassword,
             member_id: member.code || String(member.id),
-            role: member.role || defaultMemberRole?._id || null,
+            role: member.role || defaultMemberRole?.id || null,
             member: member.id,
             status: "pending",
-            added_by: req.user?._id || null,
+            added_by: req.user?.id || null,
             mustChangePassword: true,
             inviteToken,
             inviteTokenExpires,
-            invitedBy: req.user?._id || null,
+            invitedBy: req.user?.id || null,
             invitedAt: new Date(),
           });
           linkedUser = user;
@@ -964,12 +964,12 @@ export const updateJoinClubStatus = async (req, res, next) => {
                 mustChangePassword: true,
                 inviteToken,
                 inviteTokenExpires,
-                invitedBy: req.user?._id || null,
+                invitedBy: req.user?.id || null,
                 invitedAt: new Date(),
                 status: "pending",
                 member: member.id,
                 member_id: member.code || String(member.id),
-                role: user.role || member.role || defaultMemberRole?._id || null,
+                role: user.role || member.role || defaultMemberRole?.id || null,
               },
               $unset: {
                 resetPasswordCode: 1,

@@ -26,7 +26,7 @@ const defaultPreferences = {
 // Get user's notification preferences
 export const getMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     let prefs = await NotificationPreferences.findOne({ user: userId });
@@ -45,7 +45,7 @@ export const getMyPreferences = async (req, res, next) => {
 // Update user's notification preferences
 export const updateMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const allowedFields = [
@@ -92,7 +92,7 @@ export const updateMyPreferences = async (req, res, next) => {
 // Reset preferences to defaults
 export const resetMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const prefs = await NotificationPreferences.findOneAndUpdate(

@@ -18,14 +18,12 @@ export async function createRole(req, res) {
       return res.status(400).json({ message: "Role name is required" });
     }
 
-    const newRole = new Role({ 
+    const savedRole = await Role.create({ 
       role: role.trim(), 
       plural: plural?.trim() || "",
       color: color || "#00000000",
       system: system || false,
     });
-    
-    const savedRole = await newRole.save();
     
     // Audit log
     await logRoleAction("created", savedRole, req.user, req, {
@@ -34,7 +32,7 @@ export async function createRole(req, res) {
 
     res.status(201).json({ data: savedRole });
   } catch (error) {
-    if (error.code === 11000) {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "Role with this name already exists" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
@@ -49,26 +47,33 @@ export async function getRoles(req, res) {
   try {
     const { includePermissions } = req.query;
 
-    let roles = await Role.find();
+    const roles = await Role.findAll({
+      order: [["role", "ASC"]],
+    });
 
     if (includePermissions === "true") {
-      // Get permission counts for each role
-      const permissionCounts = await RolePermission.aggregate([
-        { $group: { _id: "$role", count: { $sum: 1 } } },
-      ]);
-
-      const countMap = {};
-      permissionCounts.forEach((pc) => {
-        countMap[pc.id.toString()] = pc.count;
+      const permissionCounts = await RolePermission.findAll({
+        attributes: [
+          "role",
+          [RolePermission.sequelize.fn("COUNT", RolePermission.sequelize.col("permission")), "count"],
+        ],
+        group: ["role"],
+        raw: true,
       });
 
-      roles = roles.map((r) => ({
-        ...r,
-        permissionCount: countMap[r.id.toString()] || 0,
-      }));
+      const countMap = new Map(
+        permissionCounts.map((pc) => [Number(pc.role), Number(pc.count) || 0])
+      );
+
+      return res.status(200).json({
+        data: roles.map((r) => ({
+          ...r.toJSON(),
+          permissionCount: countMap.get(Number(r.id)) || 0,
+        })),
+      });
     }
 
-    res.status(200).json({ data: roles });
+    res.status(200).json({ data: roles.map((r) => r.toJSON()) });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -91,27 +96,47 @@ export async function getRoleById(req, res) {
       return res.status(404).json({ message: "Role not found" });
     }
 
-    // Get permissions for this role
-    const rolePermissions = await RolePermission.find({ role: id })
-      .populate({
-        path: "permission",
-        populate: { path: "category", select: "name" },
-      })
-      
-      ;
+    const rolePermissions = await RolePermission.findAll({
+      where: { role_id: Number(id) },
+      raw: true,
+    });
+
+    const permissionIds = [...new Set(rolePermissions.map((rp) => rp.permission_id).filter(Boolean))];
+    const permissionsRaw = permissionIds.length
+      ? await Permission.findAll({
+          where: { id: { [Op.in]: permissionIds } },
+          raw: true,
+        })
+      : [];
+
+    const categoryIds = [...new Set(permissionsRaw.map((p) => p.category_id).filter(Boolean))];
+    const categories = categoryIds.length
+      ? await PermissionCategory.findAll({
+          where: { id: { [Op.in]: categoryIds } },
+          attributes: ["id", "name"],
+          raw: true,
+        })
+      : [];
+
+    const permissionMap = new Map(permissionsRaw.map((p) => [p.id, p]));
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
 
     const permissions = rolePermissions
-      .filter((rp) => rp.permission)
-      .map((rp) => ({
-        _id: rp.permission.id,
-        permission: rp.permission.permission,
-        category: rp.permission.category?.name || null,
-        grouped_under: rp.permission.grouped_under,
-        system: rp.system,
-        addedAt: rp.createdAt,
-      }));
+      .map((rp) => {
+        const permission = permissionMap.get(rp.permission_id);
+        if (!permission) return null;
+        return {
+          id: permission.id,
+          permission: permission.permission,
+          category: permission.category_id ? categoryMap.get(permission.category_id) || null : null,
+          grouped_under: permission.grouped_under,
+          system: rp.system,
+          addedAt: null,
+        };
+      })
+      .filter(Boolean);
 
-    res.status(200).json({ data: { ...role, permissions } });
+    res.status(200).json({ data: { ...role.toJSON(), permissions } });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -145,7 +170,8 @@ export async function updateRole(req, res) {
     if (plural !== undefined) updateData.plural = plural?.trim() || "";
     if (color !== undefined) updateData.color = color;
 
-    const updated = await Role.findByIdAndUpdate(id, updateData, { new: true });
+    await Role.update(updateData, { where: { id: Number(id) } });
+    const updated = await Role.findByPk(id);
 
     // Audit log
     const changes = buildChanges(existing, updated, ["role", "plural", "color"]);
@@ -156,7 +182,7 @@ export async function updateRole(req, res) {
 
     res.status(200).json({ data: updated });
   } catch (error) {
-    if (error.code === 11000) {
+    if (error?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "Role with this name already exists" });
     }
     res.status(500).json({ message: "Server error", error: error.message });
@@ -186,10 +212,10 @@ export async function deleteRole(req, res) {
     }
 
     // Delete role-permission mappings
-    await RolePermission.destroy({ where: { role: id } });
+    await RolePermission.destroy({ where: { role_id: Number(id) } });
 
     // Delete the role
-    await (Role.destroy({ where: { id: id } }).then(() => Role.findByPk(id_deleted)));
+    await Role.destroy({ where: { id: Number(id) } });
 
     // Audit log
     await logRoleAction("deleted", role, req.user, req, {
@@ -229,14 +255,16 @@ export async function addPermissionToRole(req, res) {
     }
 
     // Check if mapping already exists
-    const existing = await RolePermission.findOne({ role: id, permission: permissionId });
+    const existing = await RolePermission.findOne({
+      where: { role_id: Number(id), permission_id: Number(permissionId) },
+    });
     if (existing) {
       return res.status(409).json({ message: "Permission already assigned to role" });
     }
 
     await RolePermission.create({
-      role: id,
-      permission: permissionId,
+      role_id: Number(id),
+      permission_id: Number(permissionId),
       added_by: req.user?.id || null,
     });
 
@@ -280,8 +308,10 @@ export async function removePermissionFromRole(req, res) {
 
     const permission = await Permission.findByPk(permissionId);
 
-    const deleted = await RolePermission.findOneAndDelete({ role: id, permission: permissionId });
-    if (!deleted) {
+    const deletedCount = await RolePermission.destroy({
+      where: { role_id: Number(id), permission_id: Number(permissionId) },
+    });
+    if (!deletedCount) {
       return res.status(404).json({ message: "Role-permission mapping not found" });
     }
 
@@ -309,14 +339,25 @@ export async function removePermissionFromRole(req, res) {
  */
 export async function getPermissions(req, res) {
   try {
-    const permissions = await Permission.find()
-      .populate("category", "name")
-      
-      ;
+    const permissions = await Permission.findAll({ raw: true });
+    const categoryIds = [...new Set(permissions.map((p) => p.category_id).filter(Boolean))];
+    const categories = categoryIds.length
+      ? await PermissionCategory.findAll({
+          where: { id: { [Op.in]: categoryIds } },
+          attributes: ["id", "name"],
+          raw: true,
+        })
+      : [];
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+
+    const permissionsWithCategory = permissions.map((p) => ({
+      ...p,
+      category: p.category_id ? { id: p.category_id, name: categoryMap.get(p.category_id) || null } : null,
+    }));
 
     // Group by category
     const grouped = {};
-    permissions.forEach((p) => {
+    permissionsWithCategory.forEach((p) => {
       const catName = p.category?.name || "Uncategorized";
       if (!grouped[catName]) {
         grouped[catName] = [];
@@ -324,7 +365,7 @@ export async function getPermissions(req, res) {
       grouped[catName].push(p);
     });
 
-    res.status(200).json({ data: { permissions, grouped } });
+    res.status(200).json({ data: { permissions: permissionsWithCategory, grouped } });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
   }
@@ -336,7 +377,7 @@ export async function getPermissions(req, res) {
  */
 export async function getPermissionCategories(req, res) {
   try {
-    const categories = await PermissionCategory.find();
+    const categories = await PermissionCategory.findAll({ order: [["name", "ASC"]] });
     res.status(200).json({ data: categories });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -350,16 +391,26 @@ export async function getPermissionCategories(req, res) {
 export async function getPermissionMatrix(req, res) {
   try {
     // Get all roles
-    const roles = await Role.find();
+    const roles = await Role.findAll({ raw: true });
 
     // Get all permissions grouped by category
-    const permissions = await Permission.find()
-      .populate("category", "name")
-      
-      ;
+    const permissions = await Permission.findAll({ raw: true });
+    const categoryIds = [...new Set(permissions.map((p) => p.category_id).filter(Boolean))];
+    const categories = categoryIds.length
+      ? await PermissionCategory.findAll({
+          where: { id: { [Op.in]: categoryIds } },
+          attributes: ["id", "name"],
+          raw: true,
+        })
+      : [];
+    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
+    const permissionsWithCategory = permissions.map((p) => ({
+      ...p,
+      category: p.category_id ? { id: p.category_id, name: categoryMap.get(p.category_id) || null } : null,
+    }));
 
     // Get all role-permission mappings
-    const rolePermissions = await RolePermission.find();
+    const rolePermissions = await RolePermission.findAll({ raw: true });
 
     // Build matrix
     const matrix = {};
@@ -371,9 +422,9 @@ export async function getPermissionMatrix(req, res) {
     });
 
     rolePermissions.forEach((rp) => {
-      const roleId = rp.role.toString();
+      const roleId = String(rp.role_id);
       if (matrix[roleId]) {
-        matrix[roleId].permissions.add(rp.permission.toString());
+        matrix[roleId].permissions.add(String(rp.permission_id));
       }
     });
 
@@ -385,7 +436,7 @@ export async function getPermissionMatrix(req, res) {
 
     // Group permissions by category
     const groupedPermissions = {};
-    permissions.forEach((p) => {
+    permissionsWithCategory.forEach((p) => {
       const catName = p.category?.name || "Uncategorized";
       if (!groupedPermissions[catName]) {
         groupedPermissions[catName] = [];
@@ -396,7 +447,7 @@ export async function getPermissionMatrix(req, res) {
     res.status(200).json({
       data: {
         roles: result,
-        permissions,
+        permissions: permissionsWithCategory,
         groupedPermissions,
       },
     });
@@ -428,9 +479,16 @@ export async function bulkUpdateRolePermissions(req, res) {
     }
 
     // Get current permissions
-    const currentPermissions = await RolePermission.find({ role: id });
-    const currentPermIds = new Set(currentPermissions.map((rp) => rp.permission.toString()));
-    const newPermIds = new Set(permissionIds.filter((pid) => Number.isInteger(Number(pid))));
+    const normalizedPermissionIds = permissionIds
+      .map((pid) => Number(pid))
+      .filter((pid) => Number.isInteger(pid));
+
+    const currentPermissions = await RolePermission.findAll({
+      where: { role_id: Number(id) },
+      raw: true,
+    });
+    const currentPermIds = new Set(currentPermissions.map((rp) => Number(rp.permission_id)));
+    const newPermIds = new Set(normalizedPermissionIds);
 
     // Permissions to add
     const toAdd = [...newPermIds].filter((pid) => !currentPermIds.has(pid));
@@ -440,14 +498,19 @@ export async function bulkUpdateRolePermissions(req, res) {
 
     // Remove old permissions
     if (toRemove.length > 0) {
-      await RolePermission.deleteMany({ role: id, permission: { [Op.in]: toRemove } });
+      await RolePermission.destroy({
+        where: {
+          role_id: Number(id),
+          permission_id: { [Op.in]: toRemove },
+        },
+      });
     }
 
     // Add new permissions
     if (toAdd.length > 0) {
       const newMappings = toAdd.map((pid) => ({
-        role: id,
-        permission: pid,
+        role_id: Number(id),
+        permission_id: pid,
         added_by: req.user?.id || null,
       }));
       await RolePermission.bulkCreate(newMappings);

@@ -4,7 +4,10 @@ import Issue from "../models/Issue.js";
 import Member from "../models/member.js";
 import { logBookAction } from "../utility/auditLog.js";
 
-const escapeLike = (s) => String(s).replace(/[\\%_]/g, "\\$&");
+const escapeLike = (s) =>
+  String(s)
+    .replace(/\\/g, "\\\\")
+    .replace(/[%_]/g, "\\$&");
 
 const normalize = (v) => (v == null ? "" : String(v).trim());
 

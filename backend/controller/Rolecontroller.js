@@ -186,11 +186,14 @@ export async function deleteRole(req, res) {
       return res.status(403).json({ message: "Cannot delete system roles" });
     }
 
-    await logRoleAction("deleted", role, req.user, req, {
-      description: `Role "${role.role}" was deleted`,
+    const roleSnapshot = role.toJSON();
+    await Role.sequelize.transaction(async (transaction) => {
+      await RolePermission.destroy({ where: { role_id: id }, transaction });
+      await role.destroy({ transaction });
     });
-    await RolePermission.destroy({ where: { role_id: id } });
-    await role.destroy();
+    await logRoleAction("deleted", roleSnapshot, req.user, req, {
+      description: `Role "${roleSnapshot.role}" was deleted`,
+    });
 
     return res.status(200).json({ message: "Role deleted successfully" });
   } catch (error) {

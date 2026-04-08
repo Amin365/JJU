@@ -11,11 +11,16 @@ export const subscribePush = async (req, res) => {
     }
 
     // Prevent duplicate subscriptions
-    await PushSubscription.findOneAndUpdate(
-      { user: userId, "subscription.endpoint": subscription.endpoint },
-      { subscription },
-      { upsert: true, new: true }
+    const existingForUser = await PushSubscription.findAll({ where: { user_id: userId } });
+    const existing = existingForUser.find(
+      (item) => item.subscription?.endpoint === subscription.endpoint
     );
+
+    if (existing) {
+      await existing.update({ subscription });
+    } else {
+      await PushSubscription.create({ user_id: userId, subscription });
+    }
 
     return res.status(201).json({ message: "Push subscription saved" });
   } catch (err) {

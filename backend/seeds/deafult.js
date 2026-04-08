@@ -14,30 +14,50 @@ async function MigrateDefaults() {
     console.log('Migrations ran successfully');
 
     // Ensure Super Admin role exists
-    const superAdminRole = await Role.findOne({ role: "Super Admin" });
+    const superAdminRole = await Role.findOne({ where: { role: "Super Admin" } });
 
     // Upsert a superadmin user and attach the role
+    const username = "aminbashir07";
     const password = "aminbashir07";
-    const hashedPassword = await bcrypt.hash(password, 10);
 
-    const superAdminUser = await User.findOneAndUpdate(
-      { username: "superadmin" },
-      {
-        first_name: "Amin",
-        middle_name: "Bashir",
-        last_name: "Husein",
-        username: "aminbashir07",
-        email: "aminbashir07@example.com",
-        password: hashedPassword,
-        role: superAdminRole?._id || null,
-        confirmed: true,
-      },
-      { upsert: true, new: true }
-    );
+    const userPayload = {
+      first_name: "Amin",
+      middle_name: "Bashir",
+      last_name: "Husein",
+      username,
+      email: "aminbashir07@gmail.com",
+      // Keep plaintext here; User.beforeSave hook hashes it exactly once.
+      password,
+      role_id: superAdminRole?.id || null,
+      status: "Active",
+    };
 
-    if (superAdminRole && superAdminUser.role?.toString() !== superAdminRole._id.toString()) {
-      superAdminUser.role = superAdminRole._id;
-      await superAdminUser.save();
+    const [superAdminUser, created] = await User.findOrCreate({
+      where: { username },
+      defaults: userPayload,
+    });
+
+    if (!created) {
+      await superAdminUser.update({
+        first_name: userPayload.first_name,
+        middle_name: userPayload.middle_name,
+        last_name: userPayload.last_name,
+        email: userPayload.email,
+        role_id: userPayload.role_id,
+        status: userPayload.status,
+      });
+    }
+
+    // Always normalize seeded password so login remains deterministic.
+    superAdminUser.password = password;
+    await superAdminUser.save();
+
+    const refreshedUser = await User.findOne({ where: { username } });
+    const passwordOk = refreshedUser?.password
+      ? await bcrypt.compare(password, refreshedUser.password)
+      : false;
+    if (!passwordOk) {
+      throw new Error("Seeded superadmin password verification failed");
     }
 
     // Re-run permission assignment now that user exists

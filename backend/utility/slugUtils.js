@@ -1,3 +1,5 @@
+import { Op } from "sequelize";
+
 /**
  * Generate a URL-friendly slug from a string
  * @param {string} text - The text to convert to a slug
@@ -34,7 +36,7 @@ export const generateSlug = (text, suffix = "") => {
 
 /**
  * Generate a unique slug by checking against existing slugs in the database
- * @param {Object} Model - The Mongoose model to check against
+ * @param {Object} Model - The Sequelize model to check against
  * @param {string} text - The text to convert to a slug
  * @param {string} [excludeId] - ID to exclude from uniqueness check (for updates)
  * @returns {Promise<string>} The unique slug
@@ -48,12 +50,12 @@ export const generateUniqueSlug = async (Model, text, excludeId = null) => {
   let isUnique = false;
 
   while (!isUnique) {
-    const query = { slug };
+    const where = { slug };
     if (excludeId) {
-      query._id = { $ne: excludeId };
+      where.id = { [Op.ne]: excludeId };
     }
 
-    const existing = await Model.findOne(query).select("_id").lean();
+    const existing = await Model.findOne({ where, attributes: ["id"], raw: true });
     
     if (!existing) {
       isUnique = true;

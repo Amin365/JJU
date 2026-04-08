@@ -1,6 +1,8 @@
 import Issue from "../models/Issue.js";
 import User from "../models/user.js";
 import Notification from "../models/Notification.js";
+import Book from "../models/Books.js";
+import { Op } from "sequelize";
 import { sendPushToUser } from "../utility/push.js";
 import { sendMail } from "../controller/EmailController.js";
 
@@ -58,13 +60,26 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
   const run = async () => {
     try {
       const now = new Date();
+      const todayStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
+      const tomorrow = new Date(todayStart);
+      tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
       // Get all active issued books
-      const activeIssues = await Issue.find({ status: "Issued" })
-        .select("_id member returnDate book")
-        .populate("book", "title")
-        
-        ;
+      const activeIssues = await Issue.findAll({
+        where: { status: "Issued" },
+        attributes: ["id", "member_id", "book_id", "returnDate"],
+        raw: true,
+      });
+
+      if (!activeIssues.length) return;
+
+      const bookIds = [...new Set(activeIssues.map((iss) => iss.book_id).filter(Boolean))];
+      const books = await Book.findAll({
+        where: { id: { [Op.in]: bookIds } },
+        attributes: ["id", "title"],
+        raw: true,
+      });
+      const booksById = new Map(books.map((b) => [b.id, b]));
 
       // Send notifications/emails in parallel
       await Promise.allSettled(
@@ -79,33 +94,38 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
             if (!kind) return;
 
             // Get member user info
-            const memberUser = await User.findOne({ member: iss.member })
-              .select("_id email first_name last_name")
-              ;
+            const memberUser = await User.findOne({
+              where: { member_id_fk: iss.member_id },
+              attributes: ["id", "email", "first_name", "last_name"],
+              raw: true,
+            });
 
-            if (!memberUser?._id) return;
+            if (!memberUser?.id) return;
 
             const memberName = `${memberUser.first_name || "Member"} ${memberUser.last_name || ""}`.trim();
-            const bookTitle = iss.book?.title || "the book";
+            const bookTitle = booksById.get(iss.book_id)?.title || "the book";
 
             // Prevent duplicate notifications/email
-            const exists = await Notification.findOne({ where: {
-              user: memberUser.id,
-              "meta.issue": iss.id,
-              "meta.kind": kind,
-            } });
+            const exists = await Notification.findOne({
+              where: {
+                user_id: memberUser.id,
+                title: kind === "overdue" ? "Book overdue" : "Book due soon",
+                type: kind === "overdue" ? "error" : "warning",
+                createdAt: { [Op.gte]: todayStart, [Op.lt]: tomorrow },
+              },
+            });
             if (exists) return;
 
             // Create notification
             await Notification.create({
-              user: memberUser.id,
+              user_id: memberUser.id,
               title: kind === "overdue" ? "Book overdue" : "Book due soon",
               message:
                 kind === "overdue"
                   ? `Your borrowed book "${bookTitle}" is overdue.`
                   : `Your borrowed book "${bookTitle}" is due tomorrow.`,
               type: kind === "overdue" ? "error" : "warning",
-              meta: { issue: iss.id, kind, sentAt: now },
+              meta: { issueId: iss.id, kind, sentAt: now.toISOString() },
             });
 
             // Send push notification

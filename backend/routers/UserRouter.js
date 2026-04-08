@@ -50,9 +50,15 @@ const router = express.Router();
 // Simple admin guard: allow only Super Admin role
 const requireSuperAdmin = async (req, res, next) => {
   try {
-    const roleId = req.user?.role;
-    const roleDoc = roleId ? await Role.findById(roleId).lean().exec() : null;
-    const roleName = roleDoc?.role ? String(roleDoc.role).toLowerCase() : "";
+    const roleNameFromAuth = typeof req.user?.role === "object" ? req.user.role?.role : req.user?.role;
+    let roleName = roleNameFromAuth ? String(roleNameFromAuth).toLowerCase() : "";
+
+    if (!roleName) {
+      const roleId = req.user?.role_id;
+      const roleDoc = roleId ? await Role.findByPk(roleId) : null;
+      roleName = roleDoc?.role ? String(roleDoc.role).toLowerCase() : "";
+    }
+
     const isSuperAdmin = /super\s*admin/.test(roleName);
     if (!isSuperAdmin) {
       return res.status(403).json({ message: "Forbidden: Admins only" });

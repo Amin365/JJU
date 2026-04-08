@@ -73,7 +73,7 @@ const AuditLogViewer = lazy(() => import("./components/Admin/AuditLogViewer"));
 const SystemHealth = lazy(() => import("./components/Admin/SystemHealth"));
 const PermissionMatrix = lazy(() => import("./components/Admin/PermissionMatrix"));
 const SetupPassword = lazy(() => import("./components/login/SetupPassword"));
-
+const Maintenance = lazy(() => import("./components/Maintenance/Maintenance"));
 function App() {
   return (
     <>
@@ -88,7 +88,8 @@ function App() {
        
 
        
-        <Route path="/" element={<Homepage />} />
+        {/* <Route path="/" element={<Homepage />} /> */}
+        <Route path="/" element={<Maintenance />} />
           <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
                <Route path="/blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogFeeds /></Suspense>} />
         <Route path="/members/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersFormPublic /></Suspense>} />

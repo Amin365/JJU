@@ -1,5 +1,4 @@
 import express from "express"
-import mongoose from "mongoose"
 import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus, getMemberOverview, createMemberNote, getMemberNotes, deleteMemberNote} from "../controller/members.js"
 import { sendMemberEmail } from "../controller/EmailController.js"
 import { protect } from "../middleware/auth.js"
@@ -24,7 +23,8 @@ const MemberRouter = express.Router()
 
 
 MemberRouter.param("id", (req, res, next, id) => {
-  if (!mongoose.Types.ObjectId.isValid(id)) {
+  const numericId = Number(id)
+  if (!Number.isInteger(numericId) || numericId <= 0) {
     return res.status(400).json({ message: "Invalid member id" })
   }
   next()

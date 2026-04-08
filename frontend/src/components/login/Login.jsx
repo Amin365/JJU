@@ -44,7 +44,11 @@ export function LoginForm({ className, ...props }) {
     onSuccess: async (data) => {
       dispatch(setAuth({ user: data.user, token: data.token }))
       toast.success("Login successful")
-      await enableNotifications(data.token)
+      try {
+        await enableNotifications(data.token)
+      } catch (err) {
+        console.warn("Notifications setup failed:", err)
+      }
       navigate("/dashboard")
     },
     onError: (error) => {
@@ -60,7 +64,11 @@ export function LoginForm({ className, ...props }) {
 
   const onSubmit = (data) => {
     setError(null)
-    loginMutation.mutate(data)
+    loginMutation.mutate({
+      ...data,
+      identifier: String(data.identifier || "").trim(),
+      password: String(data.password || "").trim(),
+    })
   }
 
   return (

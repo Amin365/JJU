@@ -41,16 +41,18 @@ export const registerUser = async (req, res) => {
   }
 
   try {
-    const userExists = await User.findOne({ where: { email } });
+    const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedUsername = String(username || "").trim();
+    const normalizedPassword = String(password || "");
+
+    const userExists = await User.findOne({ where: { email: normalizedEmail } });
     if (userExists) return res.status(400).json({ message: "User already exists" });
 
-    const salt = await bcrypt.genSalt(10);
-    const hashedPassword = await bcrypt.hash(password, salt);
-
     const user = await User.create({
-      username,
-      email,
-      password: hashedPassword,
+      username: normalizedUsername,
+      email: normalizedEmail,
+      // User model beforeSave hook hashes this password.
+      password: normalizedPassword,
     });
 
     if (user) {
@@ -71,11 +73,13 @@ export const registerUser = async (req, res) => {
 
 export const loginUser = async (req, res) => {
   const { email, username, identifier, password } = req.body;
-  const id = identifier || email || username;
+  const id = String(identifier || email || username || "").trim();
+  const rawPassword = String(password || "");
+  const normalizedPassword = rawPassword.trim();
 
   const rateLimitRemaining = req.rateLimit ? req.rateLimit.remaining : "unknown";
 
-  if (!id || !password) {
+  if (!id || !normalizedPassword) {
     return res.status(400).json({ message: "identifier (email or username) and password are required" });
   }
 
@@ -94,7 +98,7 @@ export const loginUser = async (req, res) => {
       return res.status(403).json({ message: "Account is not active. Please contact support." });
     }
 
-    const isMatch = await bcrypt.compare(password, user.password);
+    const isMatch = await bcrypt.compare(normalizedPassword, user.password);
     if (!isMatch) {
       return res
         .status(401)
@@ -104,17 +108,34 @@ export const loginUser = async (req, res) => {
     const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
 
     const [rolePermDocs, userPermDocs] = await Promise.all([
-      roleDoc ? RolePermission.findAll({ where: { role_id: roleDoc.id }, include: [{ model: Permission, as: 'permission' }] }) : [],
-      UserPermission.findAll({ where: { user_id: user.id }, include: [{ model: Permission, as: 'permission' }] }),
+      roleDoc
+        ? RolePermission.findAll({
+            where: { role_id: roleDoc.id },
+            attributes: ["permission_id"],
+            raw: true,
+          })
+        : [],
+      UserPermission.findAll({
+        where: { user_id: user.id },
+        attributes: ["permission_id"],
+        raw: true,
+      }),
     ]);
 
-    const permissionSet = new Set();
-    rolePermDocs.forEach((rp) => {
-      if (rp.permission?.permission) permissionSet.add(rp.permission.permission);
-    });
-    userPermDocs.forEach((up) => {
-      if (up.permission?.permission) permissionSet.add(up.permission.permission);
-    });
+    const permissionIds = [...new Set([
+      ...rolePermDocs.map((rp) => rp.permission_id),
+      ...userPermDocs.map((up) => up.permission_id),
+    ].filter(Boolean))];
+
+    const permissionDocs = permissionIds.length
+      ? await Permission.findAll({
+          where: { id: { [Op.in]: permissionIds } },
+          attributes: ["permission"],
+          raw: true,
+        })
+      : [];
+
+    const permissionSet = new Set(permissionDocs.map((p) => p.permission).filter(Boolean));
 
     const payload = { id: user.id, role: user.role_id };
 
@@ -245,11 +266,19 @@ export const GetProfile = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
       attributes: { exclude: ['password'] },
-      include: [{ model: Role, as: 'roleInfo' }],
     });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json({ success: true, user: user.toJSON() });
+    const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
+    const plainUser = user.toJSON();
+
+    res.json({
+      success: true,
+      user: {
+        ...plainUser,
+        roleInfo: roleDoc ? roleDoc.toJSON() : null,
+      },
+    });
   } catch (err) {
     next(err);
   }

@@ -143,10 +143,11 @@ app.post("/sync-and-migration", async (req, res) => {
     const alterMode = process.env.NODE_ENV !== 'production';
     await sequelize.sync({ alter: alterMode, force: false });
     await runMigrations();
+    await seedAllModules();
 
     return res.json({
       success: true,
-      message: "MySQL migration & seeding completed successfully",
+      message: "MySQL sync, migrations, and default seeding completed successfully",
     });
   } catch (error) {
     console.error(error);

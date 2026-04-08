@@ -7,27 +7,30 @@ export const systemRoles = async () => {
     // Define the roles
     const rolesData = [
       { role: "Super Admin", plural: "Super Admins", system: true, color: "#6366f1" },
-      { role: "Members", plural: "Members", system: true, color: "#4f46e5", parent: null },
-      { role: "Moderator", plural: "Moderators", system: true, color: "#10b981", parent: null },
+      { role: "Members", plural: "Members", system: true, color: "#4f46e5" },
+      { role: "Moderator", plural: "Moderators", system: true, color: "#10b981" },
     ];
 
     // Insert or update roles
     const createdRoles = [];
     for (const roleData of rolesData) {
-      const role = await Role.findOneAndUpdate(
-        { role: roleData.role }, // check by role name
-        roleData,
-        { upsert: true, new: true } // create if not exists
-      );
+      const [role, created] = await Role.findOrCreate({
+        where: { role: roleData.role },
+        defaults: roleData,
+      });
+      if (!created) {
+        await role.update(roleData);
+      }
       createdRoles.push(role);
     }
 
     // Assign Super Admin role to first user
-    const user = await User.findOne({ username: "superadmin" }); // or some criteria
+    const user = await User.findOne({ where: { username: "superadmin" } }); // or some criteria
     if (user) {
       const superAdminRole = createdRoles.find(r => r.role === "Super Admin");
-      user.role = superAdminRole._id; // assign ObjectId
-      await user.save();
+      if (superAdminRole) {
+        await user.update({ role_id: superAdminRole.id });
+      }
     }
 
     console.log("System roles initialized ✅");

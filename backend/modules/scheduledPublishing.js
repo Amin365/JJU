@@ -17,10 +17,12 @@ async function publishScheduledBlogPosts() {
   try {
     const now = new Date();
 
-    // Find all scheduled posts where publishAt has passed
-    const postsToPublish = await BlogPost.find({
-      status: "Scheduled",
-      publishAt: { [Op.lte]: now },
+    // Sequelize models use findAll + where filters.
+    const postsToPublish = await BlogPost.findAll({
+      where: {
+        status: "Scheduled",
+        publishAt: { [Op.lte]: now },
+      },
     });
 
     if (postsToPublish.length === 0) return;
@@ -50,10 +52,11 @@ async function publishScheduledResources() {
   try {
     const now = new Date();
 
-    // Find all resources with pending publishAt dates
-    const resourcesToPublish = await Resource.find({
-      status: { [Op.ne]: "Published" },
-      publishAt: { [Op.lte]: now },
+    const resourcesToPublish = await Resource.findAll({
+      where: {
+        status: { [Op.ne]: "Published" },
+        publishAt: { [Op.lte]: now },
+      },
     });
 
     if (resourcesToPublish.length === 0) return;

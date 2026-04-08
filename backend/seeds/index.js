@@ -29,6 +29,7 @@ const seedAllModules = async () => {
     console.log("✅ All modules seeding completed.");
   } catch (error) {
     console.error("❌ Error seeding all modules:", error);
+    throw error;
   }
 };
 

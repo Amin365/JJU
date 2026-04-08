@@ -27,42 +27,66 @@ function getYesterdayUTC(date) {
 export async function notifyUsersMissingDailyReport() {
   const today = toUTCDateOnly(new Date());
   const yesterday = getYesterdayUTC(today);
+  const tomorrow = new Date(today);
+  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
 
-  const membersRole = await Role.findOne({ role: /^(members|member)$/i })
-    .select("_id")
-    ;
+  const membersRole = await Role.findOne({
+    where: {
+      role: {
+        [Op.in]: ["Members", "Member", "members", "member"],
+      },
+    },
+    attributes: ["id"],
+  });
 
-  if (!membersRole?._id) return;
+  if (!membersRole?.id) return;
 
   // Get all member IDs that are linked to users
-  const memberIds = await User.distinct("member", {
-    member: { [Op.ne]: null },
+  const memberRows = await User.findAll({
+    where: { member_id_fk: { [Op.ne]: null } },
+    attributes: ["member_id_fk"],
+    group: ["member_id_fk"],
+    raw: true,
   });
+  const memberIds = memberRows.map((row) => row.member_id_fk).filter(Boolean);
 
   for (const memberId of memberIds) {
     // Get all users under this member
-    const users = await User.find({ member: memberId, role: membersRole.id })
-      .select("_id first_name last_name email role")
-      ;
+    const users = await User.findAll({
+      where: { member_id_fk: memberId, role_id: membersRole.id },
+      attributes: ["id", "first_name", "last_name", "email", "role_id"],
+      raw: true,
+    });
 
     if (!users.length) continue;
 
     // Check if ANY user submitted report today or yesterday
-    const hasRecentReport = await DailyReport.exists({
-      createdBy: { [Op.in]: users.map((u) => u.id) },
-      readingDate: { [Op.in]: [today, yesterday] },
-    });
+    const hasRecentReport = (await DailyReport.count({
+      where: {
+        created_by: { [Op.in]: users.map((u) => u.id) },
+        readingDate: {
+          [Op.gte]: toUTCDateOnly(yesterday),
+          [Op.lt]: tomorrow,
+        },
+      },
+      limit: 1,
+    })) > 0;
 
     if (hasRecentReport) continue;
 
-    // Notify users
     for (const user of users) {
-      // Avoid duplicate notification
-      const alreadyNotified = await Notification.findOne({ where: {
-        user: user.id,
-        "meta.kind": "missed-daily-report",
-        "meta.forDate": today,
-      } });
+      // Avoid duplicate notification for same day
+      const alreadyNotified = await Notification.findOne({
+        where: {
+          user_id: user.id,
+          type: "warning",
+          title: "Don't break your streak!",
+          createdAt: {
+            [Op.gte]: today,
+            [Op.lt]: tomorrow,
+          },
+        },
+      });
 
       if (alreadyNotified) continue;
 
@@ -70,14 +94,14 @@ export async function notifyUsersMissingDailyReport() {
 
       // Save notification (Members only)
       await Notification.create({
-        user: user.id,
+        user_id: user.id,
         title: "Don't break your streak!",
         message,
         type: "warning",
         meta: {
           kind: "missed-daily-report",
-          forDate: today,
-          member: memberId,
+          forDate: today.toISOString().slice(0, 10),
+          memberId,
         },
       });
 

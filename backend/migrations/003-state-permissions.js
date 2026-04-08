@@ -10,8 +10,8 @@ export const statePermissions = async () => {
     // This migration previously assumed numeric permission IDs (209-300) and numeric role/user IDs (1),
     // which do not exist in the current schema. To avoid inserting bad references, we now no-op until
     // concrete permissions/roles are defined.
-    const superAdminRole = await Role.findOne({ role: "Super Admin" });
-    const superAdminUser = await User.findOne({ username: "superadmin" });
+    const superAdminRole = await Role.findOne({ where: { role: "Super Admin" } });
+    const superAdminUser = await User.findOne({ where: { username: "superadmin" } });
 
     if (!superAdminRole || !superAdminUser) {
       console.log("Skipping statePermissions: Super Admin role/user missing. Define them before enabling this migration.");

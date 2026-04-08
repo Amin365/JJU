@@ -1,5 +1,4 @@
 import express from "express";
-import mongoose from "mongoose";
 import { createDailyReport, getDailyReports, getDailyReportById, getDailyReportsByMember, getDailyReportsScope, getStreakRestoreStatus, restoreStreak, getDailyReportsPublic, getLeaderboardEnhanced, updateDailyReportStatus } from "../controller/DailyReportControler.js";
 import { protect } from "../middleware/auth.js";
 import { apiLimiter } from "../utility/rateLimiter.js";
@@ -32,7 +31,8 @@ DailyReport.patch("/daily-reports/:id/status", protect, updateDailyReportStatus)
 DailyReport.get(
 	"/daily-reports/:id",
 	(req, res, next) => {
-		if (!mongoose.Types.ObjectId.isValid(req.params.id)) return next("route");
+		const id = Number(req.params.id);
+		if (!Number.isInteger(id) || id <= 0) return next("route");
 		return next();
 	},
 	protect,

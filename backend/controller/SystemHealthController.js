@@ -4,7 +4,8 @@
  */
 
 import Notification from "../models/Notification.js";
-import { Op } from 'sequelize';
+import sequelize from "../config/database.js";
+import { Op, col, fn, QueryTypes } from 'sequelize';
 import User from "../models/user.js";
 import AuditLog from "../models/AuditLog.js";
 import DailyReport from "../models/DailyReport.js";
@@ -75,18 +76,26 @@ export const getSystemHealth = async (req, res, next) => {
       checks: {},
     };
 
-    // Check MongoDB connection
-    const mongoState = mongoose.connection.readyState;
+    let dbConnected = true;
+    try {
+      await sequelize.authenticate();
+    } catch {
+      dbConnected = false;
+    }
+
+    // Check MySQL connection
     health.checks.database = {
-      name: "MongoDB",
-      status: mongoState === 1 ? "connected" : "disconnected",
-      healthy: mongoState === 1,
+      name: "MySQL",
+      status: dbConnected ? "connected" : "disconnected",
+      healthy: dbConnected,
     };
 
     // Check environment variables
     const requiredEnvVars = [
       "JWT_SECRET",
-      "MONGO_URI",
+      "DB_NAME",
+      "DB_USER",
+      "DB_HOST",
     ];
     const optionalEnvVars = [
       "RESEND_API_KEY",
@@ -156,39 +165,44 @@ export const getNotificationHealth = async (req, res, next) => {
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days, 10));
 
+    const where = { createdAt: { [Op.gte]: startDate } };
+
     // Count notifications by type and status
-    const notificationStats = await Notification.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate } } },
-      {
-        $group: {
-          _id: { type: "$type", read: "$read" },
-          count: { $sum: 1 },
-        },
-      },
-    ]);
+    const groupedStats = await Notification.findAll({
+      where,
+      attributes: [
+        "type",
+        "read",
+        [fn("COUNT", col("id")), "count"],
+      ],
+      group: ["type", "read"],
+      raw: true,
+    });
+    const notificationStats = groupedStats.map((row) => ({
+      _id: { type: row.type, read: !!row.read },
+      count: Number(row.count || 0),
+    }));
 
     // Get total notifications
-    const totalNotifications = await Notification.countDocuments({
-      createdAt: { [Op.gte]: startDate },
-    });
+    const totalNotifications = await Notification.count({ where });
 
     // Get unread notifications
-    const unreadNotifications = await Notification.countDocuments({
-      createdAt: { [Op.gte]: startDate },
-      read: false,
+    const unreadNotifications = await Notification.count({
+      where: { ...where, read: false },
     });
 
     // Get notifications per day
-    const dailyNotifications = await Notification.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const dailyRows = await Notification.findAll({
+      where,
+      attributes: [[fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d"), "day"], [fn("COUNT", col("id")), "count"]],
+      group: [fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d")],
+      order: [[fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d"), "ASC"]],
+      raw: true,
+    });
+    const dailyNotifications = dailyRows.map((row) => ({
+      _id: row.day,
+      count: Number(row.count || 0),
+    }));
 
     return res.status(200).json({
       data: {
@@ -229,35 +243,56 @@ export const getJobStatus = async (req, res, next) => {
  */
 export const getDatabaseStats = async (req, res, next) => {
   try {
-    const db = mongoose.connection.db;
+    const queryInterface = sequelize.getQueryInterface();
+    const tablesRaw = await queryInterface.showAllTables();
+    const tableNames = tablesRaw.map((entry) => {
+      if (typeof entry === "string") return entry;
+      if (entry?.tableName) return entry.tableName;
+      if (entry?.table_name) return entry.table_name;
+      return String(entry);
+    });
 
-    // Get collection stats
-    const collections = await db.listCollections().toArray();
     const stats = await Promise.all(
-      collections.map(async (col) => {
-        const count = await db.collection(col.name).estimatedDocumentCount();
+      tableNames.map(async (tableName) => {
+        const safeTableName = String(tableName).replace(/`/g, "``");
+        const rows = await sequelize.query(
+          `SELECT COUNT(*) AS count FROM \`${safeTableName}\``,
+          { type: QueryTypes.SELECT }
+        );
         return {
-          name: col.name,
-          documentCount: count,
+          name: tableName,
+          documentCount: Number(rows?.[0]?.count || 0),
         };
       })
     );
 
-    // Sort by document count descending
+    // Sort by row count descending
     stats.sort((a, b) => b.documentCount - a.documentCount);
 
-    // Get database stats
-    const dbStats = await db.stats();
+    // Get database size stats
+    const sizeRows = await sequelize.query(
+      `
+      SELECT
+        IFNULL(SUM(data_length), 0) AS dataSize,
+        IFNULL(SUM(index_length), 0) AS indexSize,
+        IFNULL(SUM(data_length + index_length), 0) AS storageSize,
+        COUNT(*) AS tableCount
+      FROM information_schema.TABLES
+      WHERE table_schema = DATABASE()
+      `,
+      { type: QueryTypes.SELECT }
+    );
+    const dbStats = sizeRows?.[0] || {};
 
     return res.status(200).json({
       data: {
         collections: stats,
-        totalCollections: collections.length,
+        totalCollections: Number(dbStats.tableCount || tableNames.length),
         totalDocuments: stats.reduce((sum, s) => sum + s.documentCount, 0),
-        dataSize: dbStats.dataSize,
-        storageSize: dbStats.storageSize,
-        indexes: dbStats.indexes,
-        indexSize: dbStats.indexSize,
+        dataSize: Number(dbStats.dataSize || 0),
+        storageSize: Number(dbStats.storageSize || 0),
+        indexes: null,
+        indexSize: Number(dbStats.indexSize || 0),
       },
     });
   } catch (err) {
@@ -276,19 +311,22 @@ export const getRecentErrors = async (req, res, next) => {
     startDate.setDate(startDate.getDate() - parseInt(days, 10));
 
     // Get failed login attempts
-    const failedLogins = await AuditLog.countDocuments({
-      action: "auth.failed_login",
-      createdAt: { [Op.gte]: startDate },
+    const failedLogins = await AuditLog.count({
+      where: {
+        action: "auth.failed_login",
+        createdAt: { [Op.gte]: startDate },
+      },
     });
 
     // Get error actions
-    const errorActions = await AuditLog.find({
-      action: { [Op.like]: /error|failed|rejected/i },
-      createdAt: { [Op.gte]: startDate },
-    })
-      .sort({ createdAt: -1 })
-      .limit(50)
-      ;
+    const errorActions = await AuditLog.findAll({
+      where: {
+        createdAt: { [Op.gte]: startDate },
+        action: { [Op.regexp]: "error|failed|rejected" },
+      },
+      order: [["createdAt", "DESC"]],
+      limit: 50,
+    });
 
     return res.status(200).json({
       data: {
@@ -319,12 +357,17 @@ export const getSystemSummary = async (req, res, next) => {
     ] = await Promise.all([
       User.count(),
       User.count({ where: { status: "Active" } }),
-      AuditLog.countDocuments({ createdAt: { [Op.gte]: today } }),
+      AuditLog.count({ where: { createdAt: { [Op.gte]: today } } }),
       Notification.count({ where: { read: false } }),
     ]);
 
-    // Get MongoDB connection status
-    const dbStatus = mongoose.connection.readyState === 1 ? "connected" : "disconnected";
+    // Get database connection status
+    let dbStatus = "connected";
+    try {
+      await sequelize.authenticate();
+    } catch {
+      dbStatus = "disconnected";
+    }
 
     return res.status(200).json({
       data: {

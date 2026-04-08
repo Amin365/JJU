@@ -1,5 +1,4 @@
 import NotificationPreferences from "../models/NotificationPreferences.js";
-import User from "../models/user.js";
 
 // Default preferences structure
 const defaultPreferences = {
@@ -26,14 +25,16 @@ const defaultPreferences = {
 // Get user's notification preferences
 export const getMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    let prefs = await NotificationPreferences.findOne({ user: userId });
+    let prefs = await NotificationPreferences.findOne({ where: { user_id: userId } });
 
     // If no preferences exist, return defaults
     if (!prefs) {
-      prefs = { user: userId, ...defaultPreferences };
+      prefs = { user_id: userId, ...defaultPreferences };
+    } else {
+      prefs = prefs.toJSON();
     }
 
     return res.json({ data: prefs });
@@ -45,7 +46,7 @@ export const getMyPreferences = async (req, res, next) => {
 // Update user's notification preferences
 export const updateMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const allowedFields = [
@@ -77,13 +78,13 @@ export const updateMyPreferences = async (req, res, next) => {
       }
     }
 
-    const prefs = await NotificationPreferences.findOneAndUpdate(
-      { user: userId },
-      { $set: updates },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    const [prefs] = await NotificationPreferences.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId, ...defaultPreferences },
+    });
+    await prefs.update(updates);
 
-    return res.json({ data: prefs, message: "Preferences updated successfully" });
+    return res.json({ data: prefs.toJSON(), message: "Preferences updated successfully" });
   } catch (err) {
     return next(err);
   }
@@ -92,16 +93,16 @@ export const updateMyPreferences = async (req, res, next) => {
 // Reset preferences to defaults
 export const resetMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?._id;
+    const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const prefs = await NotificationPreferences.findOneAndUpdate(
-      { user: userId },
-      { $set: defaultPreferences },
-      { new: true, upsert: true }
-    );
+    const [prefs] = await NotificationPreferences.findOrCreate({
+      where: { user_id: userId },
+      defaults: { user_id: userId, ...defaultPreferences },
+    });
+    await prefs.update(defaultPreferences);
 
-    return res.json({ data: prefs, message: "Preferences reset to defaults" });
+    return res.json({ data: prefs.toJSON(), message: "Preferences reset to defaults" });
   } catch (err) {
     return next(err);
   }
@@ -111,10 +112,10 @@ export const resetMyPreferences = async (req, res, next) => {
 export async function checkUserPreference(userId, preferenceKey) {
   if (!userId) return defaultPreferences[preferenceKey] ?? true;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId });
+  const prefs = await NotificationPreferences.findOne({ where: { user_id: userId } });
   if (!prefs) return defaultPreferences[preferenceKey] ?? true;
 
-  return prefs[preferenceKey] ?? defaultPreferences[preferenceKey] ?? true;
+  return prefs.get(preferenceKey) ?? defaultPreferences[preferenceKey] ?? true;
 }
 
 // Helper to parse time string safely
@@ -134,7 +135,7 @@ function parseTimeString(timeStr) {
 export async function isInQuietHours(userId) {
   if (!userId) return false;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId });
+  const prefs = await NotificationPreferences.findOne({ where: { user_id: userId } });
   if (!prefs || !prefs.quietHoursEnabled) return false;
 
   const now = new Date();

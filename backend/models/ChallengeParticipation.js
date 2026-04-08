@@ -1,19 +1,22 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const ChallengeParticipationSchema = new mongoose.Schema({
-  challenge: { type: mongoose.Schema.Types.ObjectId, ref: "ReadingChallenge", required: true },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  pagesRead: { type: Number, default: 0 },
-  minutesRead: { type: Number, default: 0 },
-  reportsCount: { type: Number, default: 0 },
-  currentStreak: { type: Number, default: 0 },
-  longestStreak: { type: Number, default: 0 },
-  joinedAt: { type: Date, default: Date.now },
-  completedAt: { type: Date, default: null },
-  status: { type: String, enum: ["Active", "Completed", "Dropped"], default: "Active" },
-}, { timestamps: true });
+const ChallengeParticipation = sequelize.define('ChallengeParticipation', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  challenge_id: { type: DataTypes.INTEGER, allowNull: false },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  pagesRead: { type: DataTypes.INTEGER, defaultValue: 0 },
+  minutesRead: { type: DataTypes.INTEGER, defaultValue: 0 },
+  reportsCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  currentStreak: { type: DataTypes.INTEGER, defaultValue: 0 },
+  longestStreak: { type: DataTypes.INTEGER, defaultValue: 0 },
+  joinedAt: { type: DataTypes.DATE },
+  completedAt: { type: DataTypes.DATE },
+  status: { type: DataTypes.ENUM('Active', 'Completed', 'Dropped'), defaultValue: 'Active' },
+}, {
+  tableName: 'challenge_participations',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['challenge_id', 'user_id'] }],
+});
 
-ChallengeParticipationSchema.index({ challenge: 1, user: 1 }, { unique: true });
-
-const ChallengeParticipation = mongoose.model("ChallengeParticipation", ChallengeParticipationSchema);
 export default ChallengeParticipation;

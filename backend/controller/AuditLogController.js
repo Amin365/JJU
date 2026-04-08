@@ -4,6 +4,7 @@
  */
 
 import AuditLog from "../models/AuditLog.js";
+import { Op } from 'sequelize';
 
 /**
  * Get audit logs with filtering and pagination
@@ -76,8 +77,8 @@ export const getAuditLogs = async (req, res, next) => {
         .skip(skip)
         .limit(parseInt(limit, 10))
         .populate("user", "first_name last_name email username")
-        .lean()
-        .exec(),
+        
+        ,
       AuditLog.countDocuments(filter),
     ]);
 
@@ -101,10 +102,10 @@ export const getAuditLogById = async (req, res, next) => {
   try {
     const { id } = req.params;
 
-    const log = await AuditLog.findById(id)
+    const log = await AuditLog.findByPk(id)
       .populate("user", "first_name last_name email username")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!log) {
       return res.status(404).json({ message: "Audit log not found" });
@@ -128,21 +129,21 @@ export const getAuditLogStats = async (req, res, next) => {
 
     // Get counts by action type
     const actionCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { [Op.gte]: startDate } } },
       { $group: { _id: "$action", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
 
     // Get counts by entity type
     const entityCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { [Op.gte]: startDate } } },
       { $group: { _id: "$entityType", count: { $sum: 1 } } },
       { $sort: { count: -1 } },
     ]);
 
     // Get most active users
     const activeUsers = await AuditLog.aggregate([
-      { $match: { createdAt: { $gte: startDate }, user: { $ne: null } } },
+      { $match: { createdAt: { [Op.gte]: startDate }, user: { [Op.ne]: null } } },
       { $group: { _id: "$user", count: { $sum: 1 }, userName: { $first: "$userName" }, userEmail: { $first: "$userEmail" } } },
       { $sort: { count: -1 } },
       { $limit: 10 },
@@ -150,7 +151,7 @@ export const getAuditLogStats = async (req, res, next) => {
 
     // Get daily counts for chart
     const dailyCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { [Op.gte]: startDate } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -160,7 +161,7 @@ export const getAuditLogStats = async (req, res, next) => {
       { $sort: { _id: 1 } },
     ]);
 
-    const totalCount = await AuditLog.countDocuments({ createdAt: { $gte: startDate } });
+    const totalCount = await AuditLog.countDocuments({ createdAt: { [Op.gte]: startDate } });
 
     return res.status(200).json({
       data: {
@@ -195,8 +196,8 @@ export const getEntityAuditLogs = async (req, res, next) => {
         .skip(skip)
         .limit(parseInt(limit, 10))
         .populate("user", "first_name last_name email username")
-        .lean()
-        .exec(),
+        
+        ,
       AuditLog.countDocuments(filter),
     ]);
 

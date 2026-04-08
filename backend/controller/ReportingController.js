@@ -3,8 +3,8 @@
  * Provides analytics and reporting endpoints for admin users.
  */
 
-import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
+import { Op } from 'sequelize';
 import Member from "../models/Members.js";
 import User from "../models/user.js";
 import Issue from "../models/Issue.js";
@@ -60,25 +60,25 @@ export const getAdminReports = async (req, res, next) => {
     } = req.query;
 
     const filter = {};
-    const currentUser = await User.findById(req.user?._id)
+    const currentUser = await User.findByPk(req.user?._id)
       .select("_id role member")
       .populate("role", "role plural")
-      .lean();
+      ;
 
     let scopedUserIds = null;
     if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
-      const assignments = await ModeratorMember.find({ moderator: currentUser._id }).select("member").lean();
+      const assignments = await ModeratorMember.find({ moderator: currentUser.id }).select("member");
       const memberIds = assignments.map((item) => item.member).filter(Boolean);
       if (!memberIds.length) {
         return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
       }
 
-      const scopedUsers = await User.find({ member: { $in: memberIds } }).select("_id").lean();
-      scopedUserIds = scopedUsers.map((user) => user._id);
+      const scopedUsers = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
+      scopedUserIds = scopedUsers.map((user) => user.id);
       if (!scopedUserIds.length) {
         return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
       }
-      filter.createdBy = { $in: scopedUserIds };
+      filter.createdBy = { [Op.in]: scopedUserIds };
     } else if (!isSuperAdminUser(currentUser)) {
       filter.createdBy = currentUser?._id;
     }
@@ -96,7 +96,7 @@ export const getAdminReports = async (req, res, next) => {
     }
 
     // User filter
-    if (userId && mongoose.Types.ObjectId.isValid(userId)) {
+    if (userId && Number.isInteger(Number(userId))) {
       if (filter.createdBy?.$in) {
         if (!filter.createdBy.$in.some((id) => String(id) === String(userId))) {
           return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
@@ -112,11 +112,11 @@ export const getAdminReports = async (req, res, next) => {
       if (department) memberFilter.department = department;
       if (study_year) memberFilter.study_year = study_year;
       
-      const members = await Member.find(memberFilter).select("_id").lean();
-      const memberIds = members.map((m) => m._id);
+      const members = await Member.find(memberFilter).select("_id");
+      const memberIds = members.map((m) => m.id);
       
-      const users = await User.find({ member: { $in: memberIds } }).select("_id").lean();
-      userIdsToFilter = users.map((u) => u._id);
+      const users = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
+      userIdsToFilter = users.map((u) => u.id);
 
       if (filter.createdBy?.$in) {
         userIdsToFilter = intersectIds(userIdsToFilter, filter.createdBy.$in);
@@ -128,7 +128,7 @@ export const getAdminReports = async (req, res, next) => {
       if (userIdsToFilter.length === 0) {
         return res.status(200).json({ data: [], total: 0, page: 1, limit: parseInt(limit), totalPages: 0 });
       }
-      filter.createdBy = { $in: userIdsToFilter };
+      filter.createdBy = { [Op.in]: userIdsToFilter };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));
@@ -146,7 +146,7 @@ export const getAdminReports = async (req, res, next) => {
         .sort(sortBy)
         .skip(skip)
         .limit(perPage)
-        .lean(),
+        ,
       DailyReport.countDocuments(filter)
     ]);
 
@@ -204,16 +204,16 @@ export const getTopReadersReport = async (req, res, next) => {
       { $limit: Math.min(parseInt(limit) || 20, 100) },
     ]);
 
-    const userIds = agg.map((a) => a._id);
-    const users = await User.find({ _id: { $in: userIds } })
+    const userIds = agg.map((a) => a.id);
+    const users = await User.find({ _id: { [Op.in]: userIds } })
       .select("first_name last_name username email profile_picture member")
       .populate({ path: "member", select: "department study_year Profile_picture" })
-      .lean();
+      ;
 
-    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const userMap = new Map(users.map((u) => [String(u.id), u]));
 
     let entries = agg.map((a) => {
-      const user = userMap.get(String(a._id));
+      const user = userMap.get(String(a.id));
       if (!user) return null;
 
       const memberData = user.member || {};
@@ -224,7 +224,7 @@ export const getTopReadersReport = async (req, res, next) => {
 
       return {
         user: {
-          _id: user._id,
+          _id: user.id,
           first_name: user.first_name,
           last_name: user.last_name,
           username: user.username,
@@ -264,18 +264,18 @@ export const getWeakestParticipation = async (req, res, next) => {
 
     const members = await Member.find(memberFilter)
       .select("_id first_name last_name department study_year Profile_picture")
-      .lean();
+      ;
 
-    const memberIds = members.map((m) => m._id);
-    const users = await User.find({ member: { $in: memberIds }, status: "Active" })
+    const memberIds = members.map((m) => m.id);
+    const users = await User.find({ member: { [Op.in]: memberIds }, status: "Active" })
       .select("_id member")
-      .lean();
+      ;
 
-    const userToMemberMap = new Map(users.map((u) => [String(u._id), String(u.member)]));
-    const memberMap = new Map(members.map((m) => [String(m._id), m]));
+    const userToMemberMap = new Map(users.map((u) => [String(u.id), String(u.member)]));
+    const memberMap = new Map(members.map((m) => [String(m.id), m]));
 
     // Get report counts per user
-    const matchStage = { createdBy: { $in: users.map((u) => u._id) } };
+    const matchStage = { createdBy: { [Op.in]: users.map((u) => u.id) } };
     if (from || to) {
       matchStage.readingDate = {};
       if (from) matchStage.readingDate.$gte = new Date(from);
@@ -294,13 +294,13 @@ export const getWeakestParticipation = async (req, res, next) => {
       },
     ]);
 
-    const reportMap = new Map(reportAgg.map((r) => [String(r._id), r]));
+    const reportMap = new Map(reportAgg.map((r) => [String(r.id), r]));
 
     // Build result for all users, sorted by lowest participation
     const results = users.map((u) => {
-      const memberId = userToMemberMap.get(String(u._id));
+      const memberId = userToMemberMap.get(String(u.id));
       const member = memberMap.get(memberId);
-      const reportData = reportMap.get(String(u._id));
+      const reportData = reportMap.get(String(u.id));
 
       const reportsCount = reportData?.reportsCount || 0;
       const lastReport = reportData?.lastReportDate || null;
@@ -312,9 +312,9 @@ export const getWeakestParticipation = async (req, res, next) => {
         : null;
 
       return {
-        user: { _id: u._id },
+        user: { _id: u.id },
         member: member ? {
-          _id: member._id,
+          _id: member.id,
           name: [member.first_name, member.last_name].filter(Boolean).join(" "),
           department: member.department || null,
           study_year: member.study_year || null,
@@ -354,16 +354,16 @@ export const getReadingHealth = async (req, res, next) => {
 
     const members = await Member.find(memberFilter)
       .select("_id first_name last_name department study_year")
-      .lean();
+      ;
 
-    const memberIds = members.map((m) => m._id);
-    const users = await User.find({ member: { $in: memberIds }, status: "Active" })
+    const memberIds = members.map((m) => m.id);
+    const users = await User.find({ member: { [Op.in]: memberIds }, status: "Active" })
       .select("_id member")
-      .lean();
+      ;
 
-    const userIds = users.map((u) => u._id);
-    const userToMemberMap = new Map(users.map((u) => [String(u._id), String(u.member)]));
-    const memberMap = new Map(members.map((m) => [String(m._id), m]));
+    const userIds = users.map((u) => u.id);
+    const userToMemberMap = new Map(users.map((u) => [String(u.id), String(u.member)]));
+    const memberMap = new Map(members.map((m) => [String(m.id), m]));
 
     const now = new Date();
     const inactiveSince = new Date(now);
@@ -371,7 +371,7 @@ export const getReadingHealth = async (req, res, next) => {
 
     // Get last report date per user
     const lastReportAgg = await DailyReport.aggregate([
-      { $match: { createdBy: { $in: userIds } } },
+      { $match: { createdBy: { [Op.in]: userIds } } },
       {
         $group: {
           _id: "$createdBy",
@@ -382,7 +382,7 @@ export const getReadingHealth = async (req, res, next) => {
       },
     ]);
 
-    const reportMap = new Map(lastReportAgg.map((r) => [String(r._id), r]));
+    const reportMap = new Map(lastReportAgg.map((r) => [String(r.id), r]));
 
     // Categorize users
     const inactiveReaders = [];
@@ -390,19 +390,19 @@ export const getReadingHealth = async (req, res, next) => {
     const lowStreak = [];
 
     users.forEach((u) => {
-      const data = reportMap.get(String(u._id));
-      const memberId = userToMemberMap.get(String(u._id));
+      const data = reportMap.get(String(u.id));
+      const memberId = userToMemberMap.get(String(u.id));
       const member = memberMap.get(memberId);
 
       const memberInfo = member ? {
-        _id: member._id,
+        _id: member.id,
         name: [member.first_name, member.last_name].filter(Boolean).join(" "),
         department: member.department || null,
         study_year: member.study_year || null,
       } : null;
 
       if (!data || data.totalReports === 0) {
-        noReports.push({ user: { _id: u._id }, member: memberInfo, totalReports: 0 });
+        noReports.push({ user: { _id: u.id }, member: memberInfo, totalReports: 0 });
         return;
       }
 
@@ -412,7 +412,7 @@ export const getReadingHealth = async (req, res, next) => {
 
       if (daysSinceReport >= parseInt(daysInactive)) {
         inactiveReaders.push({
-          user: { _id: u._id },
+          user: { _id: u.id },
           member: memberInfo,
           lastReport: data.lastReport,
           daysSinceReport,
@@ -422,7 +422,7 @@ export const getReadingHealth = async (req, res, next) => {
 
       if (streak <= 2 && data.totalReports >= 3) {
         lowStreak.push({
-          user: { _id: u._id },
+          user: { _id: u.id },
           member: memberInfo,
           streak,
           totalReports: data.totalReports,
@@ -435,17 +435,17 @@ export const getReadingHealth = async (req, res, next) => {
     const overdueIssues = await Issue.find({ status: "Overdue" })
       .populate("member", "first_name last_name department study_year")
       .populate("book", "title author")
-      .lean();
+      ;
 
     const overdueInactive = overdueIssues.filter((issue) => {
       const member = issue.member;
       if (!member) return false;
       
       // Check if this member has inactive reading
-      const user = users.find((u) => String(userToMemberMap.get(String(u._id))) === String(member._id));
+      const user = users.find((u) => String(userToMemberMap.get(String(u.id))) === String(member.id));
       if (!user) return false;
       
-      const data = reportMap.get(String(user._id));
+      const data = reportMap.get(String(user.id));
       if (!data) return true; // No reports = inactive
       
       const lastReport = new Date(data.lastReport);
@@ -495,14 +495,14 @@ export const getMonthlyComparison = async (req, res, next) => {
       if (department) memberFilter.department = department;
       if (study_year) memberFilter.study_year = study_year;
 
-      const members = await Member.find(memberFilter).select("_id").lean();
-      const users = await User.find({ member: { $in: members.map((m) => m._id) } }).select("_id").lean();
-      userIdsFilter = users.map((u) => u._id);
+      const members = await Member.find(memberFilter).select("_id");
+      const users = await User.find({ member: { [Op.in]: members.map((m) => m.id) } }).select("_id");
+      userIdsFilter = users.map((u) => u.id);
     }
 
     const buildMatch = (start, end) => {
-      const m = { readingDate: { $gte: start, $lte: end } };
-      if (userIdsFilter) m.createdBy = { $in: userIdsFilter };
+      const m = { readingDate: { [Op.gte]: start, [Op.lte]: end } };
+      if (userIdsFilter) m.createdBy = { [Op.in]: userIdsFilter };
       return m;
     };
 
@@ -595,7 +595,7 @@ export const getDepartmentComparison = async (req, res, next) => {
     const { from, to } = req.query;
 
     // Get all departments
-    const departments = await Member.distinct("department", { department: { $ne: "" } });
+    const departments = await Member.distinct("department", { department: { [Op.ne]: "" } });
 
     const matchStage = {};
     if (from || to) {
@@ -606,15 +606,15 @@ export const getDepartmentComparison = async (req, res, next) => {
 
     const results = await Promise.all(
       departments.map(async (dept) => {
-        const members = await Member.find({ department: dept }).select("_id").lean();
-        const users = await User.find({ member: { $in: members.map((m) => m._id) } }).select("_id").lean();
-        const userIds = users.map((u) => u._id);
+        const members = await Member.find({ department: dept }).select("_id");
+        const users = await User.find({ member: { [Op.in]: members.map((m) => m.id) } }).select("_id");
+        const userIds = users.map((u) => u.id);
 
         if (userIds.length === 0) {
           return { department: dept, totalMembers: members.length, activeReaders: 0, totalReports: 0, pagesRead: 0, minutesRead: 0, avgRating: 0 };
         }
 
-        const match = { ...matchStage, createdBy: { $in: userIds } };
+        const match = { ...matchStage, createdBy: { [Op.in]: userIds } };
         const agg = await DailyReport.aggregate([
           { $match: match },
           {
@@ -674,9 +674,9 @@ export const getReportQuality = async (req, res, next) => {
       if (department) memberFilter.department = department;
       if (study_year) memberFilter.study_year = study_year;
 
-      const members = await Member.find(memberFilter).select("_id").lean();
-      const users = await User.find({ member: { $in: members.map((m) => m._id) } }).select("_id").lean();
-      matchStage.createdBy = { $in: users.map((u) => u._id) };
+      const members = await Member.find(memberFilter).select("_id");
+      const users = await User.find({ member: { [Op.in]: members.map((m) => m.id) } }).select("_id");
+      matchStage.createdBy = { [Op.in]: users.map((u) => u.id) };
     }
 
     const agg = await DailyReport.aggregate([
@@ -745,9 +745,9 @@ export const exportReportsCSV = async (req, res, next) => {
         if (department) memberFilter.department = department;
         if (study_year) memberFilter.study_year = study_year;
 
-        const members = await Member.find(memberFilter).select("_id").lean();
-        const users = await User.find({ member: { $in: members.map((m) => m._id) } }).select("_id").lean();
-        filter.createdBy = { $in: users.map((u) => u._id) };
+        const members = await Member.find(memberFilter).select("_id");
+        const users = await User.find({ member: { [Op.in]: members.map((m) => m.id) } }).select("_id");
+        filter.createdBy = { [Op.in]: users.map((u) => u.id) };
       }
 
       const reports = await DailyReport.find(filter)
@@ -759,7 +759,7 @@ export const exportReportsCSV = async (req, res, next) => {
         .populate("book", "title author")
         .sort("-readingDate")
         .limit(5000)
-        .lean();
+        ;
 
       csvContent = "Date,User,Email,Book,Pages From,Pages To,Pages Read,Time Spent (min),Rating,Status,Department,Study Year\n";
       reports.forEach((r) => {
@@ -795,17 +795,17 @@ export const exportReportsCSV = async (req, res, next) => {
         { $limit: 200 },
       ]);
 
-      const userIds = agg.map((a) => a._id);
-      const users = await User.find({ _id: { $in: userIds } })
+      const userIds = agg.map((a) => a.id);
+      const users = await User.find({ _id: { [Op.in]: userIds } })
         .select("first_name last_name email member")
         .populate({ path: "member", select: "department study_year" })
-        .lean();
+        ;
 
-      const userMap = new Map(users.map((u) => [String(u._id), u]));
+      const userMap = new Map(users.map((u) => [String(u.id), u]));
 
       csvContent = "Rank,User,Email,Reports,Pages Read,Minutes Read,Avg Rating,Department,Study Year\n";
       agg.forEach((a, idx) => {
-        const user = userMap.get(String(a._id));
+        const user = userMap.get(String(a.id));
         if (!user) return;
         const name = [user.first_name, user.last_name].filter(Boolean).join(" ");
         const dept = user.member?.department || "";
@@ -842,7 +842,7 @@ export const getReportingSummary = async (req, res, next) => {
       fromDate.setDate(now.getDate() - 7);
     }
 
-    const matchStage = { readingDate: { $gte: fromDate, $lte: now } };
+    const matchStage = { readingDate: { [Op.gte]: fromDate, [Op.lte]: now } };
 
     const [reportStats, statusBreakdown, topReaders, activeMembers] = await Promise.all([
       DailyReport.aggregate([
@@ -876,20 +876,20 @@ export const getReportingSummary = async (req, res, next) => {
         { $sort: { reportsCount: -1 } },
         { $limit: 5 },
       ]),
-      Member.countDocuments({ status: "Active", isArchived: false }),
+      Member.count({ where: { status: "Active", isArchived: false } }),
     ]);
 
     const stats = reportStats[0] || { totalReports: 0, approvedReports: 0, pendingReports: 0, pagesRead: 0, minutesRead: 0, avgRating: 0, uniqueReaders: [] };
 
     // Enrich top readers
-    const topReaderIds = topReaders.map((t) => t._id);
-    const topUsers = await User.find({ _id: { $in: topReaderIds } })
+    const topReaderIds = topReaders.map((t) => t.id);
+    const topUsers = await User.find({ _id: { [Op.in]: topReaderIds } })
       .select("first_name last_name")
-      .lean();
-    const userMap = new Map(topUsers.map((u) => [String(u._id), u]));
+      ;
+    const userMap = new Map(topUsers.map((u) => [String(u.id), u]));
 
     const enrichedTopReaders = topReaders.map((t) => {
-      const user = userMap.get(String(t._id));
+      const user = userMap.get(String(t.id));
       return {
         name: user ? [user.first_name, user.last_name].filter(Boolean).join(" ") : "Unknown",
         reportsCount: t.reportsCount,
@@ -913,7 +913,7 @@ export const getReportingSummary = async (req, res, next) => {
           participationRate: activeMembers > 0 ? Math.round(((stats.uniqueReaders?.length || 0) / activeMembers) * 100) : 0,
         },
         statusBreakdown: statusBreakdown.reduce((acc, s) => {
-          acc[s._id] = s.count;
+          acc[s.id] = s.count;
           return acc;
         }, {}),
         topReaders: enrichedTopReaders,

@@ -1,45 +1,14 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const UserPermissionSchema = new mongoose.Schema(
-  {
-    user: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-
-    permission: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Permission",
-      required: true,
-    },
-  },
-  {
-    timestamps: false,
-  }
-);
-
-// 🔒 Prevent duplicate user-permission pairs
-UserPermissionSchema.index({ user: 1, permission: 1 }, { unique: true });
-
-// 🔗 Optional virtuals (for populating in User model)
-UserPermissionSchema.virtual("permissionDetails", {
-  ref: "Permission",
-  localField: "permission",
-  foreignField: "_id",
-  justOne: true,
+const UserPermission = sequelize.define('UserPermission', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  permission_id: { type: DataTypes.INTEGER, allowNull: false },
+}, {
+  tableName: 'user_permissions',
+  timestamps: false,
+  indexes: [{ unique: true, fields: ['user_id', 'permission_id'] }],
 });
-
-UserPermissionSchema.virtual("userDetails", {
-  ref: "User",
-  localField: "user",
-  foreignField: "_id",
-  justOne: true,
-});
-
-const UserPermission = mongoose.model(
-  "UserPermission",
-  UserPermissionSchema
-);
 
 export default UserPermission;

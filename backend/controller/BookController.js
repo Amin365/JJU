@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import Book from "../models/Books.js";
+import { Op } from 'sequelize';
 import Issue from "../models/Issue.js";
 import { logBookAction, buildChanges } from "../utility/auditLog.js";
 
@@ -133,20 +133,20 @@ export const getBooks = async (req, res, next) => {
 
     // NOTE: sort comes from user query. For safety you may want to validate allowed sort fields.
     const [items, total] = await Promise.all([
-      Book.find(filter).sort(sort).skip(skip).limit(perPage).lean().exec(),
-      Book.countDocuments(filter).exec(),
+      Book.find(filter).sort(sort).skip(skip).limit(perPage),
+      Book.countDocuments(filter),
     ]);
 
     // attach borrowedCount per book (number of active Issued issues)
-    const bookIds = items.map((b) => b._id).filter(Boolean);
+    const bookIds = items.map((b) => b.id).filter(Boolean);
     if (bookIds.length > 0) {
       const counts = await Issue.aggregate([
-        { $match: { book: { $in: bookIds.map((id) => new mongoose.Types.ObjectId(id)) }, status: "Issued" } },
+        { $match: { book: { [Op.in]: bookIds.map((id) => id) }, status: "Issued" } },
         { $group: { _id: "$book", count: { $sum: 1 } } },
-      ]).exec();
-      const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
+      ]);
+      const map = counts.reduce((acc, c) => ({ ...acc, [String(c.id)]: c.count }), {});
       for (const it of items) {
-        it.borrowedCount = map[String(it._id)] || 0;
+        it.borrowedCount = map[String(it.id)] || 0;
       }
     }
 
@@ -167,11 +167,11 @@ export const getBookById = async (req, res, next) => {
     const { id } = req.params;
 
    
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const book = await Book.findById(id).lean().exec();
+    const book = await Book.findByPk(id);
 
     if (!book) {
       return res.status(404).json({ message: "Book not found" });
@@ -193,13 +193,13 @@ export const getBookById = async (req, res, next) => {
 export const updateBook = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
     const update = { ...req.body };
     // Prevent accidental _id changes
-    if (update._id) delete update._id;
+    if (update.id) delete update.id;
 
     try {
       // If update contains copies, normalize availableCopies to not exceed totalCopies
@@ -214,7 +214,7 @@ export const updateBook = async (req, res, next) => {
         new: true,
         runValidators: true,
         context: "query",
-      }).exec();
+      });
 
         if (req.file) {
       const uploaded = req.file;
@@ -230,7 +230,7 @@ export const updateBook = async (req, res, next) => {
           await updated.save();
         }
       }
-      const updatedLean = updated ? (await Book.findById(updated._id).lean().exec()) : null;
+      const updatedLean = updated ? (await Book.findByPk(updated.id)) : null;
 
       if (!updated) {
         return res.status(404).json({ message: "Book not found" });
@@ -259,16 +259,16 @@ export const updateBook = async (req, res, next) => {
 export const deleteBook = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const removed = await Book.findByIdAndDelete(id).lean().exec();
+    const removed = await (Book.destroy({ where: { id: id } }).then(() => Book.findByPk(id_deleted)));
     if (!removed) {
       return res.status(404).json({ message: "Book not found" });
     }
 
-    return res.status(200).json({ message: "Book deleted", id: removed._id });
+    return res.status(200).json({ message: "Book deleted", id: removed.id });
   } catch (err) {
     return next(err);
   }
@@ -391,7 +391,7 @@ export const bulkCreateBooks = async (req, res, next) => {
     // 2) Skip rows whose provided isbn already exists in DB
     const providedIsbns = deduped.map((d) => d.isbn).filter(Boolean);
     const existing = providedIsbns.length
-      ? await Book.find({ isbn: { $in: providedIsbns } }).select("isbn").lean().exec()
+      ? await Book.find({ isbn: { [Op.in]: providedIsbns } }).select("isbn")
       : [];
 
     const existingIsbns = new Set(existing.map((x) => String(x.isbn || "").toLowerCase()).filter(Boolean));
@@ -422,7 +422,7 @@ export const bulkCreateBooks = async (req, res, next) => {
 
     // Insert
     // If some insert fails because of duplicate key (race condition), ordered:false continues.
-    const inserted = await Book.insertMany(toInsert, { ordered: false });
+    const inserted = await Book.bulkCreate(toInsert, { ordered: false });
 
     return res.status(201).json({
       message: "Bulk books import complete.",
@@ -458,7 +458,7 @@ export default {
 export const updateBookCondition = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
@@ -471,7 +471,7 @@ export const updateBookCondition = async (req, res, next) => {
       });
     }
 
-    const book = await Book.findById(id).exec();
+    const book = await Book.findByPk(id);
     if (!book) return res.status(404).json({ message: "Book not found" });
 
     // If marking as lost/damaged/archived, adjust available copies
@@ -480,10 +480,10 @@ export const updateBookCondition = async (req, res, next) => {
       book.availableCopies = 0;
     } else if (status === "available" && ["lost", "damaged", "archived"].includes(book.status)) {
       // Restore available copies: set to totalCopies minus currently issued copies
-      const issuedCount = await (await import("../models/Issue.js")).default.countDocuments({
-        book: book._id,
+      const issuedCount = await (await import("../models/Issue.js")).default.count({ where: {
+        book: book.id,
         status: "Issued",
-      });
+      } });
       book.availableCopies = Math.max(0, (book.totalCopies || 1) - issuedCount);
     }
 
@@ -503,18 +503,18 @@ export const updateBookCondition = async (req, res, next) => {
 export const getBookHistory = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const book = await Book.findById(id).lean().exec();
+    const book = await Book.findByPk(id);
     if (!book) return res.status(404).json({ message: "Book not found" });
 
     const issues = await Issue.find({ book: id })
       .populate("member", "first_name middle_name last_name full_name email code")
       .sort({ createdAt: -1 })
-      .lean()
-      .exec();
+      
+      ;
 
     const total = issues.length;
     const lastIssued = issues.find((i) => i.issueDate)?.issueDate ?? null;

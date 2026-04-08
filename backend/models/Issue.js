@@ -1,23 +1,14 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const IssueSchema = new mongoose.Schema(
-  {
-    book: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true },
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true },
+const Issue = sequelize.define('Issue', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  book_id: { type: DataTypes.INTEGER, allowNull: false },
+  member_id: { type: DataTypes.INTEGER, allowNull: false },
+  issueDate: { type: DataTypes.DATE, allowNull: false },
+  returnDate: { type: DataTypes.DATE, allowNull: false },
+  status: { type: DataTypes.ENUM('Issued', 'Returned', 'Overdue'), defaultValue: 'Issued' },
+  returnedAt: { type: DataTypes.DATE, allowNull: true },
+}, { tableName: 'issues', timestamps: true });
 
-    issueDate: { type: Date, required: true },
-    returnDate: { type: Date, required: true },
-
-    status: {
-      type: String,
-      enum: ["Issued", "Returned", "Overdue"],
-      default: "Issued",
-    },
-
-    returnedAt: { type: Date, default: null },
-  },
-  { timestamps: true }
-);
-
-const Issue = mongoose.model("Issue", IssueSchema);
 export default Issue;

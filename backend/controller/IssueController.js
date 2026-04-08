@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import Issue from "../models/Issue.js";
+import { Op } from 'sequelize';
 import Book from "../models/Books.js";     // file name Books.js, but model name inside should be "Book"
 import Member from "../models/Members.js"; // adjust if your actual file is Member.js
 import User from "../models/user.js";
@@ -19,16 +19,16 @@ export const IssueCreate = async (req, res, next) => {
       return res.status(400).json({ message: "book, member, issueDate and returnDate are required" });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(book)) {
+    if (!Number.isInteger(Number(book))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
-    if (!mongoose.Types.ObjectId.isValid(member)) {
+    if (!Number.isInteger(Number(member))) {
       return res.status(400).json({ message: "Invalid member id" });
     }
 
     const [bookDoc, memberDoc] = await Promise.all([
-      Book.findById(book).exec(),
-      Member.findById(member).exec(),
+      Book.findByPk(book),
+      Member.findByPk(member),
     ]);
 
     if (!memberDoc) {
@@ -37,17 +37,17 @@ export const IssueCreate = async (req, res, next) => {
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
 
     // Check borrowing rules
-    const { allowed, reason } = await checkBorrowingRules(memberDoc._id);
+    const { allowed, reason } = await checkBorrowingRules(memberDoc.id);
     if (!allowed) {
       return res.status(409).json({ message: reason });
     }
 
     // Ensure there are available copies and atomically decrement
     const updatedBook = await Book.findOneAndUpdate(
-      { _id: bookDoc._id, availableCopies: { $gt: 0 } },
+      { _id: bookDoc.id, availableCopies: { [Op.gt]: 0 } },
       { $inc: { availableCopies: -1 } },
       { new: true }
-    ).exec();
+    );
 
     if (!updatedBook) {
       return res.status(409).json({ message: "No available copies for this book" });
@@ -62,18 +62,18 @@ export const IssueCreate = async (req, res, next) => {
     await updatedBook.save();
 
     const issue = await Issue.create({
-      book: updatedBook._id,
-      member: memberDoc._id,
+      book: updatedBook.id,
+      member: memberDoc.id,
       issueDate: new Date(issueDate),
       returnDate: new Date(returnDate),
       status: "Issued",
     });
 
-    const populated = await Issue.findById(issue._id)
+    const populated = await Issue.findByPk(issue.id)
       .populate("book", "title author isbn status book_picture")
       .populate("member", "first_name middle_name last_name full_name email code")
-      .lean()
-      .exec();
+      
+      ;
 
     // Phase 8: Audit log
     await logIssueAction("created", populated, req.user, req, {
@@ -82,14 +82,14 @@ export const IssueCreate = async (req, res, next) => {
 
     // Notify the member's linked user about the new issue
     try {
-      const memberUser = await User.findOne({ member: memberDoc._id }).select("_id").lean();
+      const memberUser = await User.findOne({ member: memberDoc.id }).select("_id");
       if (memberUser?._id) {
         await Notification.create({
-          user: memberUser._id,
+          user: memberUser.id,
           title: "Book issued",
           message: `${bookDoc.title} has been issued to you. Due on ${new Date(returnDate).toLocaleDateString()}.`,
           type: "success",
-          meta: { issue: issue._id, kind: "issued" },
+          meta: { issue: issue.id, kind: "issued" },
         });
       }
     } catch (e) {
@@ -126,26 +126,26 @@ export const IssueCreate = async (req, res, next) => {
 //     const userId = req.user?._id;
 //     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-//     const currentUser = await User.findById(userId).populate('role', 'role plural').lean().exec();
+//     const currentUser = await User.findByPk(userId).populate('role', 'role plural');
 //     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
 //     const isSuperAdmin = /super\s*admin/i.test(roleName);
 //     const isModerator = /moderator/i.test(roleName);
 
 //     // if moderator, restrict to members assigned to them
 //     if (isModerator && !isSuperAdmin) {
-//       const assigned = await ModeratorMember.find({ moderator: userId }).select('member').lean().exec();
+//       const assigned = await ModeratorMember.find({ moderator: userId }).select('member');
 //       const memberIds = assigned.map((a) => a.member).filter(Boolean);
-//       const validMemberIds = memberIds.filter((id) => mongoose.Types.ObjectId.isValid(id));
+//       const validMemberIds = memberIds.filter((id) => Number.isInteger(Number(id)));
 //       if (validMemberIds.length === 0) {
 //         return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
 //       }
-//       filter.member = { $in: validMemberIds };
+//       filter.member = { [Op.in]: validMemberIds };
 //     }
 
 //     // regular users: show only their member's issues
 //     if (!isModerator && !isSuperAdmin) {
 //       if (!currentUser?.member) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
-//       if (!mongoose.Types.ObjectId.isValid(currentUser.member)) {
+//       if (!Number.isInteger(Number(currentUser.member))) {
 //         return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
 //       }
 //       filter.member = currentUser.member;
@@ -171,9 +171,9 @@ export const IssueCreate = async (req, res, next) => {
 //           .sort("-createdAt")
 //           .skip(skip)
 //           .limit(perPage)
-//           .lean()
-//           .exec(),
-//         Issue.countDocuments(finalFilter).exec(),
+//           
+//           ,
+//         Issue.countDocuments(finalFilter),
 //       ]);
 //       return { items, total };
 //     };
@@ -188,11 +188,11 @@ export const IssueCreate = async (req, res, next) => {
 //       if (msg.includes("input must be a 24 character hex string")) {
 //         // Cleanup invalid issues (non-ObjectId refs) then retry once
 //         await Issue.deleteMany({
-//           $or: [
-//             { book: { $not: { $type: "objectId" } } },
-//             { member: { $not: { $type: "objectId" } } },
+//           [Op.or]: [
+//             { book: { [Op.not]: { $type: "objectId" } } },
+//             { member: { [Op.not]: { $type: "objectId" } } },
 //           ],
-//         }).exec();
+//         });
 
 //         ({ items, total } = await runQuery());
 //       } else {
@@ -203,15 +203,15 @@ export const IssueCreate = async (req, res, next) => {
 //     // Attach borrowed counts per book
 //     const bookIds = Array.from(new Set(items.map((it) => String(it.book?._id)).filter(Boolean)));
 //     const validBookObjectIds = bookIds
-//       .filter((id) => mongoose.Types.ObjectId.isValid(id))
-//       .map((id) => new mongoose.Types.ObjectId(id));
+//       .filter((id) => Number.isInteger(Number(id)))
+//       .map((id) => id);
 
 //     if (validBookObjectIds.length > 0) {
 //       const counts = await Issue.aggregate([
-//         { $match: { book: { $in: validBookObjectIds }, status: "Issued" } },
+//         { $match: { book: { [Op.in]: validBookObjectIds }, status: "Issued" } },
 //         { $group: { _id: "$book", count: { $sum: 1 } } },
-//       ]).exec();
-//       const map = counts.reduce((acc, c) => ({ ...acc, [String(c._id)]: c.count }), {});
+//       ]);
+//       const map = counts.reduce((acc, c) => ({ ...acc, [String(c.id)]: c.count }), {});
 //       for (const it of items) {
 //         const bid = String(it.book?._id);
 //         if (it.book) it.book.borrowedCount = map[bid] || 0;
@@ -239,10 +239,10 @@ export const getIssues = async (req, res, next) => {
     // =========================
     // USER + ROLE
     // =========================
-    const currentUser = await User.findById(req.user._id)
+    const currentUser = await User.findByPk(req.user.id)
       .populate("role", "role plural")
       .select("member role")
-      .lean();
+      ;
 
     if (!currentUser) {
       return res.status(401).json({ message: "Unauthorized" });
@@ -274,14 +274,14 @@ export const getIssues = async (req, res, next) => {
     // =========================
     if (isModerator && !isSuperAdmin) {
       const assigned = await ModeratorMember.find({
-        moderator: req.user._id,
+        moderator: req.user.id,
       })
         .select("member")
-        .lean();
+        ;
 
       const memberIds = assigned
         .map(a => a.member)
-        .filter(id => mongoose.Types.ObjectId.isValid(id));
+        .filter(id => Number.isInteger(Number(id)));
 
       if (memberIds.length === 0) {
         return res.status(200).json({
@@ -293,11 +293,11 @@ export const getIssues = async (req, res, next) => {
         });
       }
 
-      filter.member = { $in: memberIds };
+      filter.member = { [Op.in]: memberIds };
     }
 
     if (!isModerator && !isSuperAdmin) {
-      if (!mongoose.Types.ObjectId.isValid(currentUser.member)) {
+      if (!Number.isInteger(Number(currentUser.member))) {
         return res.status(200).json({
           data: [],
           total: 0,
@@ -320,20 +320,20 @@ export const getIssues = async (req, res, next) => {
 
       const members = await Member.find({ code: re })
         .select("_id")
-        .lean();
+        ;
 
       const memberIds = members
-        .map(m => m._id)
-        .filter(id => mongoose.Types.ObjectId.isValid(id));
+        .map(m => m.id)
+        .filter(id => Number.isInteger(Number(id)));
 
       if (memberIds.length > 0) {
         filter.member = filter.member
-          ? { $in: memberIds.filter(id =>
+          ? { [Op.in]: memberIds.filter(id =>
               filter.member.$in
                 ? filter.member.$in.includes(id)
                 : true
             )}
-          : { $in: memberIds };
+          : { [Op.in]: memberIds };
       } else {
         // No matching members → no issues
         return res.status(200).json({
@@ -356,7 +356,7 @@ export const getIssues = async (req, res, next) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(perPage)
-        .lean(),
+        ,
       Issue.countDocuments(filter),
     ]);
 
@@ -365,22 +365,22 @@ export const getIssues = async (req, res, next) => {
     // =========================
     const bookIds = items
       .map(i => i.book?._id)
-      .filter(id => mongoose.Types.ObjectId.isValid(id));
+      .filter(id => Number.isInteger(Number(id)));
 
     if (bookIds.length > 0) {
       const counts = await Issue.aggregate([
-        { $match: { book: { $in: bookIds }, status: "Issued" } },
+        { $match: { book: { [Op.in]: bookIds }, status: "Issued" } },
         { $group: { _id: "$book", count: { $sum: 1 } } },
       ]);
 
       const countMap = {};
       counts.forEach(c => {
-        countMap[String(c._id)] = c.count;
+        countMap[String(c.id)] = c.count;
       });
 
       items.forEach(i => {
         if (i.book) {
-          i.book.borrowedCount = countMap[String(i.book._id)] || 0;
+          i.book.borrowedCount = countMap[String(i.book.id)] || 0;
         }
       });
     }
@@ -401,11 +401,11 @@ export const getIssues = async (req, res, next) => {
 export const markIssueReturned = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid issue id" });
     }
 
-    const issue = await Issue.findById(id).exec();
+    const issue = await Issue.findByPk(id);
     if (!issue) return res.status(404).json({ message: "Issue not found" });
 
     if (issue.status === "Returned") {
@@ -417,7 +417,7 @@ export const markIssueReturned = async (req, res, next) => {
     await issue.save();
 
     // increment available copies
-    let bookDoc = await Book.findByIdAndUpdate(issue.book, { $inc: { availableCopies: 1 } }, { new: true }).exec();
+    let bookDoc = await Book.findByIdAndUpdate(issue.book, { $inc: { availableCopies: 1 } }, { new: true });
     if (bookDoc) {
       // cap availableCopies to totalCopies
       const tc = Number(bookDoc.totalCopies) || 0;
@@ -429,14 +429,14 @@ export const markIssueReturned = async (req, res, next) => {
       }
       await bookDoc.save();
       // re-fetch to ensure consistency
-      bookDoc = await Book.findById(issue.book).lean().exec();
+      bookDoc = await Book.findByPk(issue.book);
     }
 
-    const populated = await Issue.findById(issue._id)
+    const populated = await Issue.findByPk(issue.id)
       .populate("book", "title author isbn status book_picture")
       .populate("member", "first_name middle_name last_name full_name email code")
-      .lean()
-      .exec();
+      
+      ;
 
     // Phase 8: Audit log
     await logIssueAction("returned", populated, req.user, req, {
@@ -445,14 +445,14 @@ export const markIssueReturned = async (req, res, next) => {
 
     // Optionally notify user that the book was returned
     try {
-      const memberUser = await User.findOne({ member: issue.member }).select("_id").lean();
+      const memberUser = await User.findOne({ member: issue.member }).select("_id");
       if (memberUser?._id) {
         await Notification.create({
-          user: memberUser._id,
+          user: memberUser.id,
           title: "Book returned",
           message: `Thank you for returning "${bookDoc?.title || "your book"}".`,
           type: "success",
-          meta: { issue: issue._id, kind: "returned" },
+          meta: { issue: issue.id, kind: "returned" },
         });
       }
     } catch (e) {}
@@ -471,14 +471,14 @@ export const getMyIssues = async (req, res, next) => {
     const userId = req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const user = await User.findById(userId).select("member").lean().exec();
+    const user = await User.findByPk(userId).select("member");
     if (!user?.member) return res.status(400).json({ message: "User is not linked to a member" });
 
     const issues = await Issue.find({ member: user.member })
       .populate("book", "title author isbn status totalPages  book_picture") 
       .sort("-createdAt")
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({ data: issues });
   } catch (err) {
@@ -507,14 +507,14 @@ export const ReminderEmail = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid issue id" });
     }
 
-    const issue = await Issue.findById(id)
+    const issue = await Issue.findByPk(id)
       .populate("member")
       .populate("book")
-      .lean();
+      ;
 
     if (!issue) return res.status(404).json({ message: "Issue not found" });
     if (issue.status === "Returned") return res.status(400).json({ message: "Book already returned" });
@@ -526,11 +526,11 @@ export const ReminderEmail = async (req, res) => {
     const bookTitle = issue.book?.title || "the book";
 
     // Send push if member has subscription
-    await sendPushToUser(memberUser._id, {
+    await sendPushToUser(memberUser.id, {
       title: "📕 Book Return Reminder",
       body: `"${bookTitle}" is still not returned.`,
       icon: "/jjuclub.png",
-      data: { issueId: issue._id, url: "/my-books" }
+      data: { issueId: issue.id, url: "/my-books" }
     });
 
     // Send email

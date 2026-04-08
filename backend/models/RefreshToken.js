@@ -1,15 +1,16 @@
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-import mongoose from "mongoose";
+const RefreshToken = sequelize.define('RefreshToken', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  tokenHash: { type: DataTypes.STRING, unique: true, allowNull: false },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  expiresAt: { type: DataTypes.DATE, allowNull: false },
+  createdAt: { type: DataTypes.DATE },
+  revoked: { type: DataTypes.BOOLEAN, defaultValue: false },
+  replacedByTokenHash: { type: DataTypes.STRING },
+  ip: { type: DataTypes.STRING },
+  userAgent: { type: DataTypes.STRING },
+}, { tableName: 'refresh_tokens', timestamps: false });
 
-const RefreshTokenSchema = new mongoose.Schema({
-  tokenHash: { type: String, required: true, unique: true },
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  expiresAt: { type: Date, required: true },
-  createdAt: { type: Date, default: Date.now },
-  revoked: { type: Boolean, default: false },
-  replacedByTokenHash: { type: String, default: null },
-  ip: { type: String },
-  userAgent: { type: String },
-});
-
-export default mongoose.model("RefreshToken", RefreshTokenSchema);
+export default RefreshToken;

@@ -1,6 +1,5 @@
 import express from "express"
 import dotenv from "dotenv"
-import mongoose from "mongoose"
 import BookRouter from "./routers/BookRouter.js"
 import { ErrorHandle } from "./middleware/ErorHandle.js"
 import { NotFound } from "./middleware/NotFound.js"
@@ -40,6 +39,9 @@ import { startScheduledPublishing } from "./modules/scheduledPublishing.js";
 // Phase 8 - Admin Governance and Safety
 import AuditLogRouter from './routers/AuditLogRouter.js';
 import SystemHealthRouter from './routers/SystemHealthRouter.js';
+import sequelize from "./config/database.js";
+import { runMigrations } from "./migrations/index.js";
+
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
@@ -86,13 +88,6 @@ app.use(
     },
   })
 );
-
-
-
-
-// after express app created, before routes:
-
-
 
 app.use((req, res, next) => {
   if (req.path.startsWith("/api/blogposts")) return next();
@@ -145,16 +140,13 @@ app.get("/api/health/email", (req, res) => {
 
 app.post("/sync-and-migration", async (req, res) => {
   try {
- 
-    await mongoose.connection.db.listCollections().toArray();
-    await mongoose.syncIndexes?.();
-
-    // Run all seeders
-    await seedAllModules();
+    const alterMode = process.env.NODE_ENV !== 'production';
+    await sequelize.sync({ alter: alterMode, force: false });
+    await runMigrations();
 
     return res.json({
       success: true,
-      message: "MongoDB migration & seeding completed successfully",
+      message: "MySQL migration & seeding completed successfully",
     });
   } catch (error) {
     console.error(error);
@@ -173,7 +165,7 @@ app.post("/db-alter/sync-seed", async (req, res) => {
 
     return res.json({
       success: true,
-      message: "MongoDB seeding completed successfully",
+      message: "MySQL seeding completed successfully",
     });
   } catch (error) {
     return res.status(500).json({
@@ -200,18 +192,20 @@ if (process.env.NODE_ENV === 'production') {
 app.use(NotFound)
 app.use(ErrorHandle);
 
-mongoose.connect(process.env.NODE_ENV === 'production' ? process.env.Mongo_atlas : process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ Connected to MongoDB successfully')
+const isDev = process.env.NODE_ENV !== 'production';
+
+sequelize.sync({ alter: isDev, force: false })
+  .then(async () => {
+    console.log('✅ Connected to MySQL and tables synced');
+    await runMigrations();
     // start background scheduler for due/overdue notifications
     startIssueDueScheduler();
     startDailyReportMissingScheduler();
     startScheduledReporting();
     startScheduledPublishing();
+    // Start server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server running on port ${PORT}`);
+    });
   })
-  .catch((error) => console.log('❌ MongoDB Connection Error:', error));
-
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+  .catch((error) => console.log('❌ MySQL Connection Error:', error));

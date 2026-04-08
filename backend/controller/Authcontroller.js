@@ -11,6 +11,7 @@ import RolePermission from "../models/RolePermission.js";
 import UserPermission from "../models/UserPermission.js";
 import Permission from "../models/Permissions.js";
 import RefreshToken from "../models/RefreshToken.js";
+import { Op } from 'sequelize';
 import { signAccessToken, signRefreshToken, hashToken, verifyRefreshToken } from "../utility/tokenUtils.js";
 import { logAuthAction } from "../utility/auditLog.js";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
@@ -40,7 +41,7 @@ export const registerUser = async (req, res) => {
   }
 
   try {
-    const userExists = await User.findOne({ email });
+    const userExists = await User.findOne({ where: { email } });
     if (userExists) return res.status(400).json({ message: "User already exists" });
 
     const salt = await bcrypt.genSalt(10);
@@ -54,10 +55,10 @@ export const registerUser = async (req, res) => {
 
     if (user) {
       return res.status(201).json({
-        _id: user._id,
+        id: user.id,
         username: user.username,
         email: user.email,
-        role: user.role,
+        role_id: user.role_id,
       });
     } else {
       return res.status(400).json({ message: "Invalid user data" });
@@ -80,7 +81,7 @@ export const loginUser = async (req, res) => {
 
   try {
     const user = await User.findOne({
-      $or: [{ email: id }, { username: id }],
+      where: { [Op.or]: [{ email: id }, { username: id }] },
     });
 
     if (!user) {
@@ -100,11 +101,11 @@ export const loginUser = async (req, res) => {
         .send({ message: "Incorrect Credentials." + (rateLimitRemaining != "unknown" ? " ( " + rateLimitRemaining + " attempts left )" : "") });
     }
 
-    const roleDoc = user.role ? await Role.findById(user.role) : null;
+    const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
 
     const [rolePermDocs, userPermDocs] = await Promise.all([
-      roleDoc ? RolePermission.find({ role: roleDoc._id }).populate("permission", "permission") : [],
-      UserPermission.find({ user: user._id }).populate("permission", "permission"),
+      roleDoc ? RolePermission.findAll({ where: { role_id: roleDoc.id }, include: [{ model: Permission, as: 'permission' }] }) : [],
+      UserPermission.findAll({ where: { user_id: user.id }, include: [{ model: Permission, as: 'permission' }] }),
     ]);
 
     const permissionSet = new Set();
@@ -115,28 +116,23 @@ export const loginUser = async (req, res) => {
       if (up.permission?.permission) permissionSet.add(up.permission.permission);
     });
 
-    // Create payload for tokens
-    const payload = { id: user._id, role: user.role };
+    const payload = { id: user.id, role: user.role_id };
 
-    // Sign access and refresh tokens
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
-    // store hashed refresh token in DB with expiry
     const tokenHash = hashToken(refreshToken);
-    const decodedRefresh = verifyRefreshToken(refreshToken); // get exp
+    const decodedRefresh = verifyRefreshToken(refreshToken);
     const expiresAt = new Date(decodedRefresh.exp * 1000);
 
-    const rt = new RefreshToken({
+    await RefreshToken.create({
       tokenHash,
-      user: user._id,
+      user_id: user.id,
       expiresAt,
       ip: req.ip,
       userAgent: req.get("User-Agent"),
     });
-    await rt.save();
 
-    // set httpOnly secure cookie for refresh token
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -147,20 +143,18 @@ export const loginUser = async (req, res) => {
 
     res.cookie("refreshToken", refreshToken, cookieOptions);
 
-    // Phase 8 - Audit log successful login
     await logAuthAction("login", user, req, {
       description: `User "${user.email}" logged in successfully`,
     });
 
-    // Phase 8 - Include mustChangePassword flag in login response
     return res.json({
-      token: accessToken, // keep same response key your client expects
+      token: accessToken,
       user: {
-        _id: user._id,
+        id: user.id,
         username: user.username,
         email: user.email,
         status: user.status,
-        role: roleDoc ? { _id: roleDoc._id, role: roleDoc.role } : user.role,
+        role: roleDoc ? { id: roleDoc.id, role: roleDoc.role } : null,
         permissions: Array.from(permissionSet),
         mustChangePassword: user.mustChangePassword || false,
       },
@@ -171,7 +165,6 @@ export const loginUser = async (req, res) => {
   }
 };
 
-// Refresh endpoint - rotates refresh token and issues new access token
 export const refreshToken = async (req, res) => {
   try {
     const token = req.cookies?.refreshToken;
@@ -179,7 +172,6 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ message: "No refresh token provided" });
     }
 
-    // verify signature
     let payload;
     try {
       payload = verifyRefreshToken(token);
@@ -189,8 +181,7 @@ export const refreshToken = async (req, res) => {
 
     const tokenHash = hashToken(token);
 
-    // find stored token
-    const stored = await RefreshToken.findOne({ tokenHash }).exec();
+    const stored = await RefreshToken.findOne({ where: { tokenHash } });
     if (!stored || stored.revoked) {
       return res.status(401).json({ message: "Refresh token revoked or not found" });
     }
@@ -199,7 +190,6 @@ export const refreshToken = async (req, res) => {
       return res.status(401).json({ message: "Refresh token expired" });
     }
 
-    // rotation: revoke current token and issue a new refresh
     const newPayload = { id: payload.id, role: payload.role || null };
     const newAccessToken = signAccessToken(newPayload);
     const newRefreshToken = signRefreshToken(newPayload);
@@ -208,22 +198,18 @@ export const refreshToken = async (req, res) => {
     const newDecoded = verifyRefreshToken(newRefreshToken);
     const newExpiresAt = new Date(newDecoded.exp * 1000);
 
-    // mark current token revoked and record replacement
     stored.revoked = true;
     stored.replacedByTokenHash = newTokenHash;
     await stored.save();
 
-    // save new refresh token record
-    const newRT = new RefreshToken({
+    await RefreshToken.create({
       tokenHash: newTokenHash,
-      user: stored.user,
+      user_id: stored.user_id,
       expiresAt: newExpiresAt,
       ip: req.ip,
       userAgent: req.get("User-Agent"),
     });
-    await newRT.save();
 
-    // set new cookie
     const cookieOptions = {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
@@ -233,7 +219,6 @@ export const refreshToken = async (req, res) => {
     };
     res.cookie("refreshToken", newRefreshToken, cookieOptions);
 
-    // return new access token (keep the same response shape)
     return res.json({ token: newAccessToken });
   } catch (err) {
     console.error("refreshToken error:", err);
@@ -246,9 +231,8 @@ export const logout = async (req, res) => {
     const token = req.cookies?.refreshToken;
     if (token) {
       const tokenHash = hashToken(token);
-      await RefreshToken.findOneAndUpdate({ tokenHash }, { revoked: true }).exec();
+      await RefreshToken.update({ revoked: true }, { where: { tokenHash } });
     }
-    // clear cookie (match path used when setting)
     res.clearCookie("refreshToken", { path: "/api/auth" });
     return res.json({ message: "Logged out" });
   } catch (err) {
@@ -259,22 +243,18 @@ export const logout = async (req, res) => {
 
 export const GetProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id)
-      .select("-password")
-      .populate("role", "role color plural system")
-      .lean();
+    const user = await User.findByPk(req.user.id, {
+      attributes: { exclude: ['password'] },
+      include: [{ model: Role, as: 'roleInfo' }],
+    });
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    res.json({ success: true, user });
+    res.json({ success: true, user: user.toJSON() });
   } catch (err) {
     next(err);
   }
 };
 
-/**
- * Phase 8 - Validate invite token
- * GET /auth/validate-invite/:token
- */
 export const validateInviteToken = async (req, res, next) => {
   try {
     const { token } = req.params;
@@ -284,11 +264,12 @@ export const validateInviteToken = async (req, res, next) => {
     }
 
     const user = await User.findOne({
-      inviteToken: token,
-      inviteTokenExpires: { $gt: new Date() },
-    })
-      .select("first_name last_name email inviteTokenExpires")
-      .lean();
+      where: {
+        inviteToken: token,
+        inviteTokenExpires: { [Op.gt]: new Date() },
+      },
+      attributes: ['first_name', 'last_name', 'email', 'inviteTokenExpires'],
+    });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid or expired invite token" });
@@ -308,11 +289,6 @@ export const validateInviteToken = async (req, res, next) => {
   }
 };
 
-/**
- * Phase 8 - Set password from invite
- * POST /auth/setup-password
- * Body: { token, password }
- */
 export const setupPasswordFromInvite = async (req, res, next) => {
   try {
     const { token, password } = req.body;
@@ -326,20 +302,21 @@ export const setupPasswordFromInvite = async (req, res, next) => {
     }
 
     const user = await User.findOne({
-      inviteToken: token,
-      inviteTokenExpires: { $gt: new Date() },
+      where: {
+        inviteToken: token,
+        inviteTokenExpires: { [Op.gt]: new Date() },
+      },
     });
 
     if (!user) {
       return res.status(400).json({ message: "Invalid or expired invite token" });
     }
 
-    // Update user with new password and clear invite token
     user.password = password;
     user.status = "Active";
     user.mustChangePassword = false;
-    user.inviteToken = undefined;
-    user.inviteTokenExpires = undefined;
+    user.inviteToken = null;
+    user.inviteTokenExpires = null;
 
     await user.save();
 
@@ -352,11 +329,6 @@ export const setupPasswordFromInvite = async (req, res, next) => {
   }
 };
 
-/**
- * Phase 8 - Resend invite email
- * POST /auth/resend-invite
- * Body: { email }
- */
 export const resendInvite = async (req, res, next) => {
   try {
     const { email } = req.body;
@@ -365,21 +337,19 @@ export const resendInvite = async (req, res, next) => {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const user = await User.findOne({ email, mustChangePassword: true });
+    const user = await User.findOne({ where: { email, mustChangePassword: true } });
 
     if (!user) {
       return res.status(404).json({ message: "No pending invite found for this email" });
     }
 
-    // Generate new invite token
     const inviteToken = crypto.randomBytes(32).toString("hex");
     const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
     user.inviteToken = inviteToken;
     user.inviteTokenExpires = inviteTokenExpires;
-    await user.save({ validateBeforeSave: false });
+    await user.save();
 
-    // Send invite email
     const appUrl = process.env.APP_URL || "http://localhost:5173";
     const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
 
@@ -410,10 +380,6 @@ export const resendInvite = async (req, res, next) => {
   }
 };
 
-/**
- * Phase 8 - Check if user must change password
- * Middleware to use after login
- */
 export const checkMustChangePassword = async (req, res, next) => {
   try {
     if (req.user?.mustChangePassword) {

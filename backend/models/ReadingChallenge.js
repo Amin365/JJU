@@ -1,32 +1,23 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const ReadingChallengeSchema = new mongoose.Schema({
-  title: { type: String, required: true, trim: true },
-  description: { type: String, default: "" },
-  book: { type: mongoose.Schema.Types.ObjectId, ref: "Book", default: null },
-  winner: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-  completedAt: { type: Date, default: null },
-  completionReason: {
-    type: String,
-    enum: ["target_reached", "date_ended", null],
-    default: null,
-  },
-  type: {
-    type: String,
-    enum: ["streak", "pages", "minutes", "reports"],
-    required: true,
-  },
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, required: true },
-  rules: {
-    minPagesPerDay: { type: Number, default: 0 },
-    minMinutesPerDay: { type: Number, default: 0 },
-    requiredConsecutiveDays: { type: Number, default: 0 },
-    targetTotal: { type: Number, default: 0 },
-  },
-  status: { type: String, enum: ["Draft", "Active", "Completed"], default: "Active" },
-  createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-}, { timestamps: true });
+const ReadingChallenge = sequelize.define('ReadingChallenge', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.STRING, defaultValue: '' },
+  book_id: { type: DataTypes.INTEGER, allowNull: true },
+  winner_id: { type: DataTypes.INTEGER, allowNull: true },
+  completedAt: { type: DataTypes.DATE },
+  completionReason: { type: DataTypes.ENUM('target_reached', 'date_ended'), allowNull: true },
+  type: { type: DataTypes.ENUM('streak', 'pages', 'minutes', 'reports'), allowNull: false },
+  startDate: { type: DataTypes.DATE, allowNull: false },
+  endDate: { type: DataTypes.DATE, allowNull: false },
+  rules_minPagesPerDay: { type: DataTypes.INTEGER, defaultValue: 0 },
+  rules_minMinutesPerDay: { type: DataTypes.INTEGER, defaultValue: 0 },
+  rules_requiredConsecutiveDays: { type: DataTypes.INTEGER, defaultValue: 0 },
+  rules_targetTotal: { type: DataTypes.INTEGER, defaultValue: 0 },
+  status: { type: DataTypes.ENUM('Draft', 'Active', 'Completed'), defaultValue: 'Active' },
+  created_by: { type: DataTypes.INTEGER, allowNull: false },
+}, { tableName: 'reading_challenges', timestamps: true });
 
-const ReadingChallenge = mongoose.model("ReadingChallenge", ReadingChallengeSchema);
 export default ReadingChallenge;

@@ -4,6 +4,7 @@
  */
 
 import cron from "node-cron";
+import { Op } from 'sequelize';
 import DailyReport from "../models/DailyReport.js";
 import Member from "../models/Members.js";
 import User from "../models/user.js";
@@ -25,7 +26,7 @@ async function generateSummaryReport(period) {
     fromDate.setDate(now.getDate() - 7);
   }
 
-  const matchStage = { readingDate: { $gte: fromDate, $lte: now } };
+  const matchStage = { readingDate: { [Op.gte]: fromDate, [Op.lte]: now } };
 
   const [reportStats, topReaders, activeMembers] = await Promise.all([
     DailyReport.aggregate([
@@ -55,7 +56,7 @@ async function generateSummaryReport(period) {
       { $sort: { reportsCount: -1 } },
       { $limit: 5 },
     ]),
-    Member.countDocuments({ status: "Active", isArchived: false }),
+    Member.count({ where: { status: "Active", isArchived: false } }),
   ]);
 
   const stats = reportStats[0] || {
@@ -69,14 +70,14 @@ async function generateSummaryReport(period) {
   };
 
   // Enrich top readers with names
-  const topReaderIds = topReaders.map((t) => t._id);
-  const topUsers = await User.find({ _id: { $in: topReaderIds } })
+  const topReaderIds = topReaders.map((t) => t.id);
+  const topUsers = await User.find({ _id: { [Op.in]: topReaderIds } })
     .select("first_name last_name")
-    .lean();
-  const userMap = new Map(topUsers.map((u) => [String(u._id), u]));
+    ;
+  const userMap = new Map(topUsers.map((u) => [String(u.id), u]));
 
   const enrichedTopReaders = topReaders.map((t) => {
-    const user = userMap.get(String(t._id));
+    const user = userMap.get(String(t.id));
     return {
       name: user ? [user.first_name, user.last_name].filter(Boolean).join(" ") : "Unknown",
       reportsCount: t.reportsCount,
@@ -111,23 +112,23 @@ async function generateSummaryReport(period) {
 async function notifySuperAdmins(summary) {
   try {
     const superAdminRole = await Role.findOne({
-      $or: [
-        { role: { $regex: "^Super Admin$", $options: "i" } },
-        { plural: { $regex: "^Super Admins$", $options: "i" } },
+      [Op.or]: [
+        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
+        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
       ],
     })
-      .lean()
-      .exec();
+      
+      ;
 
     if (!superAdminRole) {
       console.log("[Scheduled Report] No Super Admin role found");
       return;
     }
 
-    const superAdmins = await User.find({ role: superAdminRole._id })
+    const superAdmins = await User.find({ role: superAdminRole.id })
       .select("_id")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!superAdmins || superAdmins.length === 0) {
       console.log("[Scheduled Report] No Super Admin users found");
@@ -143,7 +144,7 @@ async function notifySuperAdmins(summary) {
     const message = `${periodLabel} Summary: ${summary.overview.totalReports} reports submitted, ${summary.overview.pagesRead.toLocaleString()} pages read, ${summary.overview.activeReaders} active readers (${summary.overview.participationRate}% participation). Top readers: ${topReadersText || "None"}`;
 
     const notifDocs = superAdmins.map((sa) => ({
-      user: sa._id,
+      user: sa.id,
       title: `📊 ${periodLabel} Reading Report Summary`,
       message,
       type: "info",
@@ -153,7 +154,7 @@ async function notifySuperAdmins(summary) {
     }));
 
     if (notifDocs.length > 0) {
-      await Notification.insertMany(notifDocs);
+      await Notification.bulkCreate(notifDocs);
       console.log(`[Scheduled Report] ${periodLabel} summary sent to ${notifDocs.length} super admin(s)`);
     }
   } catch (err) {

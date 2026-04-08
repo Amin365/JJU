@@ -1,76 +1,43 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-// Report sub-schema for abuse reports
-const ReportSchema = new mongoose.Schema(
-  {
-    reportedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    reason: { type: String, required: true, trim: true },
-    details: { type: String, default: "", trim: true },
-  },
-  { timestamps: true }
-);
+export const Comment = sequelize.define('Comment', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  post_id: { type: DataTypes.INTEGER, allowNull: false },
+  content: { type: DataTypes.TEXT, allowNull: false },
+  author_user_id: { type: DataTypes.INTEGER, allowNull: false },
+  author_name: { type: DataTypes.STRING, allowNull: false },
+  author_avatar: { type: DataTypes.STRING, defaultValue: '' },
+  author_role: { type: DataTypes.ENUM('Member', 'Moderator'), defaultValue: 'Member' },
+  likes: { type: DataTypes.INTEGER, defaultValue: 0 },
+  likedBy: { type: DataTypes.JSON, defaultValue: [] },
+  isPinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+  isBestInsight: { type: DataTypes.BOOLEAN, defaultValue: false },
+  status: { type: DataTypes.ENUM('approved', 'pending', 'hidden', 'deleted'), defaultValue: 'approved' },
+  moderated_by: { type: DataTypes.INTEGER, allowNull: true },
+  moderatedAt: { type: DataTypes.DATE },
+  moderationNote: { type: DataTypes.STRING },
+}, { tableName: 'comments', timestamps: true });
 
-const ReplySchema = new mongoose.Schema(
-  {
-    content: { type: String, required: true, trim: true },
-    author: {
-      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-      name: { type: String, required: true, trim: true },
-      avatar: { type: String, default: "" },
-      role: { type: String, enum: ["Member", "Moderator"], default: "Member" },
-    },
-    likes: { type: Number, default: 0 },
-    // Phase 7: Moderation fields for replies
-    status: {
-      type: String,
-      enum: ["approved", "pending", "hidden", "deleted"],
-      default: "approved",
-    },
-    reports: { type: [ReportSchema], default: [] },
-  },
-  { timestamps: true }
-);
+export const Reply = sequelize.define('Reply', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  comment_id: { type: DataTypes.INTEGER, allowNull: false },
+  content: { type: DataTypes.TEXT, allowNull: false },
+  author_user_id: { type: DataTypes.INTEGER, allowNull: false },
+  author_name: { type: DataTypes.STRING, allowNull: false },
+  author_avatar: { type: DataTypes.STRING, defaultValue: '' },
+  author_role: { type: DataTypes.ENUM('Member', 'Moderator'), defaultValue: 'Member' },
+  likes: { type: DataTypes.INTEGER, defaultValue: 0 },
+  status: { type: DataTypes.ENUM('approved', 'pending', 'hidden', 'deleted'), defaultValue: 'approved' },
+}, { tableName: 'replies', timestamps: true });
 
-const CommentSchema = new mongoose.Schema(
-  {
-    postId: { type: mongoose.Schema.Types.ObjectId, ref: "BlogPost", required: true, index: true },
-    content: { type: String, required: true, trim: true },
+export const CommentReport = sequelize.define('CommentReport', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  comment_id: { type: DataTypes.INTEGER, allowNull: true },
+  reply_id: { type: DataTypes.INTEGER, allowNull: true },
+  reported_by: { type: DataTypes.INTEGER, allowNull: false },
+  reason: { type: DataTypes.STRING, allowNull: false },
+  details: { type: DataTypes.STRING, defaultValue: '' },
+}, { tableName: 'comment_reports', timestamps: true });
 
-    author: {
-      userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-      name: { type: String, required: true, trim: true },
-      avatar: { type: String, default: "" },
-      role: { type: String, enum: ["Member", "Moderator"], default: "Member" },
-    },
-
-    // cached count
-    likes: { type: Number, default: 0 },
-
-    // NEW: who liked this comment
-    likedBy: [{ type: mongoose.Schema.Types.ObjectId, ref: "User" }],
-
-    isPinned: { type: Boolean, default: false },
-    isBestInsight: { type: Boolean, default: false },
-
-    replies: { type: [ReplySchema], default: [] },
-
-    // Phase 7: Moderation fields
-    status: {
-      type: String,
-      enum: ["approved", "pending", "hidden", "deleted"],
-      default: "approved",
-      index: true,
-    },
-    reports: { type: [ReportSchema], default: [] },
-    moderatedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User", default: null },
-    moderatedAt: { type: Date, default: null },
-    moderationNote: { type: String, default: "", trim: true },
-  },
-  { timestamps: true }
-);
-
-// Index for moderation queue queries
-CommentSchema.index({ status: 1, createdAt: -1 });
-CommentSchema.index({ "reports.0": 1 }); // Index for comments with reports
-
-export default mongoose.model("Comment", CommentSchema);
+export default Comment;

@@ -3,7 +3,7 @@ import PushSubscription from "../models/ushSubscription.js";
 // Save push subscription
 export const subscribePush = async (req, res) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const subscription = req.body;
 
     if (!subscription?.endpoint) {

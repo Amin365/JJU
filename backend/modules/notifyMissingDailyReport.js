@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
+import { Op } from 'sequelize';
 import User from "../models/user.js";
 import Notification from "../models/Notification.js";
 import Role from "../models/Role.js";
@@ -30,27 +30,27 @@ export async function notifyUsersMissingDailyReport() {
 
   const membersRole = await Role.findOne({ role: /^(members|member)$/i })
     .select("_id")
-    .lean();
+    ;
 
   if (!membersRole?._id) return;
 
   // Get all member IDs that are linked to users
   const memberIds = await User.distinct("member", {
-    member: { $ne: null },
+    member: { [Op.ne]: null },
   });
 
   for (const memberId of memberIds) {
     // Get all users under this member
-    const users = await User.find({ member: memberId, role: membersRole._id })
+    const users = await User.find({ member: memberId, role: membersRole.id })
       .select("_id first_name last_name email role")
-      .lean();
+      ;
 
     if (!users.length) continue;
 
     // Check if ANY user submitted report today or yesterday
     const hasRecentReport = await DailyReport.exists({
-      createdBy: { $in: users.map((u) => u._id) },
-      readingDate: { $in: [today, yesterday] },
+      createdBy: { [Op.in]: users.map((u) => u.id) },
+      readingDate: { [Op.in]: [today, yesterday] },
     });
 
     if (hasRecentReport) continue;
@@ -58,11 +58,11 @@ export async function notifyUsersMissingDailyReport() {
     // Notify users
     for (const user of users) {
       // Avoid duplicate notification
-      const alreadyNotified = await Notification.exists({
-        user: user._id,
+      const alreadyNotified = await Notification.findOne({ where: {
+        user: user.id,
         "meta.kind": "missed-daily-report",
         "meta.forDate": today,
-      });
+      } });
 
       if (alreadyNotified) continue;
 
@@ -70,7 +70,7 @@ export async function notifyUsersMissingDailyReport() {
 
       // Save notification (Members only)
       await Notification.create({
-        user: user._id,
+        user: user.id,
         title: "Don't break your streak!",
         message,
         type: "warning",
@@ -83,7 +83,7 @@ export async function notifyUsersMissingDailyReport() {
 
       // Send push notification (Members only)
       try {
-        await sendPushToUser(user._id, {
+        await sendPushToUser(user.id, {
           title: "Don't break your reading streak!",
           body: message,
         });

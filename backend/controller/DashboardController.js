@@ -1,6 +1,6 @@
 
 import Book from "../models/Books.js";
-import { Op } from 'sequelize';
+import { Op } from "sequelize";
 import Member from "../models/Members.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
@@ -16,7 +16,7 @@ export const getDashboardStats = async (req, res) => {
   try {
     const [
       totalBooks,
-      availableBooksAgg,
+      availableBooks,
       borrowedBooks,
       totalMembers,
       activeMembers,
@@ -25,7 +25,7 @@ export const getDashboardStats = async (req, res) => {
       pendingDailyReports,
     ] = await Promise.all([
       Book.count(),
-      Book.aggregate([{ $group: { _id: null, total: { $sum: "$availableCopies" } } }]),
+      Book.sum("availableCopies"),
       Issue.count({ where: { status: "Issued" } }),
       Member.count(),
       Member.count({ where: { status: "Active" } }),
@@ -36,7 +36,7 @@ export const getDashboardStats = async (req, res) => {
 
     res.json({
       totalBooks,
-      availableBooks: availableBooksAgg[0]?.total ?? 0,
+      availableBooks: availableBooks ?? 0,
       borrowedBooks,
       totalMembers,
       activeMembers,
@@ -58,44 +58,85 @@ export const getRecentActivity = async (req, res) => {
     const [
       recentMembers,
       recentBooks,
-      recentIssues,
-      recentReturns,
+      recentIssuesRaw,
+      recentReturnsRaw,
       recentJoinReqs,
-      recentReports,
+      recentReportsRaw,
       recentBlogs,
     ] = await Promise.all([
-      Member.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("first_name last_name code createdAt"),
-      Book.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("title author createdAt"),
-      Issue.find({ status: { [Op.in]: ["Issued", "Overdue"] } })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate("book", "title")
-        .populate("member", "first_name last_name code"),
-      Issue.find({ status: "Returned" })
-        .sort({ returnedAt: -1 })
-        .limit(5)
-        .populate("book", "title")
-        .populate("member", "first_name last_name code"),
-      Clubreq.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("FullName email status createdAt"),
-      DailyReport.find()
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .populate("createdBy", "first_name last_name")
-        .populate("book", "title"),
-      BlogPost.find({ status: "Published" })
-        .sort({ createdAt: -1 })
-        .limit(5)
-        .select("title author_name status createdAt"),
+      Member.findAll({
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["first_name", "last_name", "code", "createdAt"],
+        raw: true,
+      }),
+      Book.findAll({
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["title", "author", "createdAt"],
+        raw: true,
+      }),
+      Issue.findAll({
+        where: { status: { [Op.in]: ["Issued", "Overdue"] } },
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["id", "book_id", "member_id", "createdAt"],
+        raw: true,
+      }),
+      Issue.findAll({
+        where: { status: "Returned" },
+        order: [["returnedAt", "DESC"]],
+        limit: 5,
+        attributes: ["id", "book_id", "member_id", "returnedAt", "updatedAt"],
+        raw: true,
+      }),
+      Clubreq.findAll({
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["FullName", "email", "status", "createdAt"],
+        raw: true,
+      }),
+      DailyReport.findAll({
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["created_by", "book_id", "createdAt"],
+        raw: true,
+      }),
+      BlogPost.findAll({
+        where: { status: "Published" },
+        order: [["createdAt", "DESC"]],
+        limit: 5,
+        attributes: ["title", "author_name", "status", "createdAt"],
+        raw: true,
+      }),
     ]);
+
+    const issueBookIds = [...new Set([
+      ...recentIssuesRaw.map((i) => i.book_id),
+      ...recentReturnsRaw.map((i) => i.book_id),
+      ...recentReportsRaw.map((r) => r.book_id),
+    ].filter(Boolean))];
+    const issueMemberIds = [...new Set([
+      ...recentIssuesRaw.map((i) => i.member_id),
+      ...recentReturnsRaw.map((i) => i.member_id),
+    ].filter(Boolean))];
+    const reportUserIds = [...new Set(recentReportsRaw.map((r) => r.created_by).filter(Boolean))];
+
+    const [books, members, users] = await Promise.all([
+      issueBookIds.length
+        ? Book.findAll({ where: { id: { [Op.in]: issueBookIds } }, attributes: ["id", "title"], raw: true })
+        : [],
+      issueMemberIds.length
+        ? Member.findAll({ where: { id: { [Op.in]: issueMemberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+        : [],
+      reportUserIds.length
+        ? User.findAll({ where: { id: { [Op.in]: reportUserIds } }, attributes: ["id", "first_name", "last_name"], raw: true })
+        : [],
+    ]);
+
+    const booksById = new Map(books.map((b) => [b.id, b]));
+    const membersById = new Map(members.map((m) => [m.id, m]));
+    const usersById = new Map(users.map((u) => [u.id, u]));
 
     const events = [];
 
@@ -117,27 +158,19 @@ export const getRecentActivity = async (req, res) => {
       })
     );
 
-    recentIssues.forEach((i) =>
+    recentIssuesRaw.forEach((i) =>
       events.push({
         type: "issue_created",
-        label: `Book issued: "${i.book?.title ?? "?"}" → ${
-          i.member
-            ? `${i.member.first_name} ${i.member.last_name}`
-            : "unknown member"
-        }`,
+        label: `Book issued: "${booksById.get(i.book_id)?.title ?? "?"}" → ${membersById.get(i.member_id) ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}` : "unknown member"}`,
         meta: {},
         timestamp: i.createdAt,
       })
     );
 
-    recentReturns.forEach((i) =>
+    recentReturnsRaw.forEach((i) =>
       events.push({
         type: "issue_returned",
-        label: `Book returned: "${i.book?.title ?? "?"}" by ${
-          i.member
-            ? `${i.member.first_name} ${i.member.last_name}`
-            : "unknown member"
-        }`,
+        label: `Book returned: "${booksById.get(i.book_id)?.title ?? "?"}" by ${membersById.get(i.member_id) ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}` : "unknown member"}`,
         meta: {},
         timestamp: i.returnedAt || i.updatedAt,
       })
@@ -152,14 +185,14 @@ export const getRecentActivity = async (req, res) => {
       })
     );
 
-    recentReports.forEach((r) =>
+    recentReportsRaw.forEach((r) =>
       events.push({
         type: "daily_report",
         label: `Daily report by ${
-          r.createdBy
-            ? `${r.createdBy.first_name} ${r.createdBy.last_name}`
+          usersById.get(r.created_by)
+            ? `${usersById.get(r.created_by).first_name} ${usersById.get(r.created_by).last_name}`
             : "unknown"
-        } on "${r.book?.title ?? "?"}"`,
+        } on "${booksById.get(r.book_id)?.title ?? "?"}"`,
         meta: {},
         timestamp: r.createdAt,
       })
@@ -188,36 +221,65 @@ export const getRecentActivity = async (req, res) => {
  */
 export const getTopReaders = async (req, res) => {
   try {
-    const grouped = await DailyReport.aggregate([
-      {
-        $group: {
-          _id: "$createdBy",
-          reportCount: { $sum: 1 },
-          lastReport: { $max: "$createdAt" },
-          totalPages: { $sum: { $abs: { $subtract: ["$pagesTo", "$pagesFrom"] } } },
-        },
-      },
-      { $sort: { reportCount: -1 } },
-      { $limit: 10 },
-    ]);
+    const reports = await DailyReport.findAll({
+      attributes: ["created_by", "createdAt", "pagesFrom", "pagesTo"],
+      raw: true,
+    });
+
+    const groupedMap = new Map();
+    for (const report of reports) {
+      const userId = report.created_by;
+      if (!userId) continue;
+      const existing = groupedMap.get(userId) || {
+        _id: userId,
+        reportCount: 0,
+        lastReport: null,
+        totalPages: 0,
+      };
+      existing.reportCount += 1;
+      const pages = Math.abs((report.pagesTo || 0) - (report.pagesFrom || 0));
+      existing.totalPages += pages;
+      if (!existing.lastReport || new Date(report.createdAt) > new Date(existing.lastReport)) {
+        existing.lastReport = report.createdAt;
+      }
+      groupedMap.set(userId, existing);
+    }
+
+    const grouped = Array.from(groupedMap.values())
+      .sort((a, b) => b.reportCount - a.reportCount)
+      .slice(0, 10);
+
+    const userIds = grouped.map((g) => g._id);
+    const users = userIds.length
+      ? await User.findAll({
+          where: { id: { [Op.in]: userIds } },
+          attributes: ["id", "first_name", "last_name", "profile_picture", "member_id_fk"],
+          raw: true,
+        })
+      : [];
+    const memberIds = users.map((u) => u.member_id_fk).filter(Boolean);
+    const members = memberIds.length
+      ? await Member.findAll({ where: { id: { [Op.in]: memberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+      : [];
+    const usersById = new Map(users.map((u) => [u.id, u]));
+    const membersById = new Map(members.map((m) => [m.id, m]));
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const user = await User.findByPk(entry.id)
-          .select("first_name last_name profile_picture member")
-          .populate("member", "first_name last_name code");
+        const user = usersById.get(entry._id);
+        const member = user?.member_id_fk ? membersById.get(user.member_id_fk) : null;
 
         return {
-          _id: entry.id,
+          _id: entry._id,
           reportCount: entry.reportCount,
           lastReport: entry.lastReport,
           totalPages: entry.totalPages,
-          name: user?.member
-            ? `${user.member.first_name} ${user.member.last_name}`
+          name: member
+            ? `${member.first_name} ${member.last_name}`
             : user
             ? `${user.first_name} ${user.last_name}`
             : "Unknown",
-          memberCode: user?.member?.code ?? null,
+          memberCode: member?.code ?? null,
           avatar: user?.profile_picture ?? null,
         };
       })
@@ -235,20 +297,29 @@ export const getTopReaders = async (req, res) => {
  */
 export const getPopularBooks = async (req, res) => {
   try {
-    const grouped = await Issue.aggregate([
-      { $group: { _id: "$book", issueCount: { $sum: 1 } } },
-      { $sort: { issueCount: -1 } },
-      { $limit: 10 },
-    ]);
+    const issues = await Issue.findAll({ attributes: ["book_id"], raw: true });
+    const countMap = new Map();
+    for (const issue of issues) {
+      if (!issue.book_id) continue;
+      countMap.set(issue.book_id, (countMap.get(issue.book_id) || 0) + 1);
+    }
+    const grouped = Array.from(countMap.entries())
+      .map(([bookId, issueCount]) => ({ _id: bookId, issueCount }))
+      .sort((a, b) => b.issueCount - a.issueCount)
+      .slice(0, 10);
+
+    const bookIds = grouped.map((g) => g._id);
+    const books = bookIds.length
+      ? await Book.findAll({ where: { id: { [Op.in]: bookIds } }, attributes: ["id", "title", "author", "availableCopies", "totalCopies", "book_picture"], raw: true })
+      : [];
+    const booksById = new Map(books.map((b) => [b.id, b]));
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const book = await Book.findByPk(entry.id).select(
-          "title author availableCopies totalCopies book_picture"
-        );
+        const book = booksById.get(entry._id);
 
         return {
-          _id: entry.id,
+          _id: entry._id,
           issueCount: entry.issueCount,
           title: book?.title ?? "Unknown",
           author: book?.author ?? null,
@@ -276,24 +347,64 @@ export const getPendingApprovals = async (req, res) => {
     const todayEnd = new Date();
     todayEnd.setUTCHours(23, 59, 59, 999);
 
-    const [pendingJoinRequests, overdueIssues, todayReports] = await Promise.all([
-      Clubreq.find({ status: "Pending" })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .select("FullName email phone createdAt"),
-      Issue.find({ status: "Overdue" })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate("book", "title author")
-        .populate("member", "first_name last_name code"),
-      DailyReport.find({
-        createdAt: { [Op.gte]: todayStart, [Op.lte]: todayEnd },
-      })
-        .sort({ createdAt: -1 })
-        .limit(10)
-        .populate("createdBy", "first_name last_name")
-        .populate("book", "title"),
+    const [pendingJoinRequests, overdueIssuesRaw, todayReportsRaw] = await Promise.all([
+      Clubreq.findAll({
+        where: { status: "Pending" },
+        order: [["createdAt", "DESC"]],
+        limit: 10,
+        attributes: ["FullName", "email", "phone", "createdAt"],
+        raw: true,
+      }),
+      Issue.findAll({
+        where: { status: "Overdue" },
+        order: [["createdAt", "DESC"]],
+        limit: 10,
+        attributes: ["id", "book_id", "member_id", "createdAt"],
+        raw: true,
+      }),
+      DailyReport.findAll({
+        where: { createdAt: { [Op.gte]: todayStart, [Op.lte]: todayEnd } },
+        order: [["createdAt", "DESC"]],
+        limit: 10,
+        attributes: ["id", "created_by", "book_id", "createdAt"],
+        raw: true,
+      }),
     ]);
+
+    const bookIds = [...new Set([
+      ...overdueIssuesRaw.map((i) => i.book_id),
+      ...todayReportsRaw.map((r) => r.book_id),
+    ].filter(Boolean))];
+    const memberIds = [...new Set(overdueIssuesRaw.map((i) => i.member_id).filter(Boolean))];
+    const userIds = [...new Set(todayReportsRaw.map((r) => r.created_by).filter(Boolean))];
+
+    const [books, members, users] = await Promise.all([
+      bookIds.length
+        ? Book.findAll({ where: { id: { [Op.in]: bookIds } }, attributes: ["id", "title", "author"], raw: true })
+        : [],
+      memberIds.length
+        ? Member.findAll({ where: { id: { [Op.in]: memberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+        : [],
+      userIds.length
+        ? User.findAll({ where: { id: { [Op.in]: userIds } }, attributes: ["id", "first_name", "last_name"], raw: true })
+        : [],
+    ]);
+
+    const booksById = new Map(books.map((b) => [b.id, b]));
+    const membersById = new Map(members.map((m) => [m.id, m]));
+    const usersById = new Map(users.map((u) => [u.id, u]));
+
+    const overdueIssues = overdueIssuesRaw.map((i) => ({
+      ...i,
+      book: booksById.get(i.book_id) || null,
+      member: membersById.get(i.member_id) || null,
+    }));
+
+    const todayReports = todayReportsRaw.map((r) => ({
+      ...r,
+      createdBy: usersById.get(r.created_by) || null,
+      book: booksById.get(r.book_id) || null,
+    }));
 
     res.json({
       pendingJoinRequests,

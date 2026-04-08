@@ -90,19 +90,22 @@ export const getBooks = async (req, res, next) => {
 
     const where = {};
 
-    if (isbn) where.isbn = String(isbn).trim();
+    if (isbn) {
+      where.isbn = String(isbn).trim();
+    }
+
+    if (q) {
+      const qv = String(q).trim();
+      where[Op.or] = [
+        { title: { [Op.like]: `%${qv}%` } },
+        { author: { [Op.like]: `%${qv}%` } },
+        { isbn: { [Op.like]: `%${qv}%` } },
+      ];
+    }
+
     if (author) where.author = author;
     if (BookType) where.BookType = BookType;
     if (status) where.status = status;
-
-    if (q) {
-      const escaped = `%${escapeLike(q)}%`;
-      where[Op.or] = [
-        { title: { [Op.like]: escaped } },
-        { author: { [Op.like]: escaped } },
-        { isbn: { [Op.like]: escaped } },
-      ];
-    }
 
     if (from || to) {
       where.createdAt = {};
@@ -121,27 +124,31 @@ export const getBooks = async (req, res, next) => {
     const perPage = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const offset = (pageNum - 1) * perPage;
 
-    const sortField = String(sort).replace(/^-/, "");
-    const sortDirection = String(sort).startsWith("-") ? "DESC" : "ASC";
-    const allowedSortFields = new Set(["createdAt", "updatedAt", "title", "author", "isbn", "availableCopies", "totalCopies"]);
-    const order = [[allowedSortFields.has(sortField) ? sortField : "createdAt", sortDirection]];
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
 
-    const { rows: items, count: total } = await Book.findAndCountAll({
-      where,
-      order,
-      offset,
-      limit: perPage,
-    });
+    const [items, total] = await Promise.all([
+      Book.findAll({
+        where,
+        order: [[sortField || "createdAt", sortDir]],
+        offset: skip,
+        limit: perPage,
+      }),
+      Book.count({ where }),
+    ]);
 
     const bookIds = items.map((b) => b.id).filter(Boolean);
     if (bookIds.length > 0) {
-      const counts = await Issue.findAll({
+      const issuedRows = await Issue.findAll({
         where: { book_id: { [Op.in]: bookIds }, status: "Issued" },
-        attributes: ["book_id", [fn("COUNT", col("id")), "count"]],
-        group: ["book_id"],
+        attributes: ["book_id"],
         raw: true,
       });
-      const map = counts.reduce((acc, c) => ({ ...acc, [String(c.book_id)]: Number(c.count || 0) }), {});
+      const map = issuedRows.reduce((acc, row) => {
+        const key = String(row.book_id);
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
       for (const it of items) {
         it.setDataValue("borrowedCount", map[String(it.id)] || 0);
       }
@@ -333,7 +340,11 @@ export const bulkCreateBooks = async (req, res, next) => {
 
     const providedIsbns = deduped.map((d) => d.isbn).filter(Boolean);
     const existing = providedIsbns.length
-      ? await Book.findAll({ where: { isbn: { [Op.in]: providedIsbns } }, attributes: ["isbn"], raw: true })
+      ? await Book.findAll({
+          where: { isbn: { [Op.in]: providedIsbns } },
+          attributes: ["isbn"],
+          raw: true,
+        })
       : [];
 
     const existingIsbns = new Set(existing.map((x) => String(x.isbn || "").toLowerCase()).filter(Boolean));

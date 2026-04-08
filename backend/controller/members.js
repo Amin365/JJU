@@ -218,49 +218,54 @@ export const getMembers = async (req, res, next) => {
       moderator,
     } = req.query;
 
-    const filter = {};
+    const where = {};
 
     if (q) {
-      const re = new RegExp(escapeRegex(q), "i");
-      filter.$or = [
-        { first_name: re },
-        { middle_name: re },
-        { last_name: re },
-        { email: re },
-        { phone: re },
-        { code: re },
+      const qv = String(q).trim();
+      where[Op.or] = [
+        { first_name: { [Op.like]: `%${qv}%` } },
+        { middle_name: { [Op.like]: `%${qv}%` } },
+        { last_name: { [Op.like]: `%${qv}%` } },
+        { email: { [Op.like]: `%${qv}%` } },
+        { phone: { [Op.like]: `%${qv}%` } },
+        { code: { [Op.like]: `%${qv}%` } },
       ];
     }
 
-    if (region) filter.region = region;
-    if (city) filter.city = city;
-    if (gender) filter.gender = gender;
-    if (department) filter.department = new RegExp(escapeRegex(department), "i");
-    if (study_year) filter.study_year = study_year;
-    if (status && ["Active", "Inactive", "pending"].includes(status)) filter.status = status;
+    if (region) where.region = region;
+    if (city) where.city = city;
+    if (gender) where.gender = gender;
+    if (department) where.department = { [Op.like]: `%${String(department).trim()}%` };
+    if (study_year) where.study_year = study_year;
+    if (status && ["Active", "Inactive", "pending"].includes(status)) where.status = status;
 
     if (typeof isArchived !== "undefined") {
-      if (isArchived === "true" || isArchived === "1") filter.isArchived = true;
-      else if (isArchived === "false" || isArchived === "0") filter.isArchived = false;
+      if (isArchived === "true" || isArchived === "1") where.isArchived = true;
+      else if (isArchived === "false" || isArchived === "0") where.isArchived = false;
     }
 
     if (from || to) {
-      filter.join_date = {};
+      where.join_date = {};
       if (from) {
         const d = new Date(from);
-        if (!Number.isNaN(d.getTime())) filter.join_date.$gte = d;
+        if (!Number.isNaN(d.getTime())) where.join_date[Op.gte] = d;
       }
       if (to) {
         const d = new Date(to);
-        if (!Number.isNaN(d.getTime())) filter.join_date.$lte = d;
+        if (!Number.isNaN(d.getTime())) where.join_date[Op.lte] = d;
       }
-      if (Object.keys(filter.join_date).length === 0) delete filter.join_date;
+      if (Object.keys(where.join_date).length === 0) delete where.join_date;
     }
 
     // Filter by moderator assignment
     if (moderator && Number.isInteger(Number(moderator))) {
-      const assignedIds = await ModeratorMember.find({ moderator }).distinct("member");
-      filter.id = { [Op.in]: assignedIds };
+      const assignedRows = await ModeratorMember.findAll({
+        where: { moderator_id: Number(moderator) },
+        attributes: ["member_id"],
+        raw: true,
+      });
+      const assignedIds = assignedRows.map((r) => r.member_id).filter(Boolean);
+      where.id = { [Op.in]: assignedIds.length ? assignedIds : [-1] };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -270,6 +275,7 @@ export const getMembers = async (req, res, next) => {
     // Explicitly select the fields you want returned.
     // Add any other member fields you need here.
     const selectFields = [
+      "id",
       "first_name",
       "middle_name",
       "last_name",
@@ -280,33 +286,46 @@ export const getMembers = async (req, res, next) => {
       "city",
       "gender",
       "join_date",
-      "profile_picture",
+      "Profile_picture",
       "department",
       "student_id",
       "study_year",
       "status",
       "createdAt",
-      "_id",
-    ].join(" ");
+      "role_id",
+    ];
+
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
 
     const [items, total] = await Promise.all([
-      Member.find(filter)
-        .select(selectFields)
-        .populate("role", "role color plural system")
-        .sort(sort)
-        .skip(skip)
-        .limit(perPage)
-        
-        ,
-      Member.countDocuments(filter),
+      Member.findAll({
+        where,
+        attributes: selectFields,
+        order: [[sortField || "createdAt", sortDir]],
+        offset: skip,
+        limit: perPage,
+        raw: true,
+      }),
+      Member.count({ where }),
     ]);
+
+    const roleIds = [...new Set(items.map((it) => it.role_id).filter(Boolean))];
+    const roles = roleIds.length
+      ? await Role.findAll({
+          where: { id: { [Op.in]: roleIds } },
+          attributes: ["id", "role", "color", "plural", "system"],
+          raw: true,
+        })
+      : [];
+    const roleMap = new Map(roles.map((r) => [r.id, r]));
 
     // Optional: map/format join_date to ISO or desired format
     const mapped = items.map((it) => ({
       ...it,
       join_date: it.join_date ? new Date(it.join_date).toISOString() : null,
-      // ensure profile_picture property exists and is null if missing
-      profile_picture: it.profile_picture ?? null,
+      profile_picture: it.Profile_picture ?? null,
+      role: it.role_id ? roleMap.get(it.role_id) || null : null,
     }));
 
     return res.status(200).json({
@@ -491,42 +510,47 @@ export const getMemberByCode = async (req, res, next) => {
 export const getMembersList = async (req, res, next) => {
   try {
     // If requester not authenticated, deny (we require auth for scoped list)
-    if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     // determine role of requester
-    const currentUser = await User.findByPk(req.user.id).populate('role', 'role plural');
-    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || '').toLowerCase();
+    const roleName = (req.user?.role?.role || req.user?.role?.plural || '').toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
 
     if (isSuperAdmin) {
-      const members = await Member.find()
-        .select("_id first_name middle_name last_name full_name code email join_date Profile_picture status region createdAt")
-        .sort("-createdAt")
-        
-        ;
+      const members = await Member.findAll({
+        attributes: ["id", "first_name", "middle_name", "last_name", "code", "email", "join_date", "Profile_picture", "status", "region", "createdAt"],
+        order: [["createdAt", "DESC"]],
+        raw: true,
+      });
       return res.status(200).json({ data: members });
     }
 
     if (isModerator) {
       // return only members assigned to this moderator
-      const assigned = await ModeratorMember.find({ moderator: req.user.id }).select('member');
-      const memberIds = assigned.map(a => a.member).filter(Boolean);
+      const assigned = await ModeratorMember.findAll({
+        where: { moderator_id: req.user.id },
+        attributes: ["member_id"],
+        raw: true,
+      });
+      const memberIds = assigned.map(a => a.member_id).filter(Boolean);
       if (memberIds.length === 0) return res.status(200).json({ data: [] });
-      const members = await Member.find({ _id: { [Op.in]: memberIds } })
-        .select("_id first_name middle_name last_name full_name code email createdAt")
-        .sort("-createdAt")
-        
-        ;
+      const members = await Member.findAll({
+        where: { id: { [Op.in]: memberIds } },
+        attributes: ["id", "first_name", "middle_name", "last_name", "code", "email", "createdAt"],
+        order: [["createdAt", "DESC"]],
+        raw: true,
+      });
       return res.status(200).json({ data: members });
     }
 
     // regular users: return only the member record they belong to (if any)
-    if (currentUser?.member) {
-      const m = await Member.findByPk(currentUser.member)
-        .select("_id first_name middle_name last_name full_name code email createdAt")
-        
-        ;
+    const memberId = req.user?.member_id_fk || null;
+    if (memberId) {
+      const m = await Member.findByPk(memberId, {
+        attributes: ["id", "first_name", "middle_name", "last_name", "code", "email", "createdAt"],
+        raw: true,
+      });
       if (!m) return res.status(200).json({ data: [] });
       return res.status(200).json({ data: [m] });
     }
@@ -632,15 +656,20 @@ export const bulkCreateMembers = async (req, res, next) => {
     const emails = deduped.map((d) => d.email).filter(Boolean);
     const codes = deduped.map((d) => d.code).filter(Boolean);
 
-    const existing = await Member.find({
+    const existingWhere = {
       [Op.or]: [
         ...(emails.length ? [{ email: { [Op.in]: emails } }] : []),
         ...(codes.length ? [{ code: { [Op.in]: codes } }] : []),
       ],
-    })
-      .select("email code")
-      
-      ;
+    };
+
+    const existing = existingWhere[Op.or].length
+      ? await Member.findAll({
+          where: existingWhere,
+          attributes: ["email", "code"],
+          raw: true,
+        })
+      : [];
 
     const existingEmails = new Set(existing.map((x) => x.email).filter(Boolean));
     const existingCodes = new Set(existing.map((x) => x.code).filter(Boolean));

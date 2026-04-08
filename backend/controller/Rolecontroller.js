@@ -235,8 +235,8 @@ export async function addPermissionToRole(req, res) {
     }
 
     await RolePermission.create({
-      role_id: id,
-      permission_id: permissionId,
+      role: id,
+      permission: permissionId,
       added_by: req.user?.id || null,
     });
 
@@ -434,13 +434,12 @@ export async function bulkUpdateRolePermissions(req, res) {
     }
 
     if (toAdd.length > 0) {
-      await RolePermission.bulkCreate(
-        toAdd.map((permissionId) => ({
-          role_id: id,
-          permission_id: permissionId,
-          added_by: req.user?.id || null,
-        }))
-      );
+      const newMappings = toAdd.map((pid) => ({
+        role: id,
+        permission: pid,
+        added_by: req.user?.id || null,
+      }));
+      await RolePermission.bulkCreate(newMappings);
     }
 
     await logAudit({

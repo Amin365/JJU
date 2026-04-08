@@ -5,7 +5,7 @@
 
 import Notification from "../models/Notification.js";
 import sequelize from "../config/database.js";
-import { Op, col, fn, QueryTypes } from 'sequelize';
+import { Op, col, fn, QueryTypes, where as sqlWhere } from 'sequelize';
 import User from "../models/user.js";
 import AuditLog from "../models/AuditLog.js";
 import DailyReport from "../models/DailyReport.js";
@@ -243,27 +243,12 @@ export const getJobStatus = async (req, res, next) => {
  */
 export const getDatabaseStats = async (req, res, next) => {
   try {
-    const queryInterface = sequelize.getQueryInterface();
-    const tablesRaw = await queryInterface.showAllTables();
-    const tableNames = tablesRaw.map((entry) => {
-      if (typeof entry === "string") return entry;
-      if (entry?.tableName) return entry.tableName;
-      if (entry?.table_name) return entry.table_name;
-      return String(entry);
-    });
-
+    const modelEntries = Object.entries(sequelize.models);
     const stats = await Promise.all(
-      tableNames.map(async (tableName) => {
-        const safeTableName = String(tableName).replace(/`/g, "``");
-        const rows = await sequelize.query(
-          `SELECT COUNT(*) AS count FROM \`${safeTableName}\``,
-          { type: QueryTypes.SELECT }
-        );
-        return {
-          name: tableName,
-          documentCount: Number(rows?.[0]?.count || 0),
-        };
-      })
+      modelEntries.map(async ([modelName, model]) => ({
+        name: model?.getTableName?.() || modelName,
+        documentCount: await model.count(),
+      }))
     );
 
     // Sort by row count descending
@@ -287,7 +272,7 @@ export const getDatabaseStats = async (req, res, next) => {
     return res.status(200).json({
       data: {
         collections: stats,
-        totalCollections: Number(dbStats.tableCount || tableNames.length),
+        totalCollections: Number(dbStats.tableCount || stats.length),
         totalDocuments: stats.reduce((sum, s) => sum + s.documentCount, 0),
         dataSize: Number(dbStats.dataSize || 0),
         storageSize: Number(dbStats.storageSize || 0),
@@ -322,7 +307,11 @@ export const getRecentErrors = async (req, res, next) => {
     const errorActions = await AuditLog.findAll({
       where: {
         createdAt: { [Op.gte]: startDate },
-        action: { [Op.regexp]: "error|failed|rejected" },
+        [Op.or]: [
+          sqlWhere(fn("LOWER", col("action")), { [Op.like]: "%error%" }),
+          sqlWhere(fn("LOWER", col("action")), { [Op.like]: "%failed%" }),
+          sqlWhere(fn("LOWER", col("action")), { [Op.like]: "%rejected%" }),
+        ],
       },
       order: [["createdAt", "DESC"]],
       limit: 50,

@@ -97,33 +97,36 @@ export const getBooks = async (req, res, next) => {
       to,
     } = req.query;
 
-    const filter = {};
+    const where = {};
 
     if (isbn) {
-      filter.isbn = String(isbn).trim();
+      where.isbn = String(isbn).trim();
     }
 
     if (q) {
-      // safe regex search across title, author, isbn
-      const re = new RegExp(escapeRegex(q), "i");
-      filter.$or = [{ title: re }, { author: re }, { isbn: re }];
+      const qv = String(q).trim();
+      where[Op.or] = [
+        { title: { [Op.like]: `%${qv}%` } },
+        { author: { [Op.like]: `%${qv}%` } },
+        { isbn: { [Op.like]: `%${qv}%` } },
+      ];
     }
 
-    if (author) filter.author = author;
-    if (BookType) filter.BookType = BookType;
-    if (status) filter.status = status;
+    if (author) where.author = author;
+    if (BookType) where.BookType = BookType;
+    if (status) where.status = status;
 
     if (from || to) {
-      filter.publishedDate = {};
+      where.createdAt = {};
       if (from) {
         const d = new Date(from);
-        if (!Number.isNaN(d.getTime())) filter.publishedDate.$gte = d;
+        if (!Number.isNaN(d.getTime())) where.createdAt[Op.gte] = d;
       }
       if (to) {
         const d = new Date(to);
-        if (!Number.isNaN(d.getTime())) filter.publishedDate.$lte = d;
+        if (!Number.isNaN(d.getTime())) where.createdAt[Op.lte] = d;
       }
-      if (Object.keys(filter.publishedDate).length === 0) delete filter.publishedDate;
+      if (Object.keys(where.createdAt).length === 0) delete where.createdAt;
     }
 
     // sanitize and bound paging params
@@ -131,20 +134,32 @@ export const getBooks = async (req, res, next) => {
     const perPage = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
     const skip = (pageNum - 1) * perPage;
 
-    // NOTE: sort comes from user query. For safety you may want to validate allowed sort fields.
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
+
     const [items, total] = await Promise.all([
-      Book.find(filter).sort(sort).skip(skip).limit(perPage),
-      Book.countDocuments(filter),
+      Book.findAll({
+        where,
+        order: [[sortField || "createdAt", sortDir]],
+        offset: skip,
+        limit: perPage,
+      }),
+      Book.count({ where }),
     ]);
 
     // attach borrowedCount per book (number of active Issued issues)
     const bookIds = items.map((b) => b.id).filter(Boolean);
     if (bookIds.length > 0) {
-      const counts = await Issue.aggregate([
-        { $match: { book: { [Op.in]: bookIds.map((id) => id) }, status: "Issued" } },
-        { $group: { _id: "$book", count: { $sum: 1 } } },
-      ]);
-      const map = counts.reduce((acc, c) => ({ ...acc, [String(c.id)]: c.count }), {});
+      const issuedRows = await Issue.findAll({
+        where: { book_id: { [Op.in]: bookIds }, status: "Issued" },
+        attributes: ["book_id"],
+        raw: true,
+      });
+      const map = issuedRows.reduce((acc, row) => {
+        const key = String(row.book_id);
+        acc[key] = (acc[key] || 0) + 1;
+        return acc;
+      }, {});
       for (const it of items) {
         it.borrowedCount = map[String(it.id)] || 0;
       }
@@ -391,7 +406,11 @@ export const bulkCreateBooks = async (req, res, next) => {
     // 2) Skip rows whose provided isbn already exists in DB
     const providedIsbns = deduped.map((d) => d.isbn).filter(Boolean);
     const existing = providedIsbns.length
-      ? await Book.find({ isbn: { [Op.in]: providedIsbns } }).select("isbn")
+      ? await Book.findAll({
+          where: { isbn: { [Op.in]: providedIsbns } },
+          attributes: ["isbn"],
+          raw: true,
+        })
       : [];
 
     const existingIsbns = new Set(existing.map((x) => String(x.isbn || "").toLowerCase()).filter(Boolean));

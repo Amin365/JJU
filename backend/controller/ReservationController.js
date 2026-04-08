@@ -1,4 +1,3 @@
-import mongoose from "mongoose";
 import Reservation from "../models/Reservation.js";
 import Book from "../models/Books.js";
 import Member from "../models/Members.js";
@@ -16,16 +15,16 @@ export const createReservation = async (req, res, next) => {
     if (!book || !member) {
       return res.status(400).json({ message: "book and member are required" });
     }
-    if (!mongoose.Types.ObjectId.isValid(book)) {
+    if (!Number.isInteger(Number(book))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
-    if (!mongoose.Types.ObjectId.isValid(member)) {
+    if (!Number.isInteger(Number(member))) {
       return res.status(400).json({ message: "Invalid member id" });
     }
 
     const [bookDoc, memberDoc] = await Promise.all([
-      Book.findById(book).lean().exec(),
-      Member.findById(member).lean().exec(),
+      Book.findByPk(book),
+      Member.findByPk(member),
     ]);
 
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
@@ -46,48 +45,48 @@ export const createReservation = async (req, res, next) => {
 
     // Check if member already has an active reservation for this book
     const existing = await Reservation.findOne({
-      book: bookDoc._id,
-      member: memberDoc._id,
+      book: bookDoc.id,
+      member: memberDoc.id,
       status: "Active",
-    }).lean();
+    });
 
     if (existing) {
       return res.status(409).json({ message: "You already have an active reservation for this book." });
     }
 
     // Determine position in queue
-    const queueLength = await Reservation.countDocuments({
-      book: bookDoc._id,
+    const queueLength = await Reservation.count({ where: {
+      book: bookDoc.id,
       status: "Active",
-    });
+    } });
 
     const reservation = await Reservation.create({
-      book: bookDoc._id,
-      member: memberDoc._id,
+      book: bookDoc.id,
+      member: memberDoc.id,
       createdBy: req.user?._id,
       status: "Active",
     });
 
     // Notify the member's linked user
     try {
-      const memberUser = await User.findOne({ member: memberDoc._id }).select("_id").lean();
+      const memberUser = await User.findOne({ member: memberDoc.id }).select("_id");
       if (memberUser?._id) {
         await Notification.create({
-          user: memberUser._id,
+          user: memberUser.id,
           title: "Reservation confirmed",
           message: `Your reservation for "${bookDoc.title}" is confirmed. Queue position: #${queueLength + 1}.`,
           type: "info",
-          meta: { reservation: reservation._id, book: bookDoc._id, kind: "reservation-created" },
+          meta: { reservation: reservation.id, book: bookDoc.id, kind: "reservation-created" },
         });
       }
     } catch (_) {
       // Non-blocking
     }
 
-    const populated = await Reservation.findById(reservation._id)
+    const populated = await Reservation.findByPk(reservation.id)
       .populate("book", "title author isbn status book_picture")
       .populate("member", "first_name middle_name last_name full_name email code")
-      .lean();
+      ;
 
     return res.status(201).json({ data: populated, position: queueLength + 1 });
   } catch (err) {
@@ -107,8 +106,8 @@ export const getReservations = async (req, res, next) => {
     const skip = (pageNum - 1) * perPage;
 
     const filter = {};
-    if (book && mongoose.Types.ObjectId.isValid(book)) filter.book = book;
-    if (member && mongoose.Types.ObjectId.isValid(member)) filter.member = member;
+    if (book && Number.isInteger(Number(book))) filter.book = book;
+    if (member && Number.isInteger(Number(member))) filter.member = member;
     if (status) filter.status = status;
 
     const [items, total] = await Promise.all([
@@ -119,7 +118,7 @@ export const getReservations = async (req, res, next) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(perPage)
-        .lean(),
+        ,
       Reservation.countDocuments(filter),
     ]);
 
@@ -142,17 +141,17 @@ export const getReservations = async (req, res, next) => {
 export const getBookQueue = async (req, res, next) => {
   try {
     const { bookId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(bookId)) {
+    if (!Number.isInteger(Number(bookId))) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const book = await Book.findById(bookId).lean().exec();
+    const book = await Book.findByPk(bookId);
     if (!book) return res.status(404).json({ message: "Book not found" });
 
     const queue = await Reservation.find({ book: bookId, status: "Active" })
       .populate("member", "first_name middle_name last_name full_name email code")
       .sort({ createdAt: 1 }) // FIFO order
-      .lean();
+      ;
 
     // Attach position
     const queueWithPosition = queue.map((r, i) => ({ ...r, position: i + 1 }));
@@ -169,11 +168,11 @@ export const getBookQueue = async (req, res, next) => {
 export const cancelReservation = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid reservation id" });
     }
 
-    const reservation = await Reservation.findById(id).exec();
+    const reservation = await Reservation.findByPk(id);
     if (!reservation) return res.status(404).json({ message: "Reservation not found" });
 
     if (reservation.status !== "Active") {
@@ -196,14 +195,14 @@ export const cancelReservation = async (req, res, next) => {
 export const fulfillReservation = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid reservation id" });
     }
 
-    const reservation = await Reservation.findById(id)
+    const reservation = await Reservation.findByPk(id)
       .populate("book", "title")
       .populate("member", "first_name last_name email")
-      .exec();
+      ;
 
     if (!reservation) return res.status(404).json({ message: "Reservation not found" });
 
@@ -216,14 +215,14 @@ export const fulfillReservation = async (req, res, next) => {
 
     // Notify the member
     try {
-      const memberUser = await User.findOne({ member: reservation.member._id }).select("_id").lean();
+      const memberUser = await User.findOne({ member: reservation.member.id }).select("_id");
       if (memberUser?._id) {
         await Notification.create({
-          user: memberUser._id,
+          user: memberUser.id,
           title: "Reservation fulfilled",
           message: `Your reservation for "${reservation.book?.title}" has been fulfilled.`,
           type: "success",
-          meta: { reservation: reservation._id, book: reservation.book._id, kind: "reservation-fulfilled" },
+          meta: { reservation: reservation.id, book: reservation.book.id, kind: "reservation-fulfilled" },
         });
       }
     } catch (_) {
@@ -246,24 +245,24 @@ export async function notifyNextReservation(bookId) {
       .sort({ createdAt: 1 })
       .populate("member", "first_name last_name email")
       .populate("book", "title")
-      .lean();
+      ;
 
     if (!next) return;
 
     // Notify the member's linked user
-    const memberUser = await User.findOne({ member: next.member._id }).select("_id").lean();
+    const memberUser = await User.findOne({ member: next.member.id }).select("_id");
     if (memberUser?._id) {
       await Notification.create({
-        user: memberUser._id,
+        user: memberUser.id,
         title: "Book available!",
         message: `Good news! "${next.book?.title}" is now available for you to pick up. Visit the library to collect your reserved copy.`,
         type: "success",
-        meta: { reservation: next._id, book: next.book._id, kind: "reservation-ready" },
+        meta: { reservation: next.id, book: next.book.id, kind: "reservation-ready" },
       });
     }
 
     // Update notifiedAt on the reservation
-    await Reservation.findByIdAndUpdate(next._id, { notifiedAt: new Date() });
+    await Reservation.findByIdAndUpdate(next.id, { notifiedAt: new Date() });
   } catch (_) {
     // Non-blocking
   }

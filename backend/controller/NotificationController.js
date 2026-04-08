@@ -1,15 +1,15 @@
 import Notification from "../models/Notification.js";
+import { Op } from 'sequelize';
 import User from "../models/user.js";
 import Role from "../models/Role.js";
 import ModeratorMember from "../models/ModeratorMember.js";
-import mongoose from "mongoose";
 
 // Helper to get user role info
 async function getUserRoleInfo(userId) {
-  const currentUser = await User.findById(userId)
+  const currentUser = await User.findByPk(userId)
     .populate("role", "role plural")
-    .lean()
-    .exec();
+    
+    ;
 
   const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
   const isSuperAdmin = /super\s*admin/i.test(roleName);
@@ -25,24 +25,24 @@ async function buildNotificationFilter(userId, roleInfo, extraFilters = {}) {
 
   if (isSuperAdmin) {
     // Super admin: see all notifications except member missed-report reminders
-    notifFilter = { ...notifFilter, "meta.kind": { $ne: "missed-daily-report" } };
+    notifFilter = { ...notifFilter, "meta.kind": { [Op.ne]: "missed-daily-report" } };
   } else if (isModerator) {
     // Moderator: notifications targeted at them OR about assigned members
-    const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member").exec();
+    const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member");
     if (assignedMemberIds && assignedMemberIds.length > 0) {
       notifFilter = {
         ...notifFilter,
-        $or: [
-          { user: new mongoose.Types.ObjectId(userId) },
-          { "meta.member": { $in: assignedMemberIds.map((m) => new mongoose.Types.ObjectId(m)) } },
+        [Op.or]: [
+          { user: userId },
+          { "meta.member": { [Op.in]: assignedMemberIds.map((m) => m) } },
         ],
       };
     } else {
-      notifFilter = { ...notifFilter, user: new mongoose.Types.ObjectId(userId) };
+      notifFilter = { ...notifFilter, user: userId };
     }
   } else {
     // Regular user: only notifications for themselves
-    notifFilter = { ...notifFilter, user: new mongoose.Types.ObjectId(userId) };
+    notifFilter = { ...notifFilter, user: userId };
   }
 
   return notifFilter;
@@ -75,9 +75,9 @@ export const listNotifications = async (req, res, next) => {
         .sort({ createdAt: -1 })
         .skip(skip)
         .limit(perPage)
-        .lean()
-        .exec(),
-      Notification.countDocuments(notifFilter).exec(),
+        
+        ,
+      Notification.countDocuments(notifFilter),
     ]);
 
     return res.json({
@@ -101,7 +101,7 @@ export const markAllRead = async (req, res, next) => {
     const roleInfo = await getUserRoleInfo(userId);
     const updateFilter = await buildNotificationFilter(userId, roleInfo, { read: false });
 
-    await Notification.updateMany(updateFilter, { $set: { read: true } }).exec();
+    await Notification.updateMany(updateFilter, { $set: { read: true } });
     return res.json({ success: true });
   } catch (err) {
     return next(err);
@@ -116,7 +116,7 @@ export const markOneRead = async (req, res, next) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     // fetch notification and enforce scoping rules
-    const notif = await Notification.findById(id).lean().exec();
+    const notif = await Notification.findByPk(id);
     if (!notif) return res.status(404).json({ message: "Notification not found" });
 
     // Determine role
@@ -128,7 +128,7 @@ export const markOneRead = async (req, res, next) => {
     else if (String(notif.user) === String(userId)) allowed = true;
     else if (isModerator) {
       // allow if notification relates to a member assigned to this moderator
-      const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member").exec();
+      const assignedMemberIds = await ModeratorMember.find({ moderator: userId }).distinct("member");
       if (assignedMemberIds && assignedMemberIds.length > 0 && notif.meta && notif.meta.member) {
         allowed = assignedMemberIds.some((m) => String(m) === String(notif.meta.member));
       }
@@ -140,7 +140,7 @@ export const markOneRead = async (req, res, next) => {
       id,
       { $set: { read: true } },
       { new: true }
-    ).lean().exec();
+    );
     return res.json({ data: updated });
   } catch (err) {
     return next(err);
@@ -157,16 +157,16 @@ export const getNotificationStats = async (req, res, next) => {
     const baseFilter = await buildNotificationFilter(userId, roleInfo, {});
 
     const [total, unread, byType, byCategory] = await Promise.all([
-      Notification.countDocuments(baseFilter).exec(),
-      Notification.countDocuments({ ...baseFilter, read: false }).exec(),
+      Notification.countDocuments(baseFilter),
+      Notification.count({ where: { ...baseFilter, read: false } }),
       Notification.aggregate([
         { $match: baseFilter },
         { $group: { _id: "$type", count: { $sum: 1 } } },
-      ]).exec(),
+      ]),
       Notification.aggregate([
         { $match: baseFilter },
         { $group: { _id: "$category", count: { $sum: 1 } } },
-      ]).exec(),
+      ]),
     ]);
 
     return res.json({
@@ -175,11 +175,11 @@ export const getNotificationStats = async (req, res, next) => {
         unread,
         read: total - unread,
         byType: byType.reduce((acc, item) => {
-          acc[item._id || "unknown"] = item.count;
+          acc[item.id || "unknown"] = item.count;
           return acc;
         }, {}),
         byCategory: byCategory.reduce((acc, item) => {
-          acc[item._id || "unknown"] = item.count;
+          acc[item.id || "unknown"] = item.count;
           return acc;
         }, {}),
       },
@@ -196,7 +196,7 @@ export const deleteNotification = async (req, res, next) => {
     const { id } = req.params;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const notif = await Notification.findById(id).lean().exec();
+    const notif = await Notification.findByPk(id);
     if (!notif) return res.status(404).json({ message: "Notification not found" });
 
     const roleInfo = await getUserRoleInfo(userId);
@@ -207,7 +207,7 @@ export const deleteNotification = async (req, res, next) => {
       return res.status(403).json({ message: "Forbidden" });
     }
 
-    await Notification.findByIdAndDelete(id).exec();
+    await (Notification.destroy({ where: { id: id } }).then(() => Notification.findByPk(id_deleted)));
     return res.json({ success: true, message: "Notification deleted" });
   } catch (err) {
     return next(err);
@@ -225,10 +225,10 @@ export const deleteAllRead = async (req, res, next) => {
 
     let deleteFilter = { read: true };
     if (!isSuperAdmin) {
-      deleteFilter.user = new mongoose.Types.ObjectId(userId);
+      deleteFilter.user = userId;
     }
 
-    const result = await Notification.deleteMany(deleteFilter).exec();
+    const result = await Notification.deleteMany(deleteFilter);
     return res.json({ 
       success: true, 
       message: `Deleted ${result.deletedCount} notifications` 

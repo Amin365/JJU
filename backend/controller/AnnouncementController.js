@@ -1,10 +1,10 @@
 import Notification from "../models/Notification.js";
+import { Op } from 'sequelize';
 import User from "../models/user.js";
 import Member from "../models/Members.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
 import Role from "../models/Role.js";
-import mongoose from "mongoose";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 import { sendPushToUser } from "../utility/push.js";
 import { checkUserPreference, isInQuietHours } from "./NotificationPreferencesController.js";
@@ -13,10 +13,10 @@ const APP_NAME = process.env.APP_NAME || "JJU Reading Club";
 
 // Helper to determine if user is admin/superadmin
 async function isAdmin(userId) {
-  const user = await User.findById(userId)
+  const user = await User.findByPk(userId)
     .populate("role", "role plural")
-    .lean()
-    .exec();
+    
+    ;
 
   const roleName = (user?.role?.role || user?.role?.plural || "").toLowerCase();
   return /super\s*admin/i.test(roleName) || /admin/i.test(roleName);
@@ -29,28 +29,28 @@ async function getTargetAudience(targetAudience) {
 
   switch (targetAudience) {
     case "all":
-      return User.find({ status: "Active" }).select("_id email member").populate("member", "first_name last_name email").lean().exec();
+      return User.find({ status: "Active" }).select("_id email member").populate("member", "first_name last_name email");
 
     case "members": {
       // Users with "Members" role
-      const memberRole = await Role.findOne({ role: { $regex: /^members?$/i } }).lean();
+      const memberRole = await Role.findOne({ role: { [Op.like]: /^members?$/i } });
       if (!memberRole) return [];
-      return User.find({ role: memberRole._id, status: "Active" })
+      return User.find({ role: memberRole.id, status: "Active" })
         .select("_id email member")
         .populate("member", "first_name last_name email")
-        .lean()
-        .exec();
+        
+        ;
     }
 
     case "moderators": {
       // Users with "Moderator" role
-      const modRole = await Role.findOne({ role: { $regex: /^moderator$/i } }).lean();
+      const modRole = await Role.findOne({ role: { [Op.like]: /^moderator$/i } });
       if (!modRole) return [];
-      return User.find({ role: modRole._id, status: "Active" })
+      return User.find({ role: modRole.id, status: "Active" })
         .select("_id email member")
         .populate("member", "first_name last_name email")
-        .lean()
-        .exec();
+        
+        ;
     }
 
     case "inactive": {
@@ -59,44 +59,44 @@ async function getTargetAudience(targetAudience) {
       sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
       const activeReporters = await DailyReport.distinct("member", {
-        date: { $gte: sevenDaysAgo },
-      }).exec();
+        date: { [Op.gte]: sevenDaysAgo },
+      });
 
       // Get all members not in active reporters
       const inactiveMembers = await Member.find({
         _id: { $nin: activeReporters },
-        status: { $ne: "archived" },
-      }).select("_id").lean();
+        status: { [Op.ne]: "archived" },
+      }).select("_id");
 
-      const inactiveMemberIds = inactiveMembers.map((m) => m._id);
+      const inactiveMemberIds = inactiveMembers.map((m) => m.id);
 
       return User.find({
-        member: { $in: inactiveMemberIds },
+        member: { [Op.in]: inactiveMemberIds },
         status: "Active",
       })
         .select("_id email member")
         .populate("member", "first_name last_name email")
-        .lean()
-        .exec();
+        
+        ;
     }
 
     case "overdue": {
       // Users with overdue book issues - use distinct() for efficient deduplication
       const overdueMemberIds = await Issue.distinct("member", {
-        returnDate: { $lt: today },
+        returnDate: { [Op.lt]: today },
         returnedAt: null,
-      }).exec();
+      });
 
       if (!overdueMemberIds.length) return [];
 
       return User.find({
-        member: { $in: overdueMemberIds },
+        member: { [Op.in]: overdueMemberIds },
         status: "Active",
       })
         .select("_id email member")
         .populate("member", "first_name last_name email")
-        .lean()
-        .exec();
+        
+        ;
     }
 
     default:
@@ -145,7 +145,7 @@ export const createAnnouncement = async (req, res, next) => {
 
     // Create notifications for all target users
     const notifications = targetUsers.map((user) => ({
-      user: user._id,
+      user: user.id,
       title,
       message,
       type: "announcement",
@@ -161,24 +161,24 @@ export const createAnnouncement = async (req, res, next) => {
       },
     }));
 
-    await Notification.insertMany(notifications);
+    await Notification.bulkCreate(notifications);
 
     // Send push notifications (respecting user preferences and quiet hours)
     if (sendPush) {
       for (const user of targetUsers) {
         try {
-          const canSendPush = await checkUserPreference(user._id, "pushOnSystemAnnouncement");
-          const inQuietHours = await isInQuietHours(user._id);
+          const canSendPush = await checkUserPreference(user.id, "pushOnSystemAnnouncement");
+          const inQuietHours = await isInQuietHours(user.id);
 
           if (canSendPush && !inQuietHours) {
-            await sendPushToUser(user._id, {
+            await sendPushToUser(user.id, {
               title: `📢 ${title}`,
               body: message.substring(0, 200),
               data: { url: ctaUrl || "/dashboard/notifications" },
             });
           }
         } catch (pushErr) {
-          console.error(`Push notification failed for user ${user._id}:`, pushErr.message);
+          console.error(`Push notification failed for user ${user.id}:`, pushErr.message);
         }
       }
     }
@@ -187,7 +187,7 @@ export const createAnnouncement = async (req, res, next) => {
     if (sendEmail) {
       for (const user of targetUsers) {
         try {
-          const canSendEmail = await checkUserPreference(user._id, "emailOnAnnouncement");
+          const canSendEmail = await checkUserPreference(user.id, "emailOnAnnouncement");
           if (!canSendEmail) continue;
 
           const recipientEmail = user.email || user.member?.email;
@@ -212,7 +212,7 @@ export const createAnnouncement = async (req, res, next) => {
             }),
           });
         } catch (emailErr) {
-          console.error(`Email failed for user ${user._id}:`, emailErr.message);
+          console.error(`Email failed for user ${user.id}:`, emailErr.message);
         }
       }
     }
@@ -270,7 +270,7 @@ export const getAnnouncementHistory = async (req, res, next) => {
       { $sort: { createdAt: -1 } },
       { $skip: skip },
       { $limit: perPage },
-    ]).exec();
+    ]);
 
     const total = await Notification.aggregate([
       { $match: { "meta.kind": "bulk-announcement" } },
@@ -284,7 +284,7 @@ export const getAnnouncementHistory = async (req, res, next) => {
         },
       },
       { $count: "total" },
-    ]).exec();
+    ]);
 
     return res.json({
       data: announcements,
@@ -323,7 +323,7 @@ export const getAudiencePreview = async (req, res, next) => {
         targetAudience,
         count: targetUsers.length,
         preview: targetUsers.slice(0, 5).map((u) => ({
-          id: u._id,
+          _id: u.id,
           email: u.email || u.member?.email,
           name: u.member ? `${u.member.first_name || ""} ${u.member.last_name || ""}`.trim() : "Unknown",
         })),

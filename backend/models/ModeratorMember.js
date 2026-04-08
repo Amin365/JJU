@@ -1,12 +1,10 @@
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-import mongoose from "mongoose";
+const ModeratorMember = sequelize.define('ModeratorMember', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  moderator_id: { type: DataTypes.INTEGER, allowNull: false },
+  member_id: { type: DataTypes.INTEGER, allowNull: false, unique: true },
+}, { tableName: 'moderator_members', timestamps: true });
 
-const ModeratorMemberSchema = new mongoose.Schema(
-  {
-    moderator: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true }, // User with Moderator role
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true, unique: true }, // One member per moderator
-  },
-  { timestamps: true }
-);
-
-export default mongoose.model("ModeratorMember", ModeratorMemberSchema);
+export default ModeratorMember;

@@ -1,110 +1,46 @@
-import mongoose from "mongoose";
-import bcrypt from "bcryptjs";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
+import bcrypt from 'bcryptjs';
 
-const userSchema = new mongoose.Schema(
-  {
-    first_name: { type: String, required: true, trim: true },
-  middle_name: { type: String, trim: true },
-    last_name: { type: String, required: true, trim: true },
-    username: { type: String, required: true, unique: true, trim: true },
-    email: { type: String, required: true, unique: true, trim: true },
-    password: { type: String, required: true },
-    member_id: { type: String, unique: true, trim: true },
-    status: { type: String, enum: ['Active', 'Inactive', 'pending'], default: 'Active' },
-    Bio:{type:String, required:false},
-    profile_picture:{type:String,  default: ""},
+const User = sequelize.define('User', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  first_name: { type: DataTypes.STRING, allowNull: false },
+  middle_name: { type: DataTypes.STRING },
+  last_name: { type: DataTypes.STRING, allowNull: false },
+  username: { type: DataTypes.STRING, allowNull: false, unique: true },
+  email: { type: DataTypes.STRING, allowNull: false, unique: true },
+  password: { type: DataTypes.STRING, allowNull: false },
+  member_id: { type: DataTypes.STRING, unique: true },
+  status: { type: DataTypes.ENUM('Active', 'Inactive', 'pending'), defaultValue: 'Active' },
+  Bio: { type: DataTypes.TEXT },
+  profile_picture: { type: DataTypes.STRING, defaultValue: '' },
+  role_id: { type: DataTypes.INTEGER, allowNull: true },
+  member_id_fk: { type: DataTypes.INTEGER, allowNull: true, unique: true },
+  added_by: { type: DataTypes.INTEGER, allowNull: true },
+  updated_by: { type: DataTypes.INTEGER, allowNull: true },
+  resetPasswordCode: { type: DataTypes.STRING },
+  resetPasswordExpires: { type: DataTypes.DATE },
+  mustChangePassword: { type: DataTypes.BOOLEAN, defaultValue: false },
+  inviteToken: { type: DataTypes.STRING },
+  inviteTokenExpires: { type: DataTypes.DATE },
+  invited_by: { type: DataTypes.INTEGER, allowNull: true },
+  invitedAt: { type: DataTypes.DATE },
+  lastPasswordChange: { type: DataTypes.DATE },
+  passwordChangedCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: 'users', timestamps: true });
 
-    //  Role reference (1-to-Many)
-    role: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "Role",
-      default: null,
-    },
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true, unique: true },
-
-
-    //  Self-reference for added_by and updated_by
-    added_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-    updated_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      default: null,
-    },
-resetPasswordCode: {
-  type: String,
-},
-resetPasswordExpires: {
-  type: Date,
-},
-
-// Phase 8 - Safer onboarding fields
-mustChangePassword: {
-  type: Boolean,
-  default: false,
-},
-inviteToken: {
-  type: String,
-  index: true,
-},
-inviteTokenExpires: {
-  type: Date,
-},
-invitedBy: {
-  type: mongoose.Schema.Types.ObjectId,
-  ref: "User",
-  default: null,
-},
-invitedAt: {
-  type: Date,
-},
-lastPasswordChange: {
-  type: Date,
-},
-passwordChangedCount: {
-  type: Number,
-  default: 0,
-},
-
-  },
-  { timestamps: true }
-);
-
-// 🔒 Password hashing
-userSchema.pre("save", async function () {
-  if (!this.isModified("password")) return;
-
+User.addHook('beforeSave', async (user) => {
+  if (!user.changed('password')) return;
   const salt = await bcrypt.genSalt(10);
-  this.password = await bcrypt.hash(this.password, salt);
-  
-  // Track password change
-  this.lastPasswordChange = new Date();
-  if (!this.isNew) {
-    this.passwordChangedCount = (this.passwordChangedCount || 0) + 1;
+  user.password = await bcrypt.hash(user.password, salt);
+  user.lastPasswordChange = new Date();
+  if (!user.isNewRecord) {
+    user.passwordChangedCount = (user.passwordChangedCount || 0) + 1;
   }
 });
 
-// ✅ Compare entered password
-userSchema.methods.matchPassword = async function (enteredPassword) {
-  return await bcrypt.compare(enteredPassword, this.password);
+User.prototype.matchPassword = async function (enteredPassword) {
+  return bcrypt.compare(enteredPassword, this.password);
 };
 
-//  Virtual for User → Permissions (Many-to-Many via UserPermission)
-userSchema.virtual("permissions", {
-  ref: "UserPermission",    // join collection
-  localField: "_id",
-  foreignField: "user",
-});
-
-
-// Enable virtuals in JSON
-userSchema.set("toObject", { virtuals: true });
-userSchema.set("toJSON", { virtuals: true });
-
-const User = mongoose.model("User", userSchema);
-
 export default User;
-

@@ -1,15 +1,16 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const StreakRestoreSchema = new mongoose.Schema(
-  {
-    user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true, index: true },
-    month: { type: String, required: true, index: true }, // YYYY-MM
-    count: { type: Number, default: 0 },
-    restoredForDate: { type: Date, default: null },
-  },
-  { timestamps: true }
-);
+const StreakRestore = sequelize.define('StreakRestore', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  month: { type: DataTypes.STRING, allowNull: false },
+  count: { type: DataTypes.INTEGER, defaultValue: 0 },
+  restoredForDate: { type: DataTypes.DATE },
+}, {
+  tableName: 'streak_restores',
+  timestamps: true,
+  indexes: [{ unique: true, fields: ['user_id', 'month'] }],
+});
 
-StreakRestoreSchema.index({ user: 1, month: 1 }, { unique: true });
-
-export default mongoose.model("StreakRestore", StreakRestoreSchema);
+export default StreakRestore;

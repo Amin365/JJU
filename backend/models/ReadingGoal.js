@@ -1,23 +1,16 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const ReadingGoalSchema = new mongoose.Schema({
-  user: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-  goalType: {
-    type: String,
-    enum: ["pages_per_day", "minutes_per_day", "reports_per_week"],
-    required: true,
-  },
-  targetValue: { type: Number, required: true, min: 1 },
-  startDate: { type: Date, required: true },
-  endDate: { type: Date, default: null },
-  status: {
-    type: String,
-    enum: ["Active", "Completed", "Expired"],
-    default: "Active",
-  },
-  completedAt: { type: Date, default: null },
-  completionNotifiedAt: { type: Date, default: null },
-}, { timestamps: true });
+const ReadingGoal = sequelize.define('ReadingGoal', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false },
+  goalType: { type: DataTypes.ENUM('pages_per_day', 'minutes_per_day', 'reports_per_week'), allowNull: false },
+  targetValue: { type: DataTypes.INTEGER, allowNull: false },
+  startDate: { type: DataTypes.DATE, allowNull: false },
+  endDate: { type: DataTypes.DATE },
+  status: { type: DataTypes.ENUM('Active', 'Completed', 'Expired'), defaultValue: 'Active' },
+  completedAt: { type: DataTypes.DATE },
+  completionNotifiedAt: { type: DataTypes.DATE },
+}, { tableName: 'reading_goals', timestamps: true });
 
-const ReadingGoal = mongoose.model("ReadingGoal", ReadingGoalSchema);
 export default ReadingGoal;

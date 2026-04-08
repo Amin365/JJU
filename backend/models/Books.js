@@ -1,46 +1,34 @@
-import mongoose from 'mongoose';
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const counterSchema = new mongoose.Schema({
-  name: { type: String, required: true, unique: true },
-  seq: { type: Number, default: 0 },
-}, { timestamps: false });
+export const Counter = sequelize.define('Counter', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING, unique: true, allowNull: false },
+  seq: { type: DataTypes.INTEGER, defaultValue: 0 },
+}, { tableName: 'counters', timestamps: false });
 
-const Counter = mongoose.model('Counter', counterSchema);
+const Book = sequelize.define('Book', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  title: { type: DataTypes.STRING, allowNull: false },
+  author: { type: DataTypes.STRING },
+  isbn: { type: DataTypes.STRING, unique: true },
+  BookType: { type: DataTypes.STRING },
+  status: { type: DataTypes.ENUM('available', 'borrowed', 'lost', 'damaged', 'archived'), defaultValue: 'available' },
+  book_picture: { type: DataTypes.STRING },
+  totalPages: { type: DataTypes.INTEGER, defaultValue: 0 },
+  totalCopies: { type: DataTypes.INTEGER, defaultValue: 1 },
+  availableCopies: { type: DataTypes.INTEGER, defaultValue: 1 },
+}, { tableName: 'books', timestamps: true });
 
-const bookSchema = new mongoose.Schema({
-  title: { type: String, required: true },
-  author: { type: String },
-  isbn: { type: String, required: true, unique: true },
-  BookType: { type: String },
-
-  status: { type: String, enum: ['available', 'borrowed', 'lost', 'damaged', 'archived'], default: "available" },
-  book_picture:{type:String},
-  totalPages: { type: Number, default: 0 },
-  totalCopies: { type: Number, default: 1 },
-  availableCopies: { type: Number, default: 1 },
-}, { timestamps: true });
-
-
-bookSchema.pre('validate', async function () {
-
-  if (!this.isNew || this.isbn) return;
-
+Book.addHook('beforeCreate', async (book) => {
+  if (book.isbn) return;
   const prefix = 'ISBN';
   const padding = 4;
   const counterName = 'book_isbn';
-
-  // Atomic increment to avoid race conditions
-  const updated = await Counter.findOneAndUpdate(
-    { name: counterName },
-    { $inc: { seq: 1 } },
-    { new: true, upsert: true }
-  );
-
-  const seq = (updated && updated.seq) ? updated.seq : 1;
-  const padded = String(seq).padStart(padding, '0');
-  this.isbn = `${prefix}${padded}`;
+  const [counter] = await Counter.findOrCreate({ where: { name: counterName }, defaults: { seq: 0 } });
+  counter.seq = (counter.seq || 0) + 1;
+  await counter.save();
+  book.isbn = `${prefix}${String(counter.seq).padStart(padding, '0')}`;
 });
-
-const Book = mongoose.model('Book', bookSchema);
 
 export default Book;

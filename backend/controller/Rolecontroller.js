@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import Role from "../models/Role.js";
+import { Op } from 'sequelize';
 import Permission from "../models/Permissions.js";
 import PermissionCategory from "../models/PermissionCategory.js";
 import RolePermission from "../models/RolePermission.js";
@@ -49,7 +49,7 @@ export async function getRoles(req, res) {
   try {
     const { includePermissions } = req.query;
 
-    let roles = await Role.find().lean().exec();
+    let roles = await Role.find();
 
     if (includePermissions === "true") {
       // Get permission counts for each role
@@ -59,12 +59,12 @@ export async function getRoles(req, res) {
 
       const countMap = {};
       permissionCounts.forEach((pc) => {
-        countMap[pc._id.toString()] = pc.count;
+        countMap[pc.id.toString()] = pc.count;
       });
 
       roles = roles.map((r) => ({
         ...r,
-        permissionCount: countMap[r._id.toString()] || 0,
+        permissionCount: countMap[r.id.toString()] || 0,
       }));
     }
 
@@ -82,11 +82,11 @@ export async function getRoleById(req, res) {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
-    const role = await Role.findById(id).lean().exec();
+    const role = await Role.findByPk(id);
     if (!role) {
       return res.status(404).json({ message: "Role not found" });
     }
@@ -97,13 +97,13 @@ export async function getRoleById(req, res) {
         path: "permission",
         populate: { path: "category", select: "name" },
       })
-      .lean()
-      .exec();
+      
+      ;
 
     const permissions = rolePermissions
       .filter((rp) => rp.permission)
       .map((rp) => ({
-        _id: rp.permission._id,
+        _id: rp.permission.id,
         permission: rp.permission.permission,
         category: rp.permission.category?.name || null,
         grouped_under: rp.permission.grouped_under,
@@ -126,11 +126,11 @@ export async function updateRole(req, res) {
     const { id } = req.params;
     const { role, plural, color } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
-    const existing = await Role.findById(id).lean().exec();
+    const existing = await Role.findByPk(id);
     if (!existing) {
       return res.status(404).json({ message: "Role not found" });
     }
@@ -145,7 +145,7 @@ export async function updateRole(req, res) {
     if (plural !== undefined) updateData.plural = plural?.trim() || "";
     if (color !== undefined) updateData.color = color;
 
-    const updated = await Role.findByIdAndUpdate(id, updateData, { new: true }).lean().exec();
+    const updated = await Role.findByIdAndUpdate(id, updateData, { new: true });
 
     // Audit log
     const changes = buildChanges(existing, updated, ["role", "plural", "color"]);
@@ -171,11 +171,11 @@ export async function deleteRole(req, res) {
   try {
     const { id } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
-    const role = await Role.findById(id).lean().exec();
+    const role = await Role.findByPk(id);
     if (!role) {
       return res.status(404).json({ message: "Role not found" });
     }
@@ -186,10 +186,10 @@ export async function deleteRole(req, res) {
     }
 
     // Delete role-permission mappings
-    await RolePermission.deleteMany({ role: id });
+    await RolePermission.destroy({ where: { role: id } });
 
     // Delete the role
-    await Role.findByIdAndDelete(id);
+    await (Role.destroy({ where: { id: id } }).then(() => Role.findByPk(id_deleted)));
 
     // Audit log
     await logRoleAction("deleted", role, req.user, req, {
@@ -211,19 +211,19 @@ export async function addPermissionToRole(req, res) {
     const { id } = req.params;
     const { permissionId } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
-    if (!mongoose.Types.ObjectId.isValid(permissionId)) {
+    if (!Number.isInteger(Number(permissionId))) {
       return res.status(400).json({ message: "Invalid permission ID" });
     }
 
-    const role = await Role.findById(id).lean().exec();
+    const role = await Role.findByPk(id);
     if (!role) {
       return res.status(404).json({ message: "Role not found" });
     }
 
-    const permission = await Permission.findById(permissionId).lean().exec();
+    const permission = await Permission.findByPk(permissionId);
     if (!permission) {
       return res.status(404).json({ message: "Permission not found" });
     }
@@ -245,7 +245,7 @@ export async function addPermissionToRole(req, res) {
       user: req.user,
       action: "role.permission_added",
       entityType: "Role",
-      entityId: role._id,
+      entityId: role.id,
       entityLabel: role.role,
       req,
       meta: { permissionId, permissionName: permission.permission },
@@ -266,19 +266,19 @@ export async function removePermissionFromRole(req, res) {
   try {
     const { id, permissionId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
-    if (!mongoose.Types.ObjectId.isValid(permissionId)) {
+    if (!Number.isInteger(Number(permissionId))) {
       return res.status(400).json({ message: "Invalid permission ID" });
     }
 
-    const role = await Role.findById(id).lean().exec();
+    const role = await Role.findByPk(id);
     if (!role) {
       return res.status(404).json({ message: "Role not found" });
     }
 
-    const permission = await Permission.findById(permissionId).lean().exec();
+    const permission = await Permission.findByPk(permissionId);
 
     const deleted = await RolePermission.findOneAndDelete({ role: id, permission: permissionId });
     if (!deleted) {
@@ -290,7 +290,7 @@ export async function removePermissionFromRole(req, res) {
       user: req.user,
       action: "role.permission_removed",
       entityType: "Role",
-      entityId: role._id,
+      entityId: role.id,
       entityLabel: role.role,
       req,
       meta: { permissionId, permissionName: permission?.permission },
@@ -311,8 +311,8 @@ export async function getPermissions(req, res) {
   try {
     const permissions = await Permission.find()
       .populate("category", "name")
-      .lean()
-      .exec();
+      
+      ;
 
     // Group by category
     const grouped = {};
@@ -336,7 +336,7 @@ export async function getPermissions(req, res) {
  */
 export async function getPermissionCategories(req, res) {
   try {
-    const categories = await PermissionCategory.find().lean().exec();
+    const categories = await PermissionCategory.find();
     res.status(200).json({ data: categories });
   } catch (error) {
     res.status(500).json({ message: "Server error", error: error.message });
@@ -350,21 +350,21 @@ export async function getPermissionCategories(req, res) {
 export async function getPermissionMatrix(req, res) {
   try {
     // Get all roles
-    const roles = await Role.find().lean().exec();
+    const roles = await Role.find();
 
     // Get all permissions grouped by category
     const permissions = await Permission.find()
       .populate("category", "name")
-      .lean()
-      .exec();
+      
+      ;
 
     // Get all role-permission mappings
-    const rolePermissions = await RolePermission.find().lean().exec();
+    const rolePermissions = await RolePermission.find();
 
     // Build matrix
     const matrix = {};
     roles.forEach((role) => {
-      matrix[role._id.toString()] = {
+      matrix[role.id.toString()] = {
         role,
         permissions: new Set(),
       };
@@ -380,7 +380,7 @@ export async function getPermissionMatrix(req, res) {
     // Convert Sets to arrays and group permissions by category
     const result = roles.map((role) => ({
       ...role,
-      permissions: Array.from(matrix[role._id.toString()].permissions),
+      permissions: Array.from(matrix[role.id.toString()].permissions),
     }));
 
     // Group permissions by category
@@ -414,7 +414,7 @@ export async function bulkUpdateRolePermissions(req, res) {
     const { id } = req.params;
     const { permissionIds } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
@@ -422,15 +422,15 @@ export async function bulkUpdateRolePermissions(req, res) {
       return res.status(400).json({ message: "permissionIds must be an array" });
     }
 
-    const role = await Role.findById(id).lean().exec();
+    const role = await Role.findByPk(id);
     if (!role) {
       return res.status(404).json({ message: "Role not found" });
     }
 
     // Get current permissions
-    const currentPermissions = await RolePermission.find({ role: id }).lean();
+    const currentPermissions = await RolePermission.find({ role: id });
     const currentPermIds = new Set(currentPermissions.map((rp) => rp.permission.toString()));
-    const newPermIds = new Set(permissionIds.filter((pid) => mongoose.Types.ObjectId.isValid(pid)));
+    const newPermIds = new Set(permissionIds.filter((pid) => Number.isInteger(Number(pid))));
 
     // Permissions to add
     const toAdd = [...newPermIds].filter((pid) => !currentPermIds.has(pid));
@@ -440,7 +440,7 @@ export async function bulkUpdateRolePermissions(req, res) {
 
     // Remove old permissions
     if (toRemove.length > 0) {
-      await RolePermission.deleteMany({ role: id, permission: { $in: toRemove } });
+      await RolePermission.deleteMany({ role: id, permission: { [Op.in]: toRemove } });
     }
 
     // Add new permissions
@@ -450,7 +450,7 @@ export async function bulkUpdateRolePermissions(req, res) {
         permission: pid,
         added_by: req.user?._id || null,
       }));
-      await RolePermission.insertMany(newMappings);
+      await RolePermission.bulkCreate(newMappings);
     }
 
     // Audit log
@@ -458,7 +458,7 @@ export async function bulkUpdateRolePermissions(req, res) {
       user: req.user,
       action: "role.updated",
       entityType: "Role",
-      entityId: role._id,
+      entityId: role.id,
       entityLabel: role.role,
       req,
       meta: { added: toAdd.length, removed: toRemove.length },

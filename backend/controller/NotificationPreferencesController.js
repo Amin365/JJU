@@ -1,6 +1,5 @@
 import NotificationPreferences from "../models/NotificationPreferences.js";
 import User from "../models/user.js";
-import mongoose from "mongoose";
 
 // Default preferences structure
 const defaultPreferences = {
@@ -30,7 +29,7 @@ export const getMyPreferences = async (req, res, next) => {
     const userId = req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    let prefs = await NotificationPreferences.findOne({ user: userId }).lean().exec();
+    let prefs = await NotificationPreferences.findOne({ user: userId });
 
     // If no preferences exist, return defaults
     if (!prefs) {
@@ -82,7 +81,7 @@ export const updateMyPreferences = async (req, res, next) => {
       { user: userId },
       { $set: updates },
       { new: true, upsert: true, setDefaultsOnInsert: true }
-    ).lean().exec();
+    );
 
     return res.json({ data: prefs, message: "Preferences updated successfully" });
   } catch (err) {
@@ -100,7 +99,7 @@ export const resetMyPreferences = async (req, res, next) => {
       { user: userId },
       { $set: defaultPreferences },
       { new: true, upsert: true }
-    ).lean().exec();
+    );
 
     return res.json({ data: prefs, message: "Preferences reset to defaults" });
   } catch (err) {
@@ -112,7 +111,7 @@ export const resetMyPreferences = async (req, res, next) => {
 export async function checkUserPreference(userId, preferenceKey) {
   if (!userId) return defaultPreferences[preferenceKey] ?? true;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId }).lean().exec();
+  const prefs = await NotificationPreferences.findOne({ user: userId });
   if (!prefs) return defaultPreferences[preferenceKey] ?? true;
 
   return prefs[preferenceKey] ?? defaultPreferences[preferenceKey] ?? true;
@@ -135,7 +134,7 @@ function parseTimeString(timeStr) {
 export async function isInQuietHours(userId) {
   if (!userId) return false;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId }).lean().exec();
+  const prefs = await NotificationPreferences.findOne({ user: userId });
   if (!prefs || !prefs.quietHoursEnabled) return false;
 
   const now = new Date();

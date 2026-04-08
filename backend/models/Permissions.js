@@ -1,48 +1,13 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const PermissionSchema = new mongoose.Schema(
-  {
-    permission: {
-      type: String,
-      required: true,
-      unique: true,          // 🔒 prevent duplicates
-      trim: true,
-      lowercase: true,       // 🧼 normalize
-      default: "",
-    },
-
-    grouped_under: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-
-    subgroup_string: {
-      type: String,
-      default: null,
-      trim: true,
-    },
-
-    system: {
-      type: Boolean,
-      default: false,
-    },
-
-    category: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "PermissionCategory",
-      default: null,
-    },
-  },
-  {
-    timestamps: false,
-  }
-);
-
-// 📌 Indexes for performance
-PermissionSchema.index({ category: 1 });
-PermissionSchema.index({ grouped_under: 1 });
-
-const Permission = mongoose.model("Permission", PermissionSchema);
+const Permission = sequelize.define('Permission', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  permission: { type: DataTypes.STRING, unique: true, allowNull: false },
+  grouped_under: { type: DataTypes.STRING },
+  subgroup_string: { type: DataTypes.STRING },
+  system: { type: DataTypes.BOOLEAN, defaultValue: false },
+  category_id: { type: DataTypes.INTEGER, allowNull: true },
+}, { tableName: 'permissions', timestamps: false });
 
 export default Permission;

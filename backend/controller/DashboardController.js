@@ -1,5 +1,6 @@
 
 import Book from "../models/Books.js";
+import { Op } from 'sequelize';
 import Member from "../models/Members.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
@@ -23,14 +24,14 @@ export const getDashboardStats = async (req, res) => {
       pendingJoinRequests,
       pendingDailyReports,
     ] = await Promise.all([
-      Book.countDocuments(),
+      Book.count(),
       Book.aggregate([{ $group: { _id: null, total: { $sum: "$availableCopies" } } }]),
-      Issue.countDocuments({ status: "Issued" }),
-      Member.countDocuments(),
-      Member.countDocuments({ status: "Active" }),
-      Issue.countDocuments({ status: "Overdue" }),
-      Clubreq.countDocuments({ status: "Pending" }),
-      DailyReport.countDocuments({ status: "Pending" }),
+      Issue.count({ where: { status: "Issued" } }),
+      Member.count(),
+      Member.count({ where: { status: "Active" } }),
+      Issue.count({ where: { status: "Overdue" } }),
+      Clubreq.count({ where: { status: "Pending" } }),
+      DailyReport.count({ where: { status: "Pending" } }),
     ]);
 
     res.json({
@@ -71,7 +72,7 @@ export const getRecentActivity = async (req, res) => {
         .sort({ createdAt: -1 })
         .limit(5)
         .select("title author createdAt"),
-      Issue.find({ status: { $in: ["Issued", "Overdue"] } })
+      Issue.find({ status: { [Op.in]: ["Issued", "Overdue"] } })
         .sort({ createdAt: -1 })
         .limit(5)
         .populate("book", "title")
@@ -202,12 +203,12 @@ export const getTopReaders = async (req, res) => {
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const user = await User.findById(entry._id)
+        const user = await User.findByPk(entry.id)
           .select("first_name last_name profile_picture member")
           .populate("member", "first_name last_name code");
 
         return {
-          _id: entry._id,
+          _id: entry.id,
           reportCount: entry.reportCount,
           lastReport: entry.lastReport,
           totalPages: entry.totalPages,
@@ -242,12 +243,12 @@ export const getPopularBooks = async (req, res) => {
 
     const enriched = await Promise.all(
       grouped.map(async (entry) => {
-        const book = await Book.findById(entry._id).select(
+        const book = await Book.findByPk(entry.id).select(
           "title author availableCopies totalCopies book_picture"
         );
 
         return {
-          _id: entry._id,
+          _id: entry.id,
           issueCount: entry.issueCount,
           title: book?.title ?? "Unknown",
           author: book?.author ?? null,
@@ -286,7 +287,7 @@ export const getPendingApprovals = async (req, res) => {
         .populate("book", "title author")
         .populate("member", "first_name last_name code"),
       DailyReport.find({
-        createdAt: { $gte: todayStart, $lte: todayEnd },
+        createdAt: { [Op.gte]: todayStart, [Op.lte]: todayEnd },
       })
         .sort({ createdAt: -1 })
         .limit(10)

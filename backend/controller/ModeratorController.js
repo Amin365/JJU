@@ -1,41 +1,41 @@
 
 import User from "../models/user.js";
+import { Op } from 'sequelize';
 import Member from "../models/Members.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Role from "../models/Role.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
-import mongoose from "mongoose";
 
 // Get list of moderators (users with 'Moderator' role)
 export const getModerators = async (req, res, next) => {
   try {
     // Find Role documents for 'Moderator' and 'Super Admin' (match name or plural, case-insensitive)
     const moderatorRole = await Role.findOne({
-      $or: [
-        { role: { $regex: "^Moderator$", $options: "i" } },
-        { plural: { $regex: "^Moderators$", $options: "i" } },
+      [Op.or]: [
+        { role: { [Op.like]: "^Moderator$", $options: "i" } },
+        { plural: { [Op.like]: "^Moderators$", $options: "i" } },
       ],
     });
 
     const superAdminRole = await Role.findOne({
-      $or: [
-        { role: { $regex: "^Super Admin$", $options: "i" } },
-        { plural: { $regex: "^Super Admins$", $options: "i" } },
+      [Op.or]: [
+        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
+        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
       ],
     });
 
     // Collect role ids to include (Moderator + Super Admin when present)
     const roleIds = [];
-    if (moderatorRole) roleIds.push(moderatorRole._id);
-    if (superAdminRole) roleIds.push(superAdminRole._id);
+    if (moderatorRole) roleIds.push(moderatorRole.id);
+    if (superAdminRole) roleIds.push(superAdminRole.id);
 
     if (roleIds.length === 0) return res.status(200).json({ data: [] });
 
-    const moderators = await User.find({ role: { $in: roleIds } })
+    const moderators = await User.find({ role: { [Op.in]: roleIds } })
       .select("_id username first_name last_name email role")
       .populate("role", "role plural")
-      .lean();
+      ;
 
     // Debug: show what Roles were found and how many users matched directly
     // console.debug("getModerators - roles:", { moderatorRole: moderatorRole?.role, superAdminRole: superAdminRole?.role });
@@ -48,16 +48,16 @@ export const getModerators = async (req, res, next) => {
     if (moderatorRole) {
       migrationTasks.push(
         User.collection.updateMany(
-          { role: { $regex: `^${moderatorRole.role}$`, $options: "i" } },
-          { $set: { role: moderatorRole._id } }
+          { role: { [Op.like]: `^${moderatorRole.role}$`, $options: "i" } },
+          { $set: { role: moderatorRole.id } }
         )
       );
     }
     if (superAdminRole) {
       migrationTasks.push(
         User.collection.updateMany(
-          { role: { $regex: `^${superAdminRole.role}$`, $options: "i" } },
-          { $set: { role: superAdminRole._id } }
+          { role: { [Op.like]: `^${superAdminRole.role}$`, $options: "i" } },
+          { $set: { role: superAdminRole.id } }
         )
       );
     }
@@ -67,10 +67,10 @@ export const getModerators = async (req, res, next) => {
       // If any migration updated documents, re-query
       const updated = results.some((r) => r && (r.matchedCount > 0 || r.modifiedCount > 0 || r.result?.nModified > 0));
         if (updated) {
-        finalModerators = await User.find({ role: { $in: roleIds } })
+        finalModerators = await User.find({ role: { [Op.in]: roleIds } })
           .select("_id username first_name last_name email role")
           .populate("role", "role plural")
-          .lean();
+          ;
       }
     }
 
@@ -84,25 +84,25 @@ export const getModerators = async (req, res, next) => {
 export const getAssignedMembers = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(moderatorId)) {
+    if (!Number.isInteger(Number(moderatorId))) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }
 
     // If the selected user is a Super Admin, return all members
-    const user = await User.findById(moderatorId).select("role").lean();
+    const user = await User.findByPk(moderatorId).select("role");
     if (!user) return res.status(404).json({ message: "Moderator not found" });
 
     const superAdminRole = await Role.findOne({
-      $or: [
-        { role: { $regex: "^Super Admin$", $options: "i" } },
-        { plural: { $regex: "^Super Admins$", $options: "i" } },
+      [Op.or]: [
+        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
+        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
       ],
     });
 
     // role may be an ObjectId or a legacy string
     const isSuperAdmin = superAdminRole && (
       (typeof user.role === "string" && user.role.toString().toLowerCase().includes("super")) ||
-      (user.role && user.role.toString() === superAdminRole._id.toString())
+      (user.role && user.role.toString() === superAdminRole.id.toString())
     );
 
     if (isSuperAdmin) {
@@ -112,7 +112,7 @@ export const getAssignedMembers = async (req, res, next) => {
 
     const assignedMembers = await ModeratorMember.find({ moderator: moderatorId })
       .populate("member", "_id first_name last_name email code full_name")
-      .lean();
+      ;
 
     return res.status(200).json({ data: assignedMembers });
   } catch (err) {
@@ -139,7 +139,7 @@ export const assignMemberToModerator = async (req, res, next) => {
     const { moderatorId } = req.params;
     const { memberId } = req.body;
 
-    if (!mongoose.Types.ObjectId.isValid(moderatorId) || !mongoose.Types.ObjectId.isValid(memberId)) {
+    if (!Number.isInteger(Number(moderatorId)) || !Number.isInteger(Number(memberId))) {
       return res.status(400).json({ message: "Invalid moderator or member ID" });
     }
 
@@ -163,7 +163,7 @@ export const unassignMemberFromModerator = async (req, res, next) => {
   try {
     const { moderatorId, memberId } = req.params;
 
-    if (!mongoose.Types.ObjectId.isValid(moderatorId) || !mongoose.Types.ObjectId.isValid(memberId)) {
+    if (!Number.isInteger(Number(moderatorId)) || !Number.isInteger(Number(memberId))) {
       return res.status(400).json({ message: "Invalid moderator or member ID" });
     }
 
@@ -189,40 +189,40 @@ export const unassignMemberFromModerator = async (req, res, next) => {
 export const getModeratorWorkspace = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(moderatorId)) {
+    if (!Number.isInteger(Number(moderatorId))) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }
 
-    const user = await User.findById(moderatorId).select("role first_name last_name username email").lean();
+    const user = await User.findByPk(moderatorId).select("role first_name last_name username email");
     if (!user) return res.status(404).json({ message: "Moderator not found" });
 
     // Check if super admin => all members
     const superAdminRole = await Role.findOne({
-      $or: [
-        { role: { $regex: "^Super Admin$", $options: "i" } },
-        { plural: { $regex: "^Super Admins$", $options: "i" } },
+      [Op.or]: [
+        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
+        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
       ],
     });
 
     const isSuperAdmin = superAdminRole && user.role &&
-      user.role.toString() === superAdminRole._id.toString();
+      user.role.toString() === superAdminRole.id.toString();
 
     let memberIds;
     if (isSuperAdmin) {
-      memberIds = await Member.distinct("_id").exec();
+      memberIds = await Member.distinct("_id");
     } else {
-      memberIds = await ModeratorMember.find({ moderator: moderatorId }).distinct("member").exec();
+      memberIds = await ModeratorMember.find({ moderator: moderatorId }).distinct("member");
     }
 
-    const members = await Member.find({ _id: { $in: memberIds } })
+    const members = await Member.find({ _id: { [Op.in]: memberIds } })
       .select("_id first_name last_name email code status department study_year")
-      .lean();
+      ;
 
     // Fetch overdue issues for assigned members
     const overdueIssues = await Issue.find({
-      member: { $in: memberIds },
+      member: { [Op.in]: memberIds },
       status: "Overdue",
-    }).select("member book issueDate returnDate").lean();
+    }).select("member book issueDate returnDate");
 
     const overdueByMember = {};
     overdueIssues.forEach((i) => {
@@ -235,25 +235,25 @@ export const getModeratorWorkspace = async (req, res, next) => {
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     // Get all users linked to these members
-    const linkedUsers = await User.find({ member: { $in: memberIds } })
+    const linkedUsers = await User.find({ member: { [Op.in]: memberIds } })
       .select("_id member")
-      .lean();
+      ;
     const memberToUser = {};
-    linkedUsers.forEach((u) => { memberToUser[String(u.member)] = u._id; });
+    linkedUsers.forEach((u) => { memberToUser[String(u.member)] = u.id; });
 
-    const userIds = linkedUsers.map((u) => u._id);
+    const userIds = linkedUsers.map((u) => u.id);
     const recentReports = await DailyReport.find({
-      createdBy: { $in: userIds },
-      readingDate: { $gte: sevenDaysAgo },
-    }).select("createdBy readingDate").lean();
+      createdBy: { [Op.in]: userIds },
+      readingDate: { [Op.gte]: sevenDaysAgo },
+    }).select("createdBy readingDate");
 
     const usersWithRecentReports = new Set(recentReports.map((r) => String(r.createdBy)));
 
     // Build enriched member list
     const enrichedMembers = members.map((m) => {
-      const userId = memberToUser[String(m._id)];
+      const userId = memberToUser[String(m.id)];
       const hasRecentReport = userId ? usersWithRecentReports.has(String(userId)) : false;
-      const overdueCount = overdueByMember[String(m._id)] || 0;
+      const overdueCount = overdueByMember[String(m.id)] || 0;
       return {
         ...m,
         overdueCount,

@@ -1,28 +1,18 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const IssueRequestSchema = new mongoose.Schema(
-  {
-    book: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true },
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true },
-    requestedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    status: {
-      type: String,
-      enum: ["Requested", "Approved", "Rejected", "Issued", "Cancelled"],
-      default: "Requested",
-    },
-    requestedDays: { type: Number, default: 7, min: 1, max: 14 },
-    note: { type: String, trim: true },
-    reviewedBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    reviewedAt: { type: Date },
-    reviewNote: { type: String, trim: true },
-    issueId: { type: mongoose.Schema.Types.ObjectId, ref: "Issue" },
-  },
-  { timestamps: true }
-);
+const IssueRequest = sequelize.define('IssueRequest', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  book_id: { type: DataTypes.INTEGER, allowNull: false },
+  member_id: { type: DataTypes.INTEGER, allowNull: false },
+  requested_by: { type: DataTypes.INTEGER, allowNull: true },
+  status: { type: DataTypes.ENUM('Requested', 'Approved', 'Rejected', 'Issued', 'Cancelled'), defaultValue: 'Requested' },
+  requestedDays: { type: DataTypes.INTEGER, defaultValue: 7 },
+  note: { type: DataTypes.TEXT },
+  reviewed_by: { type: DataTypes.INTEGER, allowNull: true },
+  reviewedAt: { type: DataTypes.DATE },
+  reviewNote: { type: DataTypes.TEXT },
+  issue_id: { type: DataTypes.INTEGER, allowNull: true },
+}, { tableName: 'issue_requests', timestamps: true });
 
-IssueRequestSchema.index({ member: 1, status: 1 });
-IssueRequestSchema.index({ book: 1, status: 1 });
-IssueRequestSchema.index({ status: 1, createdAt: -1 });
-
-const IssueRequest = mongoose.model("IssueRequest", IssueRequestSchema);
 export default IssueRequest;

@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import Resource from "../models/Resource.js";
+import { Op } from 'sequelize';
 import User from "../models/user.js";
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
 import cleanTitle from "../utility/cleanHtml.js";
@@ -9,7 +9,7 @@ import cleanQuillHtml from "../utility/cleanQuillHtml.js";
  * Helper: Check if user is admin/moderator
  */
 const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findById(userId).populate("role", "role plural").lean();
+  const user = await User.findByPk(userId).populate("role", "role plural");
   if (!user) return false;
 
   const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
@@ -112,7 +112,7 @@ export const createResource = async (req, res) => {
       if (!isValidSlug(cleanSlug)) {
         return res.status(400).json({ message: "Invalid slug format" });
       }
-      const existing = await Resource.findOne({ slug: cleanSlug }).select("_id").lean();
+      const existing = await Resource.findOne({ slug: cleanSlug }).select("_id");
       if (existing) {
         return res.status(400).json({ message: "Slug already in use" });
       }
@@ -205,7 +205,7 @@ export const getResources = async (req, res) => {
 
     // Tag filter
     if (tag?.trim()) {
-      filter.tags = { $in: [new RegExp(tag.trim(), "i")] };
+      filter.tags = { [Op.in]: [new RegExp(tag.trim(), "i")] };
     }
 
     // Category filter
@@ -236,7 +236,7 @@ export const getResources = async (req, res) => {
         .skip(skip)
         .limit(perPage)
         .populate("created_by", "email first_name last_name")
-        .lean(),
+        ,
       Resource.countDocuments(filter),
     ]);
 
@@ -263,7 +263,7 @@ export const getResourceById = async (req, res) => {
 
     let resource;
     if (mongoose.isValidObjectId(id)) {
-      resource = await Resource.findById(id)
+      resource = await Resource.findByPk(id)
         .populate("created_by", "email first_name last_name")
         .populate("relatedResources", "title slug coverImage type")
         .populate("relatedPosts", "title slug blog_picture");
@@ -304,7 +304,7 @@ export const updateResource = async (req, res) => {
       return res.status(400).json({ message: "Invalid resource id" });
     }
 
-    const resource = await Resource.findById(id);
+    const resource = await Resource.findByPk(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
@@ -366,8 +366,8 @@ export const updateResource = async (req, res) => {
         }
         const existing = await Resource.findOne({ 
           slug: cleanSlug, 
-          _id: { $ne: id } 
-        }).select("_id").lean();
+          _id: { [Op.ne]: id } 
+        }).select("_id");
         if (existing) {
           return res.status(400).json({ message: "Slug already in use" });
         }
@@ -454,7 +454,7 @@ export const deleteResource = async (req, res) => {
       return res.status(400).json({ message: "Invalid resource id" });
     }
 
-    const resource = await Resource.findById(id);
+    const resource = await Resource.findByPk(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
@@ -548,8 +548,8 @@ export const getResourceTypeSummary = async (req, res) => {
     };
 
     summary.forEach(item => {
-      if (result[item._id]) {
-        result[item._id] = {
+      if (result[item.id]) {
+        result[item.id] = {
           count: item.count,
           views: item.totalViews,
           downloads: item.totalDownloads,

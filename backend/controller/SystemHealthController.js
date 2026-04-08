@@ -3,8 +3,8 @@
  * Provides endpoints for monitoring system health, failed jobs, and queue status
  */
 
-import mongoose from "mongoose";
 import Notification from "../models/Notification.js";
+import { Op } from 'sequelize';
 import User from "../models/user.js";
 import AuditLog from "../models/AuditLog.js";
 import DailyReport from "../models/DailyReport.js";
@@ -158,7 +158,7 @@ export const getNotificationHealth = async (req, res, next) => {
 
     // Count notifications by type and status
     const notificationStats = await Notification.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { [Op.gte]: startDate } } },
       {
         $group: {
           _id: { type: "$type", read: "$read" },
@@ -169,18 +169,18 @@ export const getNotificationHealth = async (req, res, next) => {
 
     // Get total notifications
     const totalNotifications = await Notification.countDocuments({
-      createdAt: { $gte: startDate },
+      createdAt: { [Op.gte]: startDate },
     });
 
     // Get unread notifications
     const unreadNotifications = await Notification.countDocuments({
-      createdAt: { $gte: startDate },
+      createdAt: { [Op.gte]: startDate },
       read: false,
     });
 
     // Get notifications per day
     const dailyNotifications = await Notification.aggregate([
-      { $match: { createdAt: { $gte: startDate } } },
+      { $match: { createdAt: { [Op.gte]: startDate } } },
       {
         $group: {
           _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
@@ -213,7 +213,7 @@ export const getJobStatus = async (req, res, next) => {
     return res.status(200).json({
       data: {
         jobs: Object.entries(jobStatus).map(([key, value]) => ({
-          id: key,
+          _id: key,
           ...value,
         })),
       },
@@ -278,17 +278,17 @@ export const getRecentErrors = async (req, res, next) => {
     // Get failed login attempts
     const failedLogins = await AuditLog.countDocuments({
       action: "auth.failed_login",
-      createdAt: { $gte: startDate },
+      createdAt: { [Op.gte]: startDate },
     });
 
     // Get error actions
     const errorActions = await AuditLog.find({
-      action: { $regex: /error|failed|rejected/i },
-      createdAt: { $gte: startDate },
+      action: { [Op.like]: /error|failed|rejected/i },
+      createdAt: { [Op.gte]: startDate },
     })
       .sort({ createdAt: -1 })
       .limit(50)
-      .lean();
+      ;
 
     return res.status(200).json({
       data: {
@@ -317,10 +317,10 @@ export const getSystemSummary = async (req, res, next) => {
       todayAuditLogs,
       pendingNotifications,
     ] = await Promise.all([
-      User.countDocuments(),
-      User.countDocuments({ status: "Active" }),
-      AuditLog.countDocuments({ createdAt: { $gte: today } }),
-      Notification.countDocuments({ read: false }),
+      User.count(),
+      User.count({ where: { status: "Active" } }),
+      AuditLog.countDocuments({ createdAt: { [Op.gte]: today } }),
+      Notification.count({ where: { read: false } }),
     ]);
 
     // Get MongoDB connection status

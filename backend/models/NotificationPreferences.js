@@ -1,41 +1,27 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const NotificationPreferencesSchema = new mongoose.Schema(
-  {
-    user: { 
-      type: mongoose.Schema.Types.ObjectId, 
-      ref: "User", 
-      required: true, 
-      unique: true, 
-      index: true 
-    },
-    
-    // Push notification preferences
-    pushOnOverdue: { type: Boolean, default: true },
-    pushOnDueTomorrow: { type: Boolean, default: true },
-    pushOnStreakReminder: { type: Boolean, default: true },
-    pushOnBlogAnnouncement: { type: Boolean, default: true },
-    pushOnJoinRequestUpdate: { type: Boolean, default: true },
-    pushOnChallengeReminder: { type: Boolean, default: true },
-    pushOnAchievementUnlock: { type: Boolean, default: true },
-    pushOnGoalProgress: { type: Boolean, default: true },
-    pushOnSystemAnnouncement: { type: Boolean, default: true },
-    
-    // Email notification preferences
-    emailOnOverdue: { type: Boolean, default: true },
-    emailOnDueTomorrow: { type: Boolean, default: false },
-    emailOnWeeklyDigest: { type: Boolean, default: true },
-    emailOnJoinRequestUpdate: { type: Boolean, default: true },
-    emailOnGoalProgress: { type: Boolean, default: true },
-    emailOnAnnouncement: { type: Boolean, default: true },
-    
-    // Quiet hours (optional)
-    quietHoursEnabled: { type: Boolean, default: false },
-    quietHoursStart: { type: String, default: "22:00" }, // HH:MM format
-    quietHoursEnd: { type: String, default: "08:00" },   // HH:MM format
-  },
-  { timestamps: true }
-);
+const NotificationPreferences = sequelize.define('NotificationPreferences', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  user_id: { type: DataTypes.INTEGER, allowNull: false, unique: true },
+  pushOnOverdue: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnDueTomorrow: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnStreakReminder: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnBlogAnnouncement: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnJoinRequestUpdate: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnChallengeReminder: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnAchievementUnlock: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnGoalProgress: { type: DataTypes.BOOLEAN, defaultValue: true },
+  pushOnSystemAnnouncement: { type: DataTypes.BOOLEAN, defaultValue: true },
+  emailOnOverdue: { type: DataTypes.BOOLEAN, defaultValue: true },
+  emailOnDueTomorrow: { type: DataTypes.BOOLEAN, defaultValue: false },
+  emailOnWeeklyDigest: { type: DataTypes.BOOLEAN, defaultValue: true },
+  emailOnJoinRequestUpdate: { type: DataTypes.BOOLEAN, defaultValue: true },
+  emailOnGoalProgress: { type: DataTypes.BOOLEAN, defaultValue: true },
+  emailOnAnnouncement: { type: DataTypes.BOOLEAN, defaultValue: true },
+  quietHoursEnabled: { type: DataTypes.BOOLEAN, defaultValue: false },
+  quietHoursStart: { type: DataTypes.STRING, defaultValue: '22:00' },
+  quietHoursEnd: { type: DataTypes.STRING, defaultValue: '08:00' },
+}, { tableName: 'notification_preferences', timestamps: true });
 
-const NotificationPreferences = mongoose.model("NotificationPreferences", NotificationPreferencesSchema);
 export default NotificationPreferences;

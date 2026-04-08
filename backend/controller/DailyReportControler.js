@@ -1,6 +1,6 @@
  
-import mongoose from "mongoose";
 import DailyReport from "../models/DailyReport.js";
+import { Op } from 'sequelize';
 import Book from "../models/Books.js"; 
 import Notification from "../models/Notification.js";
 import Role from "../models/Role.js";
@@ -47,15 +47,15 @@ async function getScopedReportUserIds(currentUser) {
   }
 
   if (isModeratorUser(currentUser)) {
-    const assignments = await ModeratorMember.find({ moderator: currentUser._id }).select("member").lean().exec();
+    const assignments = await ModeratorMember.find({ moderator: currentUser.id }).select("member");
     const memberIds = assignments.map((assignment) => assignment.member).filter(Boolean);
     if (!memberIds.length) return [];
 
-    const users = await User.find({ member: { $in: memberIds } }).select("_id").lean().exec();
-    return users.map((user) => user._id);
+    const users = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
+    return users.map((user) => user.id);
   }
 
-  return [currentUser._id];
+  return [currentUser.id];
 }
 
 // POST /daily-reports
@@ -69,11 +69,11 @@ export const createDailyReport = async (req, res, next) => {
       return res.status(400).json({ message: "book, readingDate, pagesFrom, pagesTo, timeSpent, summary, rating are required" });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(createdBy)) return res.status(400).json({ message: "Invalid createdBy" });
-    if (!mongoose.Types.ObjectId.isValid(book)) return res.status(400).json({ message: "Invalid book id" });
+    if (!Number.isInteger(Number(createdBy))) return res.status(400).json({ message: "Invalid createdBy" });
+    if (!Number.isInteger(Number(book))) return res.status(400).json({ message: "Invalid book id" });
 
     // Validate book exists
-    const bookDoc = await Book.findById(book).lean().exec();
+    const bookDoc = await Book.findByPk(book);
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
 
     // 48 hours rule: only today and yesterday
@@ -90,8 +90,8 @@ export const createDailyReport = async (req, res, next) => {
     const last = await DailyReport.findOne({ createdBy, book })
   .sort({ readingDate: -1, createdAt: -1 })
   .select("pagesTo")
-  .lean()
-  .exec();
+  
+  ;
 
 if (!last) {
   if (pf !== 1) {
@@ -119,11 +119,11 @@ if (!last) {
       status: "Pending",
     });
 
-    const populated = await DailyReport.findById(report._id)
+    const populated = await DailyReport.findByPk(report.id)
       .populate("createdBy", "username first_name last_name email role")
       .populate("book", "title author isbn status")
-      .lean()
-      .exec();
+      
+      ;
 
     // Notify user about their submitted report
     try {
@@ -137,7 +137,7 @@ if (!last) {
         title: `Report submitted: ${bookDoc.title}`,
         message: `${submitterName} submitted a reading report on ${new Date(readingDate).toLocaleDateString()}.`,
         type: "success",
-        meta: { report: report._id, kind: "report-submitted" },
+        meta: { report: report.id, kind: "report-submitted" },
       });
     } catch (e) {}
 
@@ -145,47 +145,47 @@ if (!last) {
     try {
       const memberId = req.user?.member;
       if (memberId) {
-        const assignment = await ModeratorMember.findOne({ member: memberId }).populate("moderator", "_id first_name last_name username email").lean().exec();
+        const assignment = await ModeratorMember.findOne({ member: memberId }).populate("moderator", "_id first_name last_name username email");
         if (assignment && assignment.moderator) {
           await Notification.create({
-            user: assignment.moderator._id,
+            user: assignment.moderator.id,
             title: `Member report: ${bookDoc.title}`,
             message: `${submitterName} (member) submitted a reading report.`,
             type: "info",
-            meta: { report: report._id, member: memberId, kind: "report-submitted" },
+            meta: { report: report.id, member: memberId, kind: "report-submitted" },
           });
         }
       }
 
       // Notify super admins
       const superAdminRole = await Role.findOne({
-        $or: [
-          { role: { $regex: "^Super Admin$", $options: "i" } },
-          { plural: { $regex: "^Super Admins$", $options: "i" } },
+        [Op.or]: [
+          { role: { [Op.like]: "^Super Admin$", $options: "i" } },
+          { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
         ],
-      }).lean().exec();
+      });
 
       if (superAdminRole) {
-        const superAdmins = await User.find({ role: superAdminRole._id }).select("_id").lean().exec();
+        const superAdmins = await User.find({ role: superAdminRole.id }).select("_id");
         if (superAdmins && superAdmins.length > 0) {
           const notifDocs = superAdmins.map((sa) => ({
-            user: sa._id,
+            user: sa.id,
             title: `Member report: ${bookDoc.title}`,
             message: `${submitterName} submitted a reading report.`,
             type: "info",
-            meta: { report: report._id, member: req.user?.member, kind: "report-submitted" },
+            meta: { report: report.id, member: req.user?.member, kind: "report-submitted" },
             createdAt: new Date(),
             updatedAt: new Date(),
           }));
-          if (notifDocs.length > 0) await Notification.insertMany(notifDocs);
+          if (notifDocs.length > 0) await Notification.bulkCreate(notifDocs);
         }
       }
     } catch (e) {
       // swallow notification errors so report creation still succeeds
     }
 
-    checkAndUnlockAchievements(req.user._id).catch((err) => console.error("Achievement check failed:", err));
-    syncGoalStatesForUser(req.user._id, { sendNotifications: true }).catch((err) =>
+    checkAndUnlockAchievements(req.user.id).catch((err) => console.error("Achievement check failed:", err));
+    syncGoalStatesForUser(req.user.id, { sendNotifications: true }).catch((err) =>
       console.error("Goal sync failed:", err)
     );
 
@@ -214,7 +214,7 @@ export const getDailyReports = async (req, res, next) => {
     const filter = {};
 
     // default: only current user's reports if auth exists and createdBy not provided
-    if (req.user?._id && !createdBy) filter.createdBy = req.user._id;
+    if (req.user?._id && !createdBy) filter.createdBy = req.user.id;
     if (createdBy) filter.createdBy = createdBy;
 
     if (book) filter.book = book;
@@ -235,9 +235,9 @@ export const getDailyReports = async (req, res, next) => {
         .sort(sort)
         .skip(skip)
         .limit(perPage)
-        .lean()
-        .exec(),
-      DailyReport.countDocuments(filter).exec(),
+        
+        ,
+      DailyReport.countDocuments(filter),
     ]);
 
     return res.status(200).json({
@@ -267,7 +267,7 @@ export const updateDailyReportStatus = async (req, res, next) => {
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid report id" });
     }
 
@@ -276,10 +276,10 @@ export const updateDailyReportStatus = async (req, res, next) => {
       return res.status(400).json({ message: `status must be one of: ${allowedStatuses.join(", ")}` });
     }
 
-    const report = await DailyReport.findById(id)
+    const report = await DailyReport.findByPk(id)
       .populate({ path: "createdBy", select: "_id first_name last_name username member" })
       .populate("book", "title author isbn")
-      .exec();
+      ;
 
     if (!report) {
       return res.status(404).json({ message: "Report not found" });
@@ -287,12 +287,12 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
       const assignment = await ModeratorMember.findOne({
-        moderator: currentUser._id,
+        moderator: currentUser.id,
         member: report.createdBy?.member,
       })
         .select("_id")
-        .lean()
-        .exec();
+        
+        ;
 
       if (!assignment) {
         return res.status(403).json({ message: "You can only review reports from your assigned members" });
@@ -313,17 +313,17 @@ export const updateDailyReportStatus = async (req, res, next) => {
               ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
               : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
         type: status === "Approved" ? "success" : status === "Needs Improvement" ? "warning" : "info",
-        meta: { report: report._id, kind: "report-status-updated", status },
+        meta: { report: report.id, kind: "report-status-updated", status },
       });
     } catch (error) {
       // ignore notification failure
     }
 
-    const populated = await DailyReport.findById(report._id)
+    const populated = await DailyReport.findByPk(report.id)
       .populate("createdBy", "username first_name last_name email role member")
       .populate("book", "title author isbn status")
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({ data: populated });
   } catch (err) {
@@ -339,12 +339,12 @@ export const getDailyReportsByMember = async (req, res, next) => {
     if (!memberId) return res.status(400).json({ message: "memberId is required" });
 
     // find users that belong to this member
-    const users = await User.find({ member: memberId }).select("_id").lean().exec();
-    const userIds = users.map((u) => u._id);
+    const users = await User.find({ member: memberId }).select("_id");
+    const userIds = users.map((u) => u.id);
 
     if (userIds.length === 0) return res.status(200).json({ data: [] });
 
-    const filter = { createdBy: { $in: userIds } };
+    const filter = { createdBy: { [Op.in]: userIds } };
 
     if (book) filter.book = book;
 
@@ -359,8 +359,8 @@ export const getDailyReportsByMember = async (req, res, next) => {
       .populate("book", "title author isbn status")
       .sort("-readingDate")
       .limit(Math.min(Number(limit) || 5000, 5000))
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({ data: reports });
   } catch (err) {
@@ -374,18 +374,18 @@ export const getDailyReportById = async (req, res, next) => {
     if (id === "public") {
       return getDailyReportsPublic(req, res, next);
     }
-    if (!mongoose.Types.ObjectId.isValid(id)) return res.status(400).json({ message: "Invalid report id" });
+    if (!Number.isInteger(Number(id))) return res.status(400).json({ message: "Invalid report id" });
 
-    const report = await DailyReport.findById(id)
+    const report = await DailyReport.findByPk(id)
       .populate("createdBy", "username first_name last_name email role")
       .populate("book", "title author isbn status")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!report) return res.status(404).json({ message: "Report not found" });
 
     // If you want strict privacy:
-    if (req.user?._id && String(report.createdBy?._id || report.createdBy) !== String(req.user._id)) {
+    if (req.user?._id && String(report.createdBy?._id || report.createdBy) !== String(req.user.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -405,7 +405,7 @@ export const getDailyReportsScope = async (req, res, next) => {
     if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
 
     // load current user role (to determine if super admin or moderator)
-    const currentUser = await User.findById(req.user._id).populate("role", "role plural").lean().exec();
+    const currentUser = await User.findByPk(req.user.id).populate("role", "role plural");
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
@@ -427,45 +427,45 @@ export const getDailyReportsScope = async (req, res, next) => {
     if (isSuperAdmin) {
       // if memberId provided, validate and filter by it
       if (memberId) {
-        if (!mongoose.Types.ObjectId.isValid(memberId)) {
+        if (!Number.isInteger(Number(memberId))) {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
-        const users = await User.find({ member: memberId }).select("_id").lean().exec();
-        const ids = users.map((u) => u._id);
+        const users = await User.find({ member: memberId }).select("_id");
+        const ids = users.map((u) => u.id);
         if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { $in: ids };
+        filter.createdBy = { [Op.in]: ids };
       }
     } else if (isModerator) {
       // moderator: restrict to members assigned to this moderator
       // if moderator asks for a specific member, ensure assignment exists
       if (memberId) {
-        if (!mongoose.Types.ObjectId.isValid(memberId)) {
+        if (!Number.isInteger(Number(memberId))) {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
-        const assigned = await ModeratorMember.findOne({ moderator: req.user._id, member: memberId }).lean().exec();
+        const assigned = await ModeratorMember.findOne({ moderator: req.user.id, member: memberId });
 
         if (!assigned) return res.status(403).json({ message: "Forbidden: member not assigned to this moderator" });
 
-        const users = await User.find({ member: memberId }).select("_id").lean().exec();
-        const ids = users.map((u) => u._id);
+        const users = await User.find({ member: memberId }).select("_id");
+        const ids = users.map((u) => u.id);
         if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { $in: ids };
+        filter.createdBy = { [Op.in]: ids };
       } else {
         // no memberId: get all members assigned to moderator and return reports for users in those members
-        const assigned = await ModeratorMember.find({ moderator: req.user._id }).select("member").lean().exec();
+        const assigned = await ModeratorMember.find({ moderator: req.user.id }).select("member");
         const memberIds = assigned.map((a) => a.member);
         if (memberIds.length === 0) return res.status(200).json({ data: [] });
 
-        const users = await User.find({ member: { $in: memberIds } }).select("_id").lean().exec();
-        const ids = users.map((u) => u._id);
+        const users = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
+        const ids = users.map((u) => u.id);
         if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { $in: ids };
+        filter.createdBy = { [Op.in]: ids };
       }
     } else {
       // regular user: only their own reports
-      filter.createdBy = req.user._id;
+      filter.createdBy = req.user.id;
     }
 
     const items = await DailyReport.find(filter)
@@ -473,8 +473,8 @@ export const getDailyReportsScope = async (req, res, next) => {
       .populate("book", "title author isbn status")
       .sort("-readingDate")
       .limit(Math.min(Number(limit) || 5000, 5000))
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({ data: items });
   } catch (err) {
@@ -498,8 +498,8 @@ export const getStreakRestoreStatus = async (req, res, next) => {
     const month = getMonthKey();
     const doc = await StreakRestore.findOne({ user: userId, month })
       .select("count restoredForDate month")
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({
       count: doc?.count ?? 0,
@@ -526,7 +526,7 @@ export const restoreStreak = async (req, res, next) => {
     }
 
     const month = getMonthKey();
-    const existing = await StreakRestore.findOne({ user: userId, month }).exec();
+    const existing = await StreakRestore.findOne({ user: userId, month });
     if (existing && existing.count >= 5) {
       return res.status(400).json({ message: "No restores left this month" });
     }
@@ -540,8 +540,8 @@ export const restoreStreak = async (req, res, next) => {
       { new: true, upsert: true }
     )
       .select("count restoredForDate month")
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({
       count: updated?.count ?? 0,
@@ -570,8 +570,8 @@ export const getDailyReportsPublic = async (req, res, next) => {
       .select("createdBy readingDate")
       .sort("-readingDate")
       .limit(Math.min(Number(limit) || 5000, 5000))
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(200).json({ data: items });
   } catch (err) {
@@ -587,11 +587,11 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
     if (period === "weekly") {
       const since = new Date();
       since.setDate(since.getDate() - 7);
-      dateFilter = { $gte: since };
+      dateFilter = { [Op.gte]: since };
     } else if (period === "monthly") {
       const since = new Date();
       since.setDate(since.getDate() - 30);
-      dateFilter = { $gte: since };
+      dateFilter = { [Op.gte]: since };
     }
 
     const matchStage = { status: "Approved" };
@@ -613,22 +613,22 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
 
     if (!agg.length) return res.status(200).json({ data: [] });
 
-    const userIds = agg.map((a) => a._id);
+    const userIds = agg.map((a) => a.id);
 
     // Fetch user data with member info
-    const users = await User.find({ _id: { $in: userIds } })
+    const users = await User.find({ _id: { [Op.in]: userIds } })
       .select("first_name last_name username profile_picture member")
       .populate({
         path: "member",
         select: "department study_year Profile_picture",
       })
-      .lean();
+      ;
 
-    const userMap = new Map(users.map((u) => [String(u._id), u]));
+    const userMap = new Map(users.map((u) => [String(u.id), u]));
 
     // Build leaderboard entries
     let entries = agg.map((a) => {
-      const user = userMap.get(String(a._id));
+      const user = userMap.get(String(a.id));
       if (!user) return null;
 
       const memberData = user.member || {};
@@ -640,7 +640,7 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
 
       return {
         user: {
-          _id: user._id,
+          _id: user.id,
           first_name: user.first_name,
           last_name: user.last_name,
           username: user.username,

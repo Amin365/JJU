@@ -8,7 +8,7 @@ webpush.setVapidDetails(
 );
 
 export async function sendPushToUser(userId, payload) {
-  const subs = await PushSubscription.find({ user: userId }).lean();
+  const subs = await PushSubscription.findAll({ where: { user_id: userId }, raw: true });
   if (!subs.length) return;
 
   for (const sub of subs) {
@@ -16,7 +16,7 @@ export async function sendPushToUser(userId, payload) {
       await webpush.sendNotification(sub.subscription, JSON.stringify(payload));
     } catch (err) {
       console.error("Push failed, deleting subscription:", err.message);
-      await PushSubscription.deleteOne({ _id: sub._id });
+      await PushSubscription.destroy({ where: { id: sub.id } });
     }
   }
 }

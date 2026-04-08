@@ -1,78 +1,36 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const ResourceSchema = new mongoose.Schema(
-  {
-    title: { type: String, required: true, trim: true },
-    description: { type: String, default: "", trim: true },
-    content: { type: String, default: "" },
+const Resource = sequelize.define('Resource', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.TEXT, defaultValue: '' },
+  content: { type: DataTypes.TEXT, defaultValue: '' },
+  type: { type: DataTypes.ENUM('guide', 'announcement', 'event-recap', 'download'), allowNull: false },
+  fileUrl: { type: DataTypes.STRING, defaultValue: '' },
+  fileName: { type: DataTypes.STRING, defaultValue: '' },
+  fileSize: { type: DataTypes.INTEGER, defaultValue: 0 },
+  fileType: { type: DataTypes.STRING, defaultValue: '' },
+  eventDate: { type: DataTypes.DATE },
+  eventLocation: { type: DataTypes.STRING, defaultValue: '' },
+  coverImage: { type: DataTypes.STRING, defaultValue: '' },
+  created_by: { type: DataTypes.INTEGER, allowNull: false },
+  author_name: { type: DataTypes.STRING, defaultValue: '' },
+  status: { type: DataTypes.ENUM('Draft', 'Published', 'Archived'), defaultValue: 'Draft' },
+  isFeatured: { type: DataTypes.BOOLEAN, defaultValue: false },
+  isPinned: { type: DataTypes.BOOLEAN, defaultValue: false },
+  displayOrder: { type: DataTypes.INTEGER, defaultValue: 0 },
+  slug: { type: DataTypes.STRING, unique: true },
+  seoTitle: { type: DataTypes.STRING(70) },
+  seoDescription: { type: DataTypes.STRING(160) },
+  tags: { type: DataTypes.JSON, defaultValue: [] },
+  category: { type: DataTypes.STRING, defaultValue: '' },
+  views: { type: DataTypes.INTEGER, defaultValue: 0 },
+  downloads: { type: DataTypes.INTEGER, defaultValue: 0 },
+  publishAt: { type: DataTypes.DATE },
+  publishedAt: { type: DataTypes.DATE },
+  relatedResources: { type: DataTypes.JSON, defaultValue: [] },
+  relatedPosts: { type: DataTypes.JSON, defaultValue: [] },
+}, { tableName: 'resources', timestamps: true });
 
-    type: {
-      type: String,
-      enum: ["guide", "announcement", "event-recap", "download"],
-      required: true,
-      index: true,
-    },
-
-    // For downloadable resources
-    fileUrl: { type: String, default: "" },
-    fileName: { type: String, default: "" },
-    fileSize: { type: Number, default: 0 },
-    fileType: { type: String, default: "" },
-
-    // For event recaps
-    eventDate: { type: Date, default: null },
-    eventLocation: { type: String, default: "" },
-
-    // Featured image
-    coverImage: { type: String, default: "" },
-
-    // Author
-    created_by: {
-      type: mongoose.Schema.Types.ObjectId,
-      ref: "User",
-      required: true,
-    },
-    author_name: { type: String, default: "" },
-
-    // Status and visibility
-    status: {
-      type: String,
-      enum: ["Draft", "Published", "Archived"],
-      default: "Draft",
-      index: true,
-    },
-
-    // Featured/Pinned
-    isFeatured: { type: Boolean, default: false },
-    isPinned: { type: Boolean, default: false },
-    displayOrder: { type: Number, default: 0 },
-
-    // SEO
-    slug: { type: String, unique: true, sparse: true, trim: true },
-    seoTitle: { type: String, default: "", trim: true, maxlength: 70 },
-    seoDescription: { type: String, default: "", trim: true, maxlength: 160 },
-
-    // Tags and categories
-    tags: { type: [String], default: [] },
-    category: { type: String, default: "" },
-
-    // Stats
-    views: { type: Number, default: 0 },
-    downloads: { type: Number, default: 0 },
-
-    // Scheduling
-    publishAt: { type: Date, default: null },
-    publishedAt: { type: Date, default: null },
-
-    // Related content
-    relatedResources: [{ type: mongoose.Schema.Types.ObjectId, ref: "Resource" }],
-    relatedPosts: [{ type: mongoose.Schema.Types.ObjectId, ref: "BlogPost" }],
-  },
-  { timestamps: true }
-);
-
-// Indexes for common queries
-ResourceSchema.index({ type: 1, status: 1, createdAt: -1 });
-ResourceSchema.index({ status: 1, isFeatured: -1, isPinned: -1 });
-
-export default mongoose.model("Resource", ResourceSchema);
+export default Resource;

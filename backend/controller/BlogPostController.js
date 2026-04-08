@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost.js";
+import { Op } from 'sequelize';
 import cleanTitle from "../utility/cleanHtml.js";
 import cleanQuillHtml from "../utility/cleanQuillHtml.js";
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
@@ -55,7 +55,7 @@ const getUploadedImage = (file) =>
  * Helper: Check if user is admin/moderator
  */
 const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findById(userId).populate("role", "role plural").lean();
+  const user = await User.findByPk(userId).populate("role", "role plural");
   if (!user) return false;
 
   const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
@@ -152,7 +152,7 @@ export const createBlogPost = async (req, res) => {
         return res.status(400).json({ message: "Invalid slug format" });
       }
       // Check uniqueness
-      const existing = await BlogPost.findOne({ slug: cleanSlug }).select("_id").lean();
+      const existing = await BlogPost.findOne({ slug: cleanSlug }).select("_id");
       if (existing) {
         return res.status(400).json({ message: "Slug already in use" });
       }
@@ -226,7 +226,7 @@ export const getBlogPosts = async (req, res) => {
 
     if (scope === "mine") {
       if (!req.user?._id) return res.status(401).json({ message: "Unauthorized" });
-      filter.created_by = req.user._id;
+      filter.created_by = req.user.id;
     }
 
     if (scope === "public") {
@@ -247,7 +247,7 @@ export const getBlogPosts = async (req, res) => {
 
     // Filter by tag
     if (tag?.trim()) {
-      filter.tags = { $in: [new RegExp(tag.trim(), "i")] };
+      filter.tags = { [Op.in]: [new RegExp(tag.trim(), "i")] };
     }
 
     if (q.trim()) {
@@ -265,7 +265,7 @@ export const getBlogPosts = async (req, res) => {
     const sortOrder = { isPinned: -1, isFeatured: -1, displayOrder: -1, createdAt: -1 };
 
     const [items, total] = await Promise.all([
-      BlogPost.find(filter).sort(sortOrder).skip(skip).limit(perPage).lean(),
+      BlogPost.find(filter).sort(sortOrder).skip(skip).limit(perPage),
       BlogPost.countDocuments(filter),
     ]);
 
@@ -293,7 +293,7 @@ export const getBlogPostById = async (req, res) => {
     
     // Check if id is a valid ObjectId or a slug
     if (mongoose.isValidObjectId(id)) {
-      post = await BlogPost.findById(id).populate("created_by", "email").populate("relatedPosts", "title slug blog_picture");
+      post = await BlogPost.findByPk(id).populate("created_by", "email").populate("relatedPosts", "title slug blog_picture");
     } else {
       // Try to find by slug
       post = await BlogPost.findOne({ slug: id }).populate("created_by", "email").populate("relatedPosts", "title slug blog_picture");
@@ -321,7 +321,7 @@ export const updateBlogPost = async (req, res) => {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id);
+    const post = await BlogPost.findByPk(id);
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     if (String(post.created_by) !== String(userId)) {
@@ -426,8 +426,8 @@ export const updateBlogPost = async (req, res) => {
         // Check uniqueness (excluding current post)
         const existing = await BlogPost.findOne({ 
           slug: cleanSlug, 
-          _id: { $ne: id } 
-        }).select("_id").lean();
+          _id: { [Op.ne]: id } 
+        }).select("_id");
         if (existing) {
           return res.status(400).json({ message: "Slug already in use" });
         }
@@ -471,7 +471,7 @@ export const deleteBlogPost = async (req, res) => {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id);
+    const post = await BlogPost.findByPk(id);
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     if (String(post.created_by) !== String(userId)) {
@@ -496,9 +496,9 @@ export const blogMetaPage = async (req, res) => {
     
     // Support both ObjectId and slug
     if (mongoose.isValidObjectId(id)) {
-      post = await BlogPost.findById(id).lean();
+      post = await BlogPost.findByPk(id);
     } else {
-      post = await BlogPost.findOne({ slug: id }).lean();
+      post = await BlogPost.findOne({ slug: id });
     }
 
     if (!post || post.status !== "Published") {
@@ -508,7 +508,7 @@ export const blogMetaPage = async (req, res) => {
     const BASE_URL = process.env.APP_URL; // 🔒 forced canonical
 
     // Use slug for URL if available, otherwise use ID
-    const urlIdentifier = post.slug || post._id;
+    const urlIdentifier = post.slug || post.id;
     const redirectUrl = `${BASE_URL}/blogs/${urlIdentifier}`;
     const shareUrl = `${BASE_URL}/api/share/blog/${urlIdentifier}`;
 
@@ -622,7 +622,7 @@ export const getFeaturedPosts = async (req, res) => {
       .sort({ isPinned: -1, isFeatured: -1, displayOrder: -1, createdAt: -1 })
       .limit(perPage)
       .select("title slug blog_picture author_name tags views createdAt isFeatured isPinned isEditorsPick seoDescription")
-      .lean();
+      ;
 
     res.json({ data: posts });
   } catch (err) {
@@ -650,7 +650,7 @@ export const toggleFeature = async (req, res) => {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id);
+    const post = await BlogPost.findByPk(id);
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isFeatured = !post.isFeatured;
@@ -685,7 +685,7 @@ export const togglePin = async (req, res) => {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id);
+    const post = await BlogPost.findByPk(id);
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isPinned = !post.isPinned;
@@ -720,7 +720,7 @@ export const toggleEditorsPick = async (req, res) => {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findById(id);
+    const post = await BlogPost.findByPk(id);
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isEditorsPick = !post.isEditorsPick;
@@ -839,7 +839,7 @@ export const getScheduledPosts = async (req, res) => {
     const perPage = Math.min(100, Math.max(1, Number(limit)));
     const skip = (pageNum - 1) * perPage;
 
-    const filter = { status: "Scheduled", publishAt: { $ne: null } };
+    const filter = { status: "Scheduled", publishAt: { [Op.ne]: null } };
 
     const [posts, total] = await Promise.all([
       BlogPost.find(filter)
@@ -847,7 +847,7 @@ export const getScheduledPosts = async (req, res) => {
         .skip(skip)
         .limit(perPage)
         .populate("created_by", "email first_name last_name")
-        .lean(),
+        ,
       BlogPost.countDocuments(filter),
     ]);
 

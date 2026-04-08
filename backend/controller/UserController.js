@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import User from "../models/user.js";
+import { Op } from 'sequelize';
 
 import Member from "../models/Members.js";
 import bcrypt from "bcryptjs";
@@ -16,12 +16,12 @@ export const createUserFromMember = async (req, res, next) => {
       return res.status(400).json({ message: "password must be at least 6 characters" });
     }
 
-    if (!mongoose.Types.ObjectId.isValid(member)) {
+    if (!Number.isInteger(Number(member))) {
       return res.status(400).json({ message: "Invalid member id" });
     }
 
     // 1) fetch member (we need name/email/role)
-    const m = await Member.findById(member).lean().exec();
+    const m = await Member.findByPk(member);
     if (!m) return res.status(404).json({ message: "Member not found" });
 
     if (!m.email) {
@@ -29,15 +29,15 @@ export const createUserFromMember = async (req, res, next) => {
     }
 
     // 2) block duplicates (member already has user)
-    const existingForMember = await User.findOne({ member: m._id }).lean().exec();
+    const existingForMember = await User.findOne({ member: m.id });
     if (existingForMember) {
       return res.status(409).json({ message: "This member already has a user account" });
     }
 
     // 3) block duplicate username/email
     const [existingUsername, existingEmail] = await Promise.all([
-      User.findOne({ username }).lean().exec(),
-      User.findOne({ email: m.email }).lean().exec(),
+      User.findOne({ username }),
+      User.findOne({ email: m.email }),
     ]);
 
     if (existingUsername) return res.status(409).json({ message: "Username already exists" });
@@ -51,10 +51,10 @@ export const createUserFromMember = async (req, res, next) => {
       username,
       email: m.email,
       password,                 // plaintext ok here -> will be hashed by pre-save
-      member_id: m.code || String(m._id), // optional mapping
+      member_id: m.code || String(m.id), // optional mapping
       role: m.role || null,      // ✅ role copied from member
       status: m.status || 'Active', // ✅ mirror member status
-      member: m._id,             // ✅ relation user -> member
+      member: m.id,             // ✅ relation user -> member
 
       // optional audit fields (if you have auth middleware)
       added_by: req.user?._id || null,
@@ -62,11 +62,11 @@ export const createUserFromMember = async (req, res, next) => {
     });
 
     // 5) return populated
-    const populated = await User.findById(user._id)
+    const populated = await User.findByPk(user.id)
       .populate("role", "role color plural system")
       .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
-      .lean()
-      .exec();
+      
+      ;
 
     return res.status(201).json({ data: populated });
   } catch (err) {
@@ -84,15 +84,15 @@ export const createUserFromMember = async (req, res, next) => {
 export const getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid user id" });
     }
 
-    const user = await User.findById(id)
+    const user = await User.findByPk(id)
       .populate("role", "role color plural system")
       .populate("member",  "first_name middle_name last_name Profile_picture full_name email phone Profile_picture code role")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -128,9 +128,9 @@ export const getUsers = async (req, res, next) => {
         .sort(sort)
         .skip(skip)
         .limit(perPage)
-        .lean()
-        .exec(),
-      User.countDocuments(filter).exec(),
+        
+        ,
+      User.countDocuments(filter),
     ]);
 
     return res.status(200).json({
@@ -151,7 +151,7 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
     const { q, page = 1, limit = 50, sort = "-createdAt" } = req.query;
 
     // Collect all member ids that already have users
-    const userMemberDocs = await User.find({}, "member").lean().exec();
+    const userMemberDocs = await User.find({}, "member");
     const usedMemberIds = new Set(
       userMemberDocs
         .map((u) => u.member)
@@ -180,10 +180,10 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
     const allMembers = await Member.find(filter)
       .select("_id first_name middle_name last_name Profile_picture full_name code email createdAt role")
       .sort(sort)
-      .lean()
-      .exec();
+      
+      ;
 
-    const available = allMembers.filter((m) => !usedMemberIds.has(String(m._id)));
+    const available = allMembers.filter((m) => !usedMemberIds.has(String(m.id)));
 
     const paged = available.slice(skip, skip + perPage);
 
@@ -205,7 +205,7 @@ export const updateUserStatus = async (req, res, next) => {
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!mongoose.Types.ObjectId.isValid(id)) {
+    if (!Number.isInteger(Number(id))) {
       return res.status(400).json({ message: "Invalid user id" });
     }
 
@@ -221,8 +221,8 @@ export const updateUserStatus = async (req, res, next) => {
     )
       .populate("role", "role color plural system")
       .populate("member", "first_name middle_name last_name full_name email phone code role")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!updated) return res.status(404).json({ message: "User not found" });
 
@@ -242,11 +242,11 @@ export const updateUserStatus = async (req, res, next) => {
 // Get current user's profile
 export const getProfile = async (req, res, next) => {
   try {
-    const user = await User.findById(req.user._id)
+    const user = await User.findByPk(req.user.id)
       .populate("role", "role color plural system")
       .populate("member", "first_name middle_name last_name full_name Profile_picture email student_id department join_date phone code role")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!user) return res.status(404).json({ message: "User not found" });
 
@@ -264,7 +264,7 @@ export const updateProfile = async (req, res, next) => {
     console.log("req.file:", req.file);
     console.log("req.body:", req.body);
 
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { name, bio, phone } = req.body || {};
     const profilePicture = req.file ? req.file.path : undefined; // Cloudinary URL
 
@@ -289,8 +289,8 @@ export const updateProfile = async (req, res, next) => {
     )
       .populate("role", "role color plural system")
       .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
-      .lean()
-      .exec();
+      
+      ;
 
     if (!updatedUser) return res.status(404).json({ message: "User not found" });
 
@@ -304,7 +304,7 @@ export const updateProfile = async (req, res, next) => {
 // Change current user's password
 export const changePassword = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
     const { currentPassword, newPassword, confirmPassword } = req.body;
 
     if (!currentPassword || !newPassword || !confirmPassword) {
@@ -319,7 +319,7 @@ export const changePassword = async (req, res, next) => {
       return res.status(400).json({ message: "New password must be at least 6 characters" });
     }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const isMatch = await user.matchPassword(currentPassword);
@@ -343,9 +343,9 @@ export const changePassword = async (req, res, next) => {
 // Delete current user's account
 export const deleteAccount = async (req, res, next) => {
   try {
-    const userId = req.user._id;
+    const userId = req.user.id;
 
-    const deletedUser = await User.findByIdAndDelete(userId);
+    const deletedUser = await (User.destroy({ where: { id: userId } }).then(() => User.findByPk(userId_deleted)));
     if (!deletedUser) return res.status(404).json({ message: "User not found" });
 
     return res.status(200).json({ message: "Account deleted successfully" });
@@ -412,7 +412,7 @@ export const verifyResetCode = async (req, res, next) => {
     const user = await User.findOne({
       email,
       resetPasswordCode: code,
-      resetPasswordExpires: { $gt: Date.now() },
+      resetPasswordExpires: { [Op.gt]: Date.now() },
     });
 
     if (!user)
@@ -422,7 +422,7 @@ export const verifyResetCode = async (req, res, next) => {
 
     return res.status(200).json({
       message: "OTP verified",
-      userId: user._id, // frontend can store this temporarily
+      userId: user.id, // frontend can store this temporarily
     });
   } catch (err) {
     next(err);
@@ -453,7 +453,7 @@ export const resetPassword = async (req, res, next) => {
     //   });
     // }
 
-    const user = await User.findById(userId);
+    const user = await User.findByPk(userId);
     if (!user)
       return res.status(404).json({ message: "User not found" });
 

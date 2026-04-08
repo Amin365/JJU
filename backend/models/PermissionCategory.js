@@ -1,28 +1,10 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const PermissionCategorySchema = new mongoose.Schema(
-  {
-    name: {
-      type: String,
-      required: true,
-      unique: true,        // 🔒 prevent duplicates
-      trim: true,
-      default: "",
-    },
-
-    system: {
-      type: Boolean,
-      default: false,
-    },
-  },
-  {
-    timestamps: false,
-  }
-);
-
-const PermissionCategory = mongoose.model(
-  "PermissionCategory",
-  PermissionCategorySchema
-);
+const PermissionCategory = sequelize.define('PermissionCategory', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  name: { type: DataTypes.STRING, unique: true, allowNull: false },
+  system: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { tableName: 'permission_categories', timestamps: false });
 
 export default PermissionCategory;

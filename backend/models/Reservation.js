@@ -1,23 +1,13 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const ReservationSchema = new mongoose.Schema(
-  {
-    book: { type: mongoose.Schema.Types.ObjectId, ref: "Book", required: true },
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true },
-    createdBy: { type: mongoose.Schema.Types.ObjectId, ref: "User" },
-    status: {
-      type: String,
-      enum: ["Active", "Fulfilled", "Cancelled", "Expired"],
-      default: "Active",
-    },
-    notifiedAt: { type: Date, default: null },
-  },
-  { timestamps: true }
-);
+const Reservation = sequelize.define('Reservation', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  book_id: { type: DataTypes.INTEGER, allowNull: false },
+  member_id: { type: DataTypes.INTEGER, allowNull: false },
+  created_by: { type: DataTypes.INTEGER, allowNull: true },
+  status: { type: DataTypes.ENUM('Active', 'Fulfilled', 'Cancelled', 'Expired'), defaultValue: 'Active' },
+  notifiedAt: { type: DataTypes.DATE, allowNull: true },
+}, { tableName: 'reservations', timestamps: true });
 
-// Index for querying the queue efficiently
-ReservationSchema.index({ book: 1, status: 1, createdAt: 1 });
-ReservationSchema.index({ member: 1, status: 1 });
-
-const Reservation = mongoose.model("Reservation", ReservationSchema);
 export default Reservation;

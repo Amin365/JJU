@@ -19,7 +19,7 @@ export const getAchievements = (req, res) => {
 // GET /users/me/achievements
 export const getMyAchievements = async (req, res, next) => {
   try {
-    const unlocked = await UserAchievement.find({ user: req.user._id }).lean();
+    const unlocked = await UserAchievement.find({ user: req.user.id });
     const unlockedMap = new Map(unlocked.map((u) => [u.achievementCode, u.unlockedAt]));
 
     const result = ACHIEVEMENTS.map((a) => ({
@@ -36,12 +36,12 @@ export const getMyAchievements = async (req, res, next) => {
 
 // Helper: check and unlock achievements for a user
 export const checkAndUnlockAchievements = async (userId) => {
-  const reports = await DailyReport.find({ createdBy: userId }).lean();
+  const reports = await DailyReport.find({ createdBy: userId });
   const totalReports = reports.length;
   const pagesTotal = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
   const longestStreak = calcLongestStreak(reports.map((r) => r.readingDate));
 
-  const alreadyUnlocked = await UserAchievement.find({ user: userId }).lean();
+  const alreadyUnlocked = await UserAchievement.find({ user: userId });
   const unlockedCodes = new Set(alreadyUnlocked.map((u) => u.achievementCode));
 
   const newlyUnlocked = [];

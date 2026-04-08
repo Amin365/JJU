@@ -1,161 +1,41 @@
-import mongoose from 'mongoose'
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const { Schema, model, Types } = mongoose
-
-// simple email validator
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/
-
-const MemberSchema = new Schema(
-  {
-    first_name: {
-      type: String,
-      required: true,
-      trim: true,
-      default: '',
+const Member = sequelize.define('Member', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  first_name: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
+  middle_name: { type: DataTypes.STRING, defaultValue: '' },
+  last_name: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
+  code: { type: DataTypes.STRING, unique: true },
+  phone: { type: DataTypes.STRING, defaultValue: '' },
+  email: { type: DataTypes.STRING, unique: true, allowNull: true },
+  gender: { type: DataTypes.ENUM('Male', 'Female'), defaultValue: 'Male' },
+  region: { type: DataTypes.STRING, defaultValue: '' },
+  city: { type: DataTypes.STRING },
+  status: { type: DataTypes.ENUM('Active', 'Inactive', 'pending'), defaultValue: 'Active' },
+  join_date: { type: DataTypes.DATE, defaultValue: DataTypes.NOW },
+  Profile_picture: { type: DataTypes.STRING, defaultValue: '' },
+  isArchived: { type: DataTypes.BOOLEAN, defaultValue: false },
+  department: { type: DataTypes.STRING, defaultValue: '' },
+  student_id: { type: DataTypes.STRING, defaultValue: '' },
+  study_year: { type: DataTypes.STRING, defaultValue: '' },
+  role_id: { type: DataTypes.INTEGER, allowNull: true },
+}, {
+  tableName: 'members',
+  timestamps: true,
+  getterMethods: {
+    full_name() {
+      return [this.first_name, this.middle_name, this.last_name].filter(Boolean).join(' ');
     },
-    middle_name: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    last_name: {
-      type: String,
-      required: true,
-      trim: true,
-      default: '',
-    },
-
-   
-    code: {
-      type: String,
-      required: true,
-      trim: true,
-      unique: true,
-      default: function () {
-       
-        const t = Date.now().toString()
-        const rnd = Math.random().toString(36).slice(2, 4).toUpperCase()
-        return `MBR${t.slice(-6)}${rnd}`
-      },
-    },
-
-    phone: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-
-    email: {
-      type: String,
-      trim: true,
-      lowercase: true,
-      default: '',
-      validate: {
-        validator: function (v) {
-          if (!v) return true
-          return emailRegex.test(v)
-        },
-        message: (props) => `${props.value} is not a valid email`,
-      },
-     
-      unique: true,
-      sparse: true,
-    },
-
-    // date_of_birth: {
-    //   type: Date,
-    //   default: null,
-    // },
-
-    gender: {
-      type: String,
-      enum: ['Male', 'Female'],
-      default: 'Male',
-    },
-
-    region: {
-      type: String,
-      trim: true,
-      default: '',
-    },
-    city:{
-        type:String,
-
-    },
-     status: {
-        type:String,
-        enum:['Active',"Inactive","pending"],
-        default:"Active"
-     },
-
-    join_date: {
-      type: Date,
-      default: Date.now,
-    },
-    Profile_picture: {
-      type: String,
-      trim: true,
-      default: "",
-    },
-
-    // optional bookkeeping fields
-    isArchived: {
-      type: Boolean,
-      default: false,
-    },
-    department: {
-  type: String,
-  trim: true,
-  default: ""
-},
-student_id: {
-  type: String,
-  trim: true,
-  default: ""
-  // optionally: unique: true, sparse: true
-},
-study_year: {
-  type: String, // or Number if you prefer
-  enum: ["1","2","3","4","5",""], // allow empty for non-students
-  default: ""
-},
-role: { type: mongoose.Schema.Types.ObjectId, ref: "Role", default: null }
-    // any other custom fields can go here
   },
-  {
-    timestamps: true,
-    toJSON: { virtuals: true },
-    toObject: { virtuals: true },
+});
+
+Member.addHook('beforeCreate', (member) => {
+  if (!member.code) {
+    const t = Date.now().toString();
+    const rnd = Math.random().toString(36).slice(2, 4).toUpperCase();
+    member.code = `MBR${t.slice(-6)}${rnd}`;
   }
-)
+});
 
-/**
- * Virtual: full_name
- */
-MemberSchema.virtual('full_name').get(function () {
-  const parts = [this.first_name, this.middle_name, this.last_name].filter(Boolean)
-  return parts.join(' ')
-})
-
-
-MemberSchema.pre('validate', function () {
-  if (!this.code) {
-    const t = Date.now().toString()
-    const rnd = Math.random().toString(36).slice(2, 4).toUpperCase()
-    this.code = `MBR${t.slice(-6)}${rnd}`
-  }
-  if (typeof this.first_name === 'string') this.first_name = this.first_name.trim()
-  if (typeof this.middle_name === 'string') this.middle_name = this.middle_name.trim()
-  if (typeof this.last_name === 'string') this.last_name = this.last_name.trim()
-  if (typeof this.code === 'string') this.code = this.code.trim()
-  if (typeof this.email === 'string') this.email = this.email.trim().toLowerCase()
- 
-})
-
-
-MemberSchema.index({ code: 1 }, { unique: true })
-MemberSchema.index({ email: 1 }, { unique: true, sparse: true })
-
-const Member = model('Member', MemberSchema)
-
-export default Member
+export default Member;

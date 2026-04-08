@@ -126,7 +126,7 @@ export const sendMemberEmail = async (req, res) => {
     }
 
     // Load member
-    const member = await Member.findById(id).lean().exec();
+    const member = await Member.findByPk(id);
     if (!member) {
       return res.status(404).json({ message: "Member not found" });
     }

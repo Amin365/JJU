@@ -1,5 +1,5 @@
-import mongoose from "mongoose";
 import Comment from "../models/Comments.js";
+import { Op } from 'sequelize';
 import BlogPost from "../models/BlogPost.js";
 import User from "../models/user.js";
 import Role from "../models/Role.js";
@@ -8,7 +8,7 @@ import Role from "../models/Role.js";
  * Helper: Check if user is admin/moderator
  */
 const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findById(userId).populate("role", "role plural").lean();
+  const user = await User.findByPk(userId).populate("role", "role plural");
   if (!user) return false;
 
   const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
@@ -38,12 +38,12 @@ export const getModerationQueue = async (req, res) => {
       filter.status = status;
     } else {
       // Default: show pending and hidden
-      filter.status = { $in: ["pending", "hidden"] };
+      filter.status = { [Op.in]: ["pending", "hidden"] };
     }
 
     // Filter by comments with reports
     if (hasReports === "true") {
-      filter.reports = { $exists: true, $not: { $size: 0 } };
+      filter.reports = { $exists: true, [Op.not]: { $size: 0 } };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10));
@@ -57,7 +57,7 @@ export const getModerationQueue = async (req, res) => {
         .limit(perPage)
         .populate("postId", "title slug")
         .populate("moderatedBy", "first_name last_name email")
-        .lean(),
+        ,
       Comment.countDocuments(filter),
     ]);
 
@@ -89,10 +89,10 @@ export const getModerationStats = async (req, res) => {
     }
 
     const [pending, hidden, reported, total] = await Promise.all([
-      Comment.countDocuments({ status: "pending" }),
-      Comment.countDocuments({ status: "hidden" }),
-      Comment.countDocuments({ "reports.0": { $exists: true }, status: { $ne: "deleted" } }),
-      Comment.countDocuments({ status: { $ne: "deleted" } }),
+      Comment.count({ where: { status: "pending" } }),
+      Comment.count({ where: { status: "hidden" } }),
+      Comment.countDocuments({ "reports.0": { $exists: true }, status: { [Op.ne]: "deleted" } }),
+      Comment.countDocuments({ status: { [Op.ne]: "deleted" } }),
     ]);
 
     return res.status(200).json({
@@ -135,7 +135,7 @@ export const moderateComment = async (req, res) => {
       return res.status(400).json({ message: "Invalid action. Use: approve, hide, delete, or restore" });
     }
 
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findByPk(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
@@ -192,7 +192,7 @@ export const reportComment = async (req, res) => {
       return res.status(400).json({ message: "Report reason is required" });
     }
 
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findByPk(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
@@ -245,7 +245,7 @@ export const clearReports = async (req, res) => {
       return res.status(400).json({ message: "Invalid comment ID" });
     }
 
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findByPk(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
@@ -285,7 +285,7 @@ export const togglePinComment = async (req, res) => {
       return res.status(400).json({ message: "Invalid comment ID" });
     }
 
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findByPk(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }
@@ -323,7 +323,7 @@ export const toggleBestInsight = async (req, res) => {
       return res.status(400).json({ message: "Invalid comment ID" });
     }
 
-    const comment = await Comment.findById(commentId);
+    const comment = await Comment.findByPk(commentId);
     if (!comment) {
       return res.status(404).json({ message: "Comment not found" });
     }

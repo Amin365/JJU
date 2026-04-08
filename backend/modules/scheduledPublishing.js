@@ -1,4 +1,5 @@
 import BlogPost from "../models/BlogPost.js";
+import { Op } from 'sequelize';
 import Resource from "../models/Resource.js";
 
 /**
@@ -19,7 +20,7 @@ async function publishScheduledBlogPosts() {
     // Find all scheduled posts where publishAt has passed
     const postsToPublish = await BlogPost.find({
       status: "Scheduled",
-      publishAt: { $lte: now },
+      publishAt: { [Op.lte]: now },
     });
 
     if (postsToPublish.length === 0) return;
@@ -32,9 +33,9 @@ async function publishScheduledBlogPosts() {
         post.publishedAt = now;
         post.publishAt = null;
         await post.save();
-        console.log(`[Scheduled Publishing] Published blog post: ${post.title} (${post._id})`);
+        console.log(`[Scheduled Publishing] Published blog post: ${post.title} (${post.id})`);
       } catch (err) {
-        console.error(`[Scheduled Publishing] Failed to publish blog post ${post._id}:`, err);
+        console.error(`[Scheduled Publishing] Failed to publish blog post ${post.id}:`, err);
       }
     }
   } catch (err) {
@@ -51,8 +52,8 @@ async function publishScheduledResources() {
 
     // Find all resources with pending publishAt dates
     const resourcesToPublish = await Resource.find({
-      status: { $ne: "Published" },
-      publishAt: { $lte: now },
+      status: { [Op.ne]: "Published" },
+      publishAt: { [Op.lte]: now },
     });
 
     if (resourcesToPublish.length === 0) return;
@@ -65,9 +66,9 @@ async function publishScheduledResources() {
         resource.publishedAt = now;
         resource.publishAt = null;
         await resource.save();
-        console.log(`[Scheduled Publishing] Published resource: ${resource.title} (${resource._id})`);
+        console.log(`[Scheduled Publishing] Published resource: ${resource.title} (${resource.id})`);
       } catch (err) {
-        console.error(`[Scheduled Publishing] Failed to publish resource ${resource._id}:`, err);
+        console.error(`[Scheduled Publishing] Failed to publish resource ${resource.id}:`, err);
       }
     }
   } catch (err) {

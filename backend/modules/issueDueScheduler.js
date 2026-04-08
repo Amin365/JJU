@@ -63,8 +63,8 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
       const activeIssues = await Issue.find({ status: "Issued" })
         .select("_id member returnDate book")
         .populate("book", "title")
-        .lean()
-        .exec();
+        
+        ;
 
       // Send notifications/emails in parallel
       await Promise.allSettled(
@@ -81,7 +81,7 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
             // Get member user info
             const memberUser = await User.findOne({ member: iss.member })
               .select("_id email first_name last_name")
-              .lean();
+              ;
 
             if (!memberUser?._id) return;
 
@@ -89,28 +89,28 @@ export function startIssueDueScheduler(intervalMs = 60 * 60 * 1000) {
             const bookTitle = iss.book?.title || "the book";
 
             // Prevent duplicate notifications/email
-            const exists = await Notification.exists({
-              user: memberUser._id,
-              "meta.issue": iss._id,
+            const exists = await Notification.findOne({ where: {
+              user: memberUser.id,
+              "meta.issue": iss.id,
               "meta.kind": kind,
-            });
+            } });
             if (exists) return;
 
             // Create notification
             await Notification.create({
-              user: memberUser._id,
+              user: memberUser.id,
               title: kind === "overdue" ? "Book overdue" : "Book due soon",
               message:
                 kind === "overdue"
                   ? `Your borrowed book "${bookTitle}" is overdue.`
                   : `Your borrowed book "${bookTitle}" is due tomorrow.`,
               type: kind === "overdue" ? "error" : "warning",
-              meta: { issue: iss._id, kind, sentAt: now },
+              meta: { issue: iss.id, kind, sentAt: now },
             });
 
             // Send push notification
             try {
-              await sendPushToUser(memberUser._id, {
+              await sendPushToUser(memberUser.id, {
                 title: kind === "overdue" ? "Book overdue" : "Book due soon",
                 body:
                   kind === "overdue"

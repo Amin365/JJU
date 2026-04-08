@@ -1,15 +1,14 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const AchievementSchema = new mongoose.Schema({
-  code: { type: String, required: true, unique: true },
-  title: { type: String, required: true },
-  description: { type: String, default: "" },
-  icon: { type: String, default: "🏆" },
-  unlockRules: {
-    type: { type: String, enum: ["first_report", "streak", "reports_count", "pages_count"] },
-    threshold: { type: Number, default: 1 },
-  },
-}, { timestamps: true });
+const Achievement = sequelize.define('Achievement', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  code: { type: DataTypes.STRING, unique: true, allowNull: false },
+  title: { type: DataTypes.STRING, allowNull: false },
+  description: { type: DataTypes.STRING, defaultValue: '' },
+  icon: { type: DataTypes.STRING, defaultValue: '🏆' },
+  unlockRules_type: { type: DataTypes.ENUM('first_report', 'streak', 'reports_count', 'pages_count'), allowNull: true },
+  unlockRules_threshold: { type: DataTypes.INTEGER, defaultValue: 1 },
+}, { tableName: 'achievements', timestamps: true });
 
-const Achievement = mongoose.model("Achievement", AchievementSchema);
 export default Achievement;

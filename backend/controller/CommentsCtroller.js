@@ -1,6 +1,6 @@
 
-import mongoose from "mongoose";
 import BlogPost from "../models/BlogPost.js";
+import { Op } from 'sequelize';
 import Comment from "../models/Comments.js";
 
 /**
@@ -20,17 +20,17 @@ export const getCommentsByPostId = async (req, res) => {
     }
 
     // ensure post exists (optional but nice)
-    const exists = await BlogPost.exists({ _id: id });
+    const exists = await BlogPost.findOne({ where: { _id: id } });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     // Phase 7: Only show approved comments in public view
     // Deleted and hidden comments are excluded
     const comments = await Comment.find({ 
       postId: id,
-      status: { $in: ["approved", "pending"] } // Show approved and pending, hide deleted/hidden
+      status: { [Op.in]: ["approved", "pending"] } // Show approved and pending, hide deleted/hidden
     })
       .sort({ isPinned: -1, isBestInsight: -1, createdAt: -1 })
-      .lean();
+      ;
 
     return res.status(200).json({ data: comments });
   } catch (err) {
@@ -62,7 +62,7 @@ export const createCommentForPost = async (req, res) => {
       return res.status(400).json({ message: "Comment content is required" });
     }
 
-    const exists = await BlogPost.exists({ _id: id });
+    const exists = await BlogPost.findOne({ where: { _id: id } });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.create({
@@ -111,7 +111,7 @@ export const createReplyForComment = async (req, res) => {
       return res.status(400).json({ message: "Reply content is required" });
     }
 
-    const exists = await BlogPost.exists({ _id: id });
+    const exists = await BlogPost.findOne({ where: { _id: id } });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.findOne({ _id: commentId, postId: id });
@@ -156,7 +156,7 @@ export const toggleCommentLike = async (req, res) => {
     }
 
     // optional: ensure post exists
-    const exists = await BlogPost.exists({ _id: id });
+    const exists = await BlogPost.findOne({ where: { _id: id } });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.findOne({ _id: commentId, postId: id });
@@ -180,7 +180,7 @@ export const toggleCommentLike = async (req, res) => {
 
     return res.status(200).json({
       data: {
-        commentId: comment._id,
+        commentId: comment.id,
         likes: comment.likes,
         liked: !alreadyLiked,
       },

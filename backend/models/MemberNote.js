@@ -1,16 +1,13 @@
-import mongoose from "mongoose";
+import { DataTypes } from 'sequelize';
+import sequelize from '../config/database.js';
 
-const MemberNoteSchema = new mongoose.Schema(
-  {
-    member: { type: mongoose.Schema.Types.ObjectId, ref: "Member", required: true, index: true },
-    author: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
-    note: { type: String, required: true, trim: true },
-    category: { type: String, trim: true, default: "" },
-    isArchived: { type: Boolean, default: false },
-  },
-  { timestamps: true }
-);
+const MemberNote = sequelize.define('MemberNote', {
+  id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  member_id: { type: DataTypes.INTEGER, allowNull: false },
+  author_id: { type: DataTypes.INTEGER, allowNull: false },
+  note: { type: DataTypes.TEXT, allowNull: false },
+  category: { type: DataTypes.STRING, defaultValue: '' },
+  isArchived: { type: DataTypes.BOOLEAN, defaultValue: false },
+}, { tableName: 'member_notes', timestamps: true });
 
-MemberNoteSchema.index({ member: 1, createdAt: -1 });
-
-export default mongoose.model("MemberNote", MemberNoteSchema);
+export default MemberNote;

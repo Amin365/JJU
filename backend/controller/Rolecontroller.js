@@ -186,12 +186,11 @@ export async function deleteRole(req, res) {
       return res.status(403).json({ message: "Cannot delete system roles" });
     }
 
-    await RolePermission.destroy({ where: { role_id: id } });
-    await role.destroy();
-
     await logRoleAction("deleted", role, req.user, req, {
       description: `Role "${role.role}" was deleted`,
     });
+    await RolePermission.destroy({ where: { role_id: id } });
+    await role.destroy();
 
     return res.status(200).json({ message: "Role deleted successfully" });
   } catch (error) {

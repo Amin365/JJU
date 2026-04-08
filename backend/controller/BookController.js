@@ -4,7 +4,7 @@ import Issue from "../models/Issue.js";
 import Member from "../models/member.js";
 import { logBookAction } from "../utility/auditLog.js";
 
-const escapeLike = (s) => String(s).replace(/[%_]/g, "\\$&");
+const escapeLike = (s) => String(s).replace(/[\\%_]/g, "\\$&");
 
 const normalize = (v) => (v == null ? "" : String(v).trim());
 
@@ -235,9 +235,10 @@ export const deleteBook = async (req, res, next) => {
     if (!removed) {
       return res.status(404).json({ message: "Book not found" });
     }
+    const removedId = removed.id;
     await removed.destroy();
 
-    return res.status(200).json({ message: "Book deleted", id: removed.id });
+    return res.status(200).json({ message: "Book deleted", id: removedId });
   } catch (err) {
     return next(err);
   }

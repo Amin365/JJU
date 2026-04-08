@@ -39,7 +39,7 @@ export const getAuditLogs = async (req, res, next) => {
     }
 
     if (search) {
-      const escaped = `%${String(search).replace(/[%_]/g, "\\$&").toLowerCase()}%`;
+      const escaped = `%${String(search).replace(/[\\%_]/g, "\\$&").toLowerCase()}%`;
       filter[Op.or] = [
         sqlWhere(fn("LOWER", col("description")), { [Op.like]: escaped }),
         sqlWhere(fn("LOWER", col("entityLabel")), { [Op.like]: escaped }),

@@ -157,7 +157,7 @@ function TopReadersList({ readers, loading }) {
   return (
     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
       {safeReaders.map((r, i) => (
-        <div key={r._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
+        <div key={r.id ?? i} className="flex items-center gap-3 border rounded-md p-3">
           <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center text-sm font-bold text-primary shrink-0">
             {i + 1}
           </div>
@@ -205,7 +205,7 @@ function PopularBooksList({ books, loading }) {
   return (
     <div className="space-y-3 max-h-80 overflow-y-auto pr-1">
       {safeBooks.map((b, i) => (
-        <div key={b._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
+        <div key={b.id ?? i} className="flex items-center gap-3 border rounded-md p-3">
           <div className="h-10 w-8 rounded bg-muted flex items-center justify-center shrink-0">
             <BookOpen className="h-4 w-4 text-muted-foreground" />
           </div>
@@ -261,7 +261,7 @@ function PendingApprovals({ data, loading }) {
           <div className="space-y-2">
             {joinReqs.map((r) => (
               <div
-                key={r._id}
+                key={r.id}
                 className="flex items-center justify-between border rounded-md px-3 py-2 text-sm"
               >
                 <span className="font-medium truncate">{r.FullName}</span>
@@ -286,7 +286,7 @@ function PendingApprovals({ data, loading }) {
                 : "Unknown";
               return (
                 <div
-                  key={i._id}
+                  key={i.id}
                   className="flex items-center justify-between border border-destructive/30 rounded-md px-3 py-2 text-sm"
                 >
                   <div className="min-w-0">
@@ -317,7 +317,7 @@ function PendingApprovals({ data, loading }) {
                 : "Unknown";
               return (
                 <div
-                  key={r._id}
+                  key={r.id}
                   className="flex items-center justify-between border rounded-md px-3 py-2 text-sm"
                 >
                   <div className="min-w-0">
@@ -381,7 +381,7 @@ function ActiveChallengesWidget() {
         ) : (
           <div className="space-y-2">
             {challenges.map((c) => (
-              <Link key={c._id} to={`/dashboard/challenges/${c._id}`}>
+              <Link key={c.id} to={`/dashboard/challenges/${c.id}`}>
                 <div className="flex items-center gap-3 border rounded-md p-3 hover:bg-muted/50 transition cursor-pointer">
                   <Trophy className="h-4 w-4 text-yellow-400 shrink-0" />
                   <div className="flex-1 min-w-0">
@@ -454,7 +454,7 @@ function RecentAchievementsWidget() {
             {myAchievements.map((a, i) => {
               const ach = a.achievement || a;
               return (
-                <div key={ach._id ?? i} className="flex items-center gap-3 border rounded-md p-3">
+                <div key={ach.id ?? i} className="flex items-center gap-3 border rounded-md p-3">
                   <span className="text-2xl leading-none shrink-0">{ach.icon || "🏅"}</span>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">{ach.title || ach.name}</p>

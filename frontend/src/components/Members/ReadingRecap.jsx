@@ -126,7 +126,7 @@ export default function ReadingRecaps() {
   const bookTotals = useMemo(() => {
     const map = {};
     books.forEach((b) => {
-      if (b?._id) map[String(b._id)] = Number(b.totalPages) || 0;
+      if (b?.id) map[String(b.id)] = Number(b.totalPages) || 0;
     });
     return map;
   }, [books]);
@@ -172,7 +172,7 @@ export default function ReadingRecaps() {
         ratingSum.count += 1;
       }
 
-      const bookId = r.book ? String(r.book._id || r.book) : null;
+      const bookId = r.book ? String(r.book.id || r.book) : null;
       if (bookId) {
         const totalPages = Number(r.book?.totalPages) || bookTotals[bookId] || 0;
         pagesByBook[bookId] = pagesByBook[bookId] || { pages: 0, total: totalPages };
@@ -220,7 +220,7 @@ export default function ReadingRecaps() {
 
     const issueBooks = new Set();
     monthlyIssues.forEach((it) => {
-      const bid = it.book ? String(it.book._id || it.book) : null;
+      const bid = it.book ? String(it.book.id || it.book) : null;
       if (bid) issueBooks.add(bid);
     });
 

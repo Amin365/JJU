@@ -1,86 +1,75 @@
 import Book from "../models/Books.js";
-import { Op } from 'sequelize';
+import { Op } from "sequelize";
 import Issue from "../models/Issue.js";
-import { logBookAction, buildChanges } from "../utility/auditLog.js";
+import Member from "../models/Members.js";
+import { logBookAction } from "../utility/auditLog.js";
 
-/**
- * Helper: escape user input for use in a RegExp
- */
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const normalize = (v) => (v == null ? "" : String(v).trim());
+
+const toIntOr = (v, fallback) => {
+  if (v === "" || v == null) return fallback;
+  const n = Number(v);
+  return Number.isFinite(n) ? Math.trunc(n) : fallback;
+};
+
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
+const allowedStatus = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
 
 /**
  * Create a new book
  */
 export const createBook = async (req, res, next) => {
   try {
-    const { title, author, BookType, isbn, status, book_picture, totalPages, totalCopies, availableCopies } = req.body;
+    const { title, author, BookType, isbn, status, totalPages, totalCopies, availableCopies } = req.body;
 
-    // Basic validation (consider replacing with express-validator/Joi)
     if (!title || !BookType) {
       return res.status(400).json({ message: "title and BookType are required" });
     }
 
-    const uploaded=req.file
-    const imageUrl =
-      (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) || null;
+    const uploaded = req.file;
+    const imageUrl = (uploaded && (uploaded.path || uploaded.secure_url || uploaded.url)) || null;
 
-
-
-    // Build model instance and save
-    // normalize total/available copies
-    // If totalCopies was not provided but availableCopies was, assume totalCopies == availableCopies
     let tc;
-    if (typeof totalCopies !== "undefined" && totalCopies !== null && totalCopies !== "") {
+    if (totalCopies !== undefined && totalCopies !== null && totalCopies !== "") {
       tc = Number(totalCopies) || 1;
-    } else if (typeof availableCopies !== "undefined" && availableCopies !== null && availableCopies !== "") {
+    } else if (availableCopies !== undefined && availableCopies !== null && availableCopies !== "") {
       tc = Number(availableCopies) || 1;
     } else {
       tc = 1;
     }
 
-    const av = typeof availableCopies !== "undefined" ? Number(availableCopies) : tc;
+    const av = availableCopies !== undefined ? Number(availableCopies) : tc;
 
-    const book = new Book({
+    const saved = await Book.create({
       title,
       author,
       BookType,
       isbn,
-      status,
+      status: status || "available",
       book_picture: imageUrl,
       totalPages,
       totalCopies: tc,
       availableCopies: Math.max(0, Math.min(av, tc)),
     });
 
-    try {
-      const saved = await book.save();
-      
-      // Phase 8: Audit log
-      await logBookAction("created", saved, req.user, req, {
-        description: `Book "${saved.title}" was created`,
-      });
-      
-      return res.status(201).json(saved);
-    } catch (err) {
-      // Duplicate key (e.g., ISBN unique constraint)
-      if (err && err.code === 11000) {
-        const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
-        return res.status(409).json({
-          message: `Duplicate ${dupField}: a book with this value already exists.`,
-          details: err.keyValue || null,
-        });
-      }
-      return next(err);
-    }
+    await logBookAction("created", saved, req.user, req, {
+      description: `Book "${saved.title}" was created`,
+    });
+
+    return res.status(201).json(saved);
   } catch (err) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        message: "Duplicate value: a book with this unique field already exists.",
+      });
+    }
     return next(err);
   }
 };
 
 /**
  * Get books with pagination, filtering, sorting.
- * Usage: GET /books?page=1&limit=20&sort=-createdAt&q=search&author=...&BookType=...&status=...&from=YYYY-MM-DD&to=YYYY-MM-DD
- * Returns: { data, total, page, limit, totalPages }
  */
 export const getBooks = async (req, res, next) => {
   try {
@@ -99,9 +88,7 @@ export const getBooks = async (req, res, next) => {
 
     const where = {};
 
-    if (isbn) {
-      where.isbn = String(isbn).trim();
-    }
+    if (isbn) where.isbn = String(isbn).trim();
 
     if (q) {
       const qv = String(q).trim();
@@ -129,10 +116,9 @@ export const getBooks = async (req, res, next) => {
       if (Object.keys(where.createdAt).length === 0) delete where.createdAt;
     }
 
-    // sanitize and bound paging params
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(100, parseInt(limit, 10) || 20));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
     const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
     const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
@@ -141,31 +127,32 @@ export const getBooks = async (req, res, next) => {
       Book.findAll({
         where,
         order: [[sortField || "createdAt", sortDir]],
-        offset: skip,
+        offset,
         limit: perPage,
       }),
       Book.count({ where }),
     ]);
 
-    // attach borrowedCount per book (number of active Issued issues)
     const bookIds = items.map((b) => b.id).filter(Boolean);
+
     if (bookIds.length > 0) {
       const issuedRows = await Issue.findAll({
         where: { book_id: { [Op.in]: bookIds }, status: "Issued" },
         attributes: ["book_id"],
         raw: true,
       });
+
       const map = issuedRows.reduce((acc, row) => {
         const key = String(row.book_id);
         acc[key] = (acc[key] || 0) + 1;
         return acc;
       }, {});
+
       for (const it of items) {
-        it.borrowedCount = map[String(it.id)] || 0;
+        it.setDataValue("borrowedCount", map[String(it.id)] || 0);
       }
     }
 
-    // Return shape: { data, total, page, limit, totalPages }
     return res.status(200).json({
       data: items,
       total,
@@ -177,17 +164,15 @@ export const getBooks = async (req, res, next) => {
     return next(err);
   }
 };
+
 export const getBookById = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-   
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const book = await Book.findByPk(id);
-
+    const book = await Book.findByPk(Number(id));
     if (!book) {
       return res.status(404).json({ message: "Book not found" });
     }
@@ -198,120 +183,79 @@ export const getBookById = async (req, res, next) => {
   }
 };
 
-
-
 /**
  * Update a book by id
- * PUT /books/:id
- * Body: partial or full book fields
  */
 export const updateBook = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
+    const book = await Book.findByPk(Number(id));
+    if (!book) return res.status(404).json({ message: "Book not found" });
+
     const update = { ...req.body };
-    // Prevent accidental _id changes
-    if (update.id) delete update.id;
+    delete update.id;
 
-    try {
-      // If update contains copies, normalize availableCopies to not exceed totalCopies
-      if (Object.prototype.hasOwnProperty.call(update, "totalCopies")) {
-        update.totalCopies = Number(update.totalCopies) || 0;
-      }
-      if (Object.prototype.hasOwnProperty.call(update, "availableCopies")) {
-        update.availableCopies = Number(update.availableCopies) || 0;
-      }
+    if (Object.prototype.hasOwnProperty.call(update, "totalCopies")) {
+      update.totalCopies = Number(update.totalCopies) || 0;
+    }
+    if (Object.prototype.hasOwnProperty.call(update, "availableCopies")) {
+      update.availableCopies = Number(update.availableCopies) || 0;
+    }
 
-      const updated = await Book.findByIdAndUpdate(id, update, {
-        new: true,
-        runValidators: true,
-        context: "query",
-      });
-
-        if (req.file) {
+    if (req.file) {
       const uploaded = req.file;
       update.book_picture = uploaded.path || uploaded.secure_url || uploaded.url;
     }
 
-      // ensure availableCopies never exceeds totalCopies
-      if (updated) {
-        const tc = Number(updated.totalCopies) || 0;
-        const av = Number(updated.availableCopies) || 0;
-        if (tc > 0 && av > tc) {
-          updated.availableCopies = tc;
-          await updated.save();
-        }
-      }
-      const updatedLean = updated ? (await Book.findByPk(updated.id)) : null;
+    await book.update(update);
 
-      if (!updated) {
-        return res.status(404).json({ message: "Book not found" });
-      }
-
-      return res.status(200).json(updated);
-    } catch (err) {
-      if (err && err.code === 11000) {
-        const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
-        return res.status(409).json({
-          message: `Duplicate ${dupField}: a book with this value already exists.`,
-          details: err.keyValue || null,
-        });
-      }
-      return next(err);
+    const tc = Number(book.totalCopies) || 0;
+    const av = Number(book.availableCopies) || 0;
+    if (tc > 0 && av > tc) {
+      await book.update({ availableCopies: tc });
     }
+
+    return res.status(200).json(book);
   } catch (err) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        message: "Duplicate value: a book with this unique field already exists.",
+      });
+    }
     return next(err);
   }
 };
 
 /**
  * Delete a book by id
- * DELETE /books/:id
  */
 export const deleteBook = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const removed = await (Book.destroy({ where: { id: id } }).then(() => Book.findByPk(id_deleted)));
+    const removed = await Book.findByPk(Number(id));
     if (!removed) {
       return res.status(404).json({ message: "Book not found" });
     }
 
-    return res.status(200).json({ message: "Book deleted", id: removed.id });
+    const removedId = removed.id;
+    await removed.destroy();
+
+    return res.status(200).json({ message: "Book deleted", id: removedId });
   } catch (err) {
     return next(err);
   }
 };
 
-
-const normalize = (v) => (v == null ? "" : String(v).trim());
-
-const toIntOr = (v, fallback) => {
-  if (v === "" || v == null) return fallback;
-  const n = Number(v);
-  return Number.isFinite(n) ? Math.trunc(n) : fallback;
-};
-
-const allowedStatus = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
-
 /**
  * POST /books/bulk
- * Body: { books: [...] }
- *
- * Required from file: title
- * isbn is OPTIONAL (auto-generated by schema pre('validate') hook if missing)
- *
- * Behavior:
- * - invalid rows => skipped + added to errors[]
- * - duplicates by provided isbn => skipped
- * - existing isbn in DB => skipped
- * - rows without isbn are inserted (isbn generated)
  */
 export const bulkCreateBooks = async (req, res, next) => {
   try {
@@ -326,29 +270,25 @@ export const bulkCreateBooks = async (req, res, next) => {
 
     for (let i = 0; i < books.length; i++) {
       const raw = books[i] || {};
-
       const title = normalize(raw.title);
       if (!title) {
         errors.push({ index: i, message: "title is required" });
         continue;
       }
 
-      // optional fields
       const author = normalize(raw.author);
       const BookType = normalize(raw.BookType);
       const book_picture = normalize(raw.book_picture);
 
       const statusRaw = normalize(raw.status).toLowerCase();
-      const status = statusRaw || "available";
-      if (status && !allowedStatus.has(status)) {
-        errors.push({ index: i, message: `Invalid status: ${status}` });
+      const finalStatus = statusRaw || "available";
+      if (finalStatus && !allowedStatus.has(finalStatus)) {
+        errors.push({ index: i, message: `Invalid status: ${finalStatus}` });
         continue;
       }
 
       const totalPages = toIntOr(raw.totalPages, 0);
       const totalCopies = toIntOr(raw.totalCopies, 1);
-
-      // if not provided, default availableCopies = totalCopies (better import UX)
       const availableCopies =
         raw.availableCopies == null || raw.availableCopies === ""
           ? totalCopies
@@ -371,27 +311,22 @@ export const bulkCreateBooks = async (req, res, next) => {
         continue;
       }
 
-      // isbn is OPTIONAL (auto-generated if missing)
       const isbn = normalize(raw.isbn);
-
       const doc = {
         title,
         author: author || undefined,
         BookType: BookType || undefined,
-        status,
+        status: finalStatus,
         book_picture: book_picture || undefined,
         totalPages,
         totalCopies,
         availableCopies,
       };
-
-      // if provided, keep it; if missing, schema hook generates it
       if (isbn) doc.isbn = isbn;
 
       prepared.push(doc);
     }
 
-    // 1) Deduplicate inside the file by provided isbn ONLY
     const seenIsbn = new Set();
     const deduped = [];
     for (const doc of prepared) {
@@ -403,7 +338,6 @@ export const bulkCreateBooks = async (req, res, next) => {
       deduped.push(doc);
     }
 
-    // 2) Skip rows whose provided isbn already exists in DB
     const providedIsbns = deduped.map((d) => d.isbn).filter(Boolean);
     const existing = providedIsbns.length
       ? await Book.findAll({
@@ -413,18 +347,16 @@ export const bulkCreateBooks = async (req, res, next) => {
         })
       : [];
 
-    const existingIsbns = new Set(existing.map((x) => String(x.isbn || "").toLowerCase()).filter(Boolean));
+    const existingIsbns = new Set(
+      existing.map((x) => String(x.isbn || "").toLowerCase()).filter(Boolean)
+    );
 
     const toInsert = [];
     let skippedCount = 0;
-
     for (const doc of deduped) {
-      if (doc.isbn) {
-        const key = doc.isbn.toLowerCase();
-        if (existingIsbns.has(key)) {
-          skippedCount++;
-          continue;
-        }
+      if (doc.isbn && existingIsbns.has(doc.isbn.toLowerCase())) {
+        skippedCount++;
+        continue;
       }
       toInsert.push(doc);
     }
@@ -439,9 +371,7 @@ export const bulkCreateBooks = async (req, res, next) => {
       });
     }
 
-    // Insert
-    // If some insert fails because of duplicate key (race condition), ordered:false continues.
-    const inserted = await Book.bulkCreate(toInsert, { ordered: false });
+    const inserted = await Book.bulkCreate(toInsert);
 
     return res.status(201).json({
       message: "Bulk books import complete.",
@@ -451,58 +381,39 @@ export const bulkCreateBooks = async (req, res, next) => {
       errors,
     });
   } catch (err) {
-    if (err?.code === 11000) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         message: "Some records already exist (duplicate isbn).",
-        details: err?.keyValue,
       });
     }
     return next(err);
   }
 };
 
-
-export default {
-  createBook,
-  getBooks,
-  updateBook,
-  deleteBook,
-};
-
 /**
  * PATCH /books/:id/condition
- * Body: { status: 'lost' | 'damaged' | 'archived' | 'available', note }
- * Updates the book's condition/status.
  */
 export const updateBookCondition = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const allowed = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
     const { status } = req.body;
-
-    if (!status || !allowed.has(status)) {
+    if (!status || !allowedStatus.has(status)) {
       return res.status(400).json({
-        message: `Invalid status. Must be one of: ${[...allowed].join(", ")}`,
+        message: `Invalid status. Must be one of: ${[...allowedStatus].join(", ")}`,
       });
     }
 
-    const book = await Book.findByPk(id);
+    const book = await Book.findByPk(Number(id));
     if (!book) return res.status(404).json({ message: "Book not found" });
 
-    // If marking as lost/damaged/archived, adjust available copies
     if (["lost", "damaged", "archived"].includes(status)) {
-      // Reset available copies to 0 when book is out of circulation
       book.availableCopies = 0;
     } else if (status === "available" && ["lost", "damaged", "archived"].includes(book.status)) {
-      // Restore available copies: set to totalCopies minus currently issued copies
-      const issuedCount = await (await import("../models/Issue.js")).default.count({ where: {
-        book: book.id,
-        status: "Issued",
-      } });
+      const issuedCount = await Issue.count({ where: { book_id: book.id, status: "Issued" } });
       book.availableCopies = Math.max(0, (book.totalCopies || 1) - issuedCount);
     }
 
@@ -517,23 +428,28 @@ export const updateBookCondition = async (req, res, next) => {
 
 /**
  * GET /books/:id/history
- * Returns issue history for a book.
  */
 export const getBookHistory = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
     }
 
-    const book = await Book.findByPk(id);
+    const book = await Book.findByPk(Number(id));
     if (!book) return res.status(404).json({ message: "Book not found" });
 
-    const issues = await Issue.find({ book: id })
-      .populate("member", "first_name middle_name last_name full_name email code")
-      .sort({ createdAt: -1 })
-      
-      ;
+    const issues = await Issue.findAll({
+      where: { book_id: Number(id) },
+      include: [
+        {
+          model: Member,
+          as: "member",
+          attributes: ["first_name", "middle_name", "last_name", "full_name", "email", "code"],
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
 
     const total = issues.length;
     const lastIssued = issues.find((i) => i.issueDate)?.issueDate ?? null;
@@ -548,4 +464,15 @@ export const getBookHistory = async (req, res, next) => {
   } catch (err) {
     return next(err);
   }
+};
+
+export default {
+  createBook,
+  getBooks,
+  getBookById,
+  updateBook,
+  deleteBook,
+  bulkCreateBooks,
+  updateBookCondition,
+  getBookHistory,
 };

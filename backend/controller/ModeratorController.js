@@ -1,80 +1,46 @@
-
 import User from "../models/user.js";
-import { Op } from 'sequelize';
+import { Op } from "sequelize";
 import Member from "../models/Members.js";
 import ModeratorMember from "../models/ModeratorMember.js";
 import Role from "../models/Role.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
 
-// Get list of moderators (users with 'Moderator' role)
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
+const roleNameFrom = (role) =>
+  String(role?.role || role?.plural || "").toLowerCase();
+
+const isSuperAdminRole = (role) => /super\s*admin/i.test(roleNameFrom(role));
+const isModeratorRole = (role) => /moderator/i.test(roleNameFrom(role));
+
+// Get list of moderators (users with Moderator or Super Admin role)
 export const getModerators = async (req, res, next) => {
   try {
-    // Find Role documents for 'Moderator' and 'Super Admin' (match name or plural, case-insensitive)
-    const moderatorRole = await Role.findOne({
-      [Op.or]: [
-        { role: { [Op.like]: "^Moderator$", $options: "i" } },
-        { plural: { [Op.like]: "^Moderators$", $options: "i" } },
-      ],
+    const roles = await Role.findAll({
+      where: {
+        [Op.or]: [
+          { role: { [Op.like]: "%Moderator%" } },
+          { plural: { [Op.like]: "%Moderator%" } },
+          { role: { [Op.like]: "%Super Admin%" } },
+          { plural: { [Op.like]: "%Super Admin%" } },
+        ],
+      },
+      attributes: ["id", "role", "plural"],
+      raw: true,
     });
 
-    const superAdminRole = await Role.findOne({
-      [Op.or]: [
-        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
-        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
-      ],
+    const roleIds = roles.map((r) => r.id);
+    if (!roleIds.length) return res.status(200).json({ data: [] });
+
+    const moderators = await User.findAll({
+      where: { role_id: { [Op.in]: roleIds } },
+      attributes: ["id", "username", "first_name", "last_name", "email", "role_id"],
+      include: [{ model: Role, as: "role", attributes: ["id", "role", "plural"], required: false }],
+      order: [["createdAt", "DESC"]],
     });
 
-    // Collect role ids to include (Moderator + Super Admin when present)
-    const roleIds = [];
-    if (moderatorRole) roleIds.push(moderatorRole.id);
-    if (superAdminRole) roleIds.push(superAdminRole.id);
-
-    if (roleIds.length === 0) return res.status(200).json({ data: [] });
-
-    const moderators = await User.find({ role: { [Op.in]: roleIds } })
-      .select("_id username first_name last_name email role")
-      .populate("role", "role plural")
-      ;
-
-    // Debug: show what Roles were found and how many users matched directly
-    // console.debug("getModerators - roles:", { moderatorRole: moderatorRole?.role, superAdminRole: superAdminRole?.role });
-    // console.debug("getModerators - direct moderators count:", Array.isArray(moderators) ? moderators.length : 0);
-
-    let finalModerators = moderators;
-
-    // Migrate legacy string roles (if any) to proper ObjectId references, per-role
-    const migrationTasks = [];
-    if (moderatorRole) {
-      migrationTasks.push(
-        User.collection.updateMany(
-          { role: { [Op.like]: `^${moderatorRole.role}$`, $options: "i" } },
-          { $set: { role: moderatorRole.id } }
-        )
-      );
-    }
-    if (superAdminRole) {
-      migrationTasks.push(
-        User.collection.updateMany(
-          { role: { [Op.like]: `^${superAdminRole.role}$`, $options: "i" } },
-          { $set: { role: superAdminRole.id } }
-        )
-      );
-    }
-
-    if (migrationTasks.length > 0) {
-      const results = await Promise.all(migrationTasks);
-      // If any migration updated documents, re-query
-      const updated = results.some((r) => r && (r.matchedCount > 0 || r.modifiedCount > 0 || r.result?.nModified > 0));
-        if (updated) {
-        finalModerators = await User.find({ role: { [Op.in]: roleIds } })
-          .select("_id username first_name last_name email role")
-          .populate("role", "role plural")
-          ;
-      }
-    }
-
-    return res.status(200).json({ data: finalModerators || [] });
+    return res.status(200).json({ data: moderators || [] });
   } catch (err) {
     return next(err);
   }
@@ -84,35 +50,36 @@ export const getModerators = async (req, res, next) => {
 export const getAssignedMembers = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
-    if (!Number.isInteger(Number(moderatorId))) {
+    if (!isValidId(moderatorId)) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }
 
-    // If the selected user is a Super Admin, return all members
-    const user = await User.findByPk(moderatorId).select("role");
+    const user = await User.findByPk(Number(moderatorId), {
+      attributes: ["id", "role_id"],
+      include: [{ model: Role, as: "role", attributes: ["id", "role", "plural"], required: false }],
+    });
     if (!user) return res.status(404).json({ message: "Moderator not found" });
 
-    const superAdminRole = await Role.findOne({
-      [Op.or]: [
-        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
-        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
-      ],
-    });
-
-    // role may be an ObjectId or a legacy string
-    const isSuperAdmin = superAdminRole && (
-      (typeof user.role === "string" && user.role.toString().toLowerCase().includes("super")) ||
-      (user.role && user.role.toString() === superAdminRole.id.toString())
-    );
-
-    if (isSuperAdmin) {
-      const allMembers = await Member.find({}).select("_id first_name last_name email code full_name");
+    if (isSuperAdminRole(user.role)) {
+      const allMembers = await Member.findAll({
+        attributes: ["id", "first_name", "last_name", "email", "code", ],
+        order: [["createdAt", "DESC"]],
+      });
       return res.status(200).json({ data: allMembers });
     }
 
-    const assignedMembers = await ModeratorMember.find({ moderator: moderatorId })
-      .populate("member", "_id first_name last_name email code full_name")
-      ;
+    const assignedMembers = await ModeratorMember.findAll({
+      where: { moderator_id: Number(moderatorId) },
+      include: [
+        {
+          model: Member,
+          as: "member",
+          attributes: ["id", "first_name", "last_name", "email", "code"],
+          required: true,
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+    });
 
     return res.status(200).json({ data: assignedMembers });
   } catch (err) {
@@ -123,9 +90,21 @@ export const getAssignedMembers = async (req, res, next) => {
 // Get unassigned members for assignment
 export const getMembersForAssignment = async (req, res, next) => {
   try {
-    const unassignedMembers = await Member.find({
-      _id: { $nin: await ModeratorMember.distinct("member") },
-    }).select("_id first_name last_name email code full_name");
+    const assignedRows = await ModeratorMember.findAll({
+      attributes: ["member_id"],
+      raw: true,
+    });
+    const assignedMemberIds = assignedRows.map((r) => r.member_id).filter(Boolean);
+
+    const where = assignedMemberIds.length
+      ? { id: { [Op.notIn]: assignedMemberIds } }
+      : {};
+
+    const unassignedMembers = await Member.findAll({
+      where,
+      attributes: ["id", "first_name", "last_name", "email", "code"],
+      order: [["createdAt", "DESC"]],
+    });
 
     return res.status(200).json({ data: unassignedMembers });
   } catch (err) {
@@ -139,18 +118,36 @@ export const assignMemberToModerator = async (req, res, next) => {
     const { moderatorId } = req.params;
     const { memberId } = req.body;
 
-    if (!Number.isInteger(Number(moderatorId)) || !Number.isInteger(Number(memberId))) {
+    if (!isValidId(moderatorId) || !isValidId(memberId)) {
       return res.status(400).json({ message: "Invalid moderator or member ID" });
     }
 
-    // Ensure member is not already assigned
-    const existing = await ModeratorMember.findOne({ member: memberId });
+    const [moderator, member] = await Promise.all([
+      User.findByPk(Number(moderatorId), {
+        include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+      }),
+      Member.findByPk(Number(memberId)),
+    ]);
+
+    if (!moderator) return res.status(404).json({ message: "Moderator not found" });
+    if (!member) return res.status(404).json({ message: "Member not found" });
+
+    if (!isModeratorRole(moderator.role) && !isSuperAdminRole(moderator.role)) {
+      return res.status(400).json({ message: "Selected user is not a moderator/super admin" });
+    }
+
+    const existing = await ModeratorMember.findOne({
+      where: { member_id: Number(memberId) },
+    });
+
     if (existing) {
       return res.status(409).json({ message: "Member is already assigned to a moderator" });
     }
 
-    // Assign member to moderator
-    const assignment = await ModeratorMember.create({ moderator: moderatorId, member: memberId });
+    const assignment = await ModeratorMember.create({
+      moderator_id: Number(moderatorId),
+      member_id: Number(memberId),
+    });
 
     return res.status(201).json({ data: assignment });
   } catch (err) {
@@ -163,97 +160,132 @@ export const unassignMemberFromModerator = async (req, res, next) => {
   try {
     const { moderatorId, memberId } = req.params;
 
-    if (!Number.isInteger(Number(moderatorId)) || !Number.isInteger(Number(memberId))) {
+    if (!isValidId(moderatorId) || !isValidId(memberId)) {
       return res.status(400).json({ message: "Invalid moderator or member ID" });
     }
 
-    const unassignment = await ModeratorMember.findOneAndDelete({
-      moderator: moderatorId,
-      member: memberId,
+    const assignment = await ModeratorMember.findOne({
+      where: {
+        moderator_id: Number(moderatorId),
+        member_id: Number(memberId),
+      },
     });
 
-    if (!unassignment) {
-      return res.status(404).json({ message: "No assignment found for the specified moderator and member" });
+    if (!assignment) {
+      return res.status(404).json({
+        message: "No assignment found for the specified moderator and member",
+      });
     }
+
+    await assignment.destroy();
 
     return res.status(200).json({ message: "Member unassigned successfully" });
   } catch (err) {
     return next(err);
   }
 };
+
 /**
- * @desc Moderator workspace - summary counts + assigned members with indicators
- * @route GET /moderators/:moderatorId/workspace
- * @access Protected
+ * GET /moderators/:moderatorId/workspace
  */
 export const getModeratorWorkspace = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
-    if (!Number.isInteger(Number(moderatorId))) {
+    if (!isValidId(moderatorId)) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }
 
-    const user = await User.findByPk(moderatorId).select("role first_name last_name username email");
+    const user = await User.findByPk(Number(moderatorId), {
+      attributes: ["id", "role_id", "first_name", "last_name", "username", "email"],
+      include: [{ model: Role, as: "role", attributes: ["id", "role", "plural"], required: false }],
+    });
+
     if (!user) return res.status(404).json({ message: "Moderator not found" });
 
-    // Check if super admin => all members
-    const superAdminRole = await Role.findOne({
-      [Op.or]: [
-        { role: { [Op.like]: "^Super Admin$", $options: "i" } },
-        { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
-      ],
-    });
+    let memberIds = [];
 
-    const isSuperAdmin = superAdminRole && user.role &&
-      user.role.toString() === superAdminRole.id.toString();
-
-    let memberIds;
-    if (isSuperAdmin) {
-      memberIds = await Member.distinct("_id");
+    if (isSuperAdminRole(user.role)) {
+      const allMembers = await Member.findAll({ attributes: ["id"], raw: true });
+      memberIds = allMembers.map((m) => m.id);
     } else {
-      memberIds = await ModeratorMember.find({ moderator: moderatorId }).distinct("member");
+      const assignments = await ModeratorMember.findAll({
+        where: { moderator_id: Number(moderatorId) },
+        attributes: ["member_id"],
+        raw: true,
+      });
+      memberIds = assignments.map((a) => a.member_id).filter(Boolean);
     }
 
-    const members = await Member.find({ _id: { [Op.in]: memberIds } })
-      .select("_id first_name last_name email code status department study_year")
-      ;
+    if (!memberIds.length) {
+      return res.status(200).json({
+        data: {
+          moderator: user,
+          summary: {
+            totalAssigned: 0,
+            withOverdue: 0,
+            missingReports: 0,
+            lowActivity: 0,
+          },
+          members: [],
+        },
+      });
+    }
 
-    // Fetch overdue issues for assigned members
-    const overdueIssues = await Issue.find({
-      member: { [Op.in]: memberIds },
-      status: "Overdue",
-    }).select("member book issueDate returnDate");
-
-    const overdueByMember = {};
-    overdueIssues.forEach((i) => {
-      const key = String(i.member);
-      overdueByMember[key] = (overdueByMember[key] || 0) + 1;
+    const members = await Member.findAll({
+      where: { id: { [Op.in]: memberIds } },
+      attributes: ["id", "first_name", "last_name", "email", "code", "status", "department", "study_year"],
+      raw: true,
     });
 
-    // Find members missing daily reports in last 7 days
+    const overdueIssues = await Issue.findAll({
+      where: {
+        member_id: { [Op.in]: memberIds },
+        status: "Overdue",
+      },
+      attributes: ["member_id"],
+      raw: true,
+    });
+
+    const overdueByMember = overdueIssues.reduce((acc, i) => {
+      const key = String(i.member_id);
+      acc[key] = (acc[key] || 0) + 1;
+      return acc;
+    }, {});
+
     const sevenDaysAgo = new Date();
     sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
-    // Get all users linked to these members
-    const linkedUsers = await User.find({ member: { [Op.in]: memberIds } })
-      .select("_id member")
-      ;
+    const linkedUsers = await User.findAll({
+      where: { member_id_fk: { [Op.in]: memberIds } },
+      attributes: ["id", "member_id_fk"],
+      raw: true,
+    });
+
     const memberToUser = {};
-    linkedUsers.forEach((u) => { memberToUser[String(u.member)] = u.id; });
+    linkedUsers.forEach((u) => {
+      memberToUser[String(u.member_id_fk)] = u.id;
+    });
 
     const userIds = linkedUsers.map((u) => u.id);
-    const recentReports = await DailyReport.find({
-      createdBy: { [Op.in]: userIds },
-      readingDate: { [Op.gte]: sevenDaysAgo },
-    }).select("createdBy readingDate");
 
-    const usersWithRecentReports = new Set(recentReports.map((r) => String(r.createdBy)));
+    const recentReports = userIds.length
+      ? await DailyReport.findAll({
+          where: {
+            created_by: { [Op.in]: userIds },
+            readingDate: { [Op.gte]: sevenDaysAgo },
+          },
+          attributes: ["created_by"],
+          raw: true,
+        })
+      : [];
 
-    // Build enriched member list
+    const usersWithRecentReports = new Set(recentReports.map((r) => String(r.created_by)));
+
     const enrichedMembers = members.map((m) => {
       const userId = memberToUser[String(m.id)];
       const hasRecentReport = userId ? usersWithRecentReports.has(String(userId)) : false;
       const overdueCount = overdueByMember[String(m.id)] || 0;
+
       return {
         ...m,
         overdueCount,
@@ -264,7 +296,7 @@ export const getModeratorWorkspace = async (req, res, next) => {
 
     const summary = {
       totalAssigned: members.length,
-      withOverdue: Object.keys(overdueByMember).length,
+      withOverdue: enrichedMembers.filter((m) => m.overdueCount > 0).length,
       missingReports: enrichedMembers.filter((m) => m.missingRecentReport).length,
       lowActivity: enrichedMembers.filter((m) => m.lowActivity).length,
     };
@@ -279,4 +311,13 @@ export const getModeratorWorkspace = async (req, res, next) => {
   } catch (err) {
     return next(err);
   }
+};
+
+export default {
+  getModerators,
+  getAssignedMembers,
+  getMembersForAssignment,
+  assignMemberToModerator,
+  unassignMemberFromModerator,
+  getModeratorWorkspace,
 };

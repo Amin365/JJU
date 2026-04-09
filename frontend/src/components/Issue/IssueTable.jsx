@@ -128,7 +128,7 @@ const sendReminderMutation = useMutation({
                     .join(" ");
 
                 return (
-                  <tr key={it._id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <tr key={it.id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="p-4">
                       <div className="flex items-center gap-2">
                         <Book className="w-4 h-4 text-slate-500" />
@@ -164,7 +164,7 @@ const sendReminderMutation = useMutation({
         <Button
           size="sm"
           variant="outline"
-          onClick={() => markReturned.mutate(it._id)}
+          onClick={() => markReturned.mutate(it.id)}
           disabled={markReturned.isPending}
           className="text-emerald-600 hover:text-emerald-700"
         >
@@ -178,7 +178,7 @@ const sendReminderMutation = useMutation({
           variant="outline"
           onClick={async () => {
             try {
-              await api.post(`/issue/${it._id}/send-reminder`);
+              await api.post(`/issue/${it.id}/send-reminder`);
               toast.success("Reminder email sent");
             } catch (err) {
               toast.error(err?.response?.data?.message || "Failed to send reminder");
@@ -194,7 +194,7 @@ const sendReminderMutation = useMutation({
   <Button
     size="sm"
     variant="outline"
-      onClick={() => sendReminderMutation.mutate(it._id)}
+      onClick={() => sendReminderMutation.mutate(it.id)}
   
     className="text-red-600 hover:text-red-700"
   >

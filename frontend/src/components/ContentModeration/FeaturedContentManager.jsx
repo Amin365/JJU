@@ -94,7 +94,7 @@ const PostCard = ({ post, onToggleFeature, onTogglePin, onToggleEditorsPick, onU
               <Button
                 size="sm"
                 variant="outline"
-                onClick={() => onUpdateOrder(post._id, orderValue)}
+                onClick={() => onUpdateOrder(post.id, orderValue)}
                 disabled={orderValue === post.displayOrder}
               >
                 <ArrowUpDown className="w-4 h-4" />
@@ -104,7 +104,7 @@ const PostCard = ({ post, onToggleFeature, onTogglePin, onToggleEditorsPick, onU
               size="sm"
               variant={post.isFeatured ? "default" : "outline"}
               className={post.isFeatured ? "bg-yellow-500 hover:bg-yellow-600" : ""}
-              onClick={() => onToggleFeature(post._id)}
+              onClick={() => onToggleFeature(post.id)}
             >
               <Star className="w-4 h-4" />
             </Button>
@@ -112,7 +112,7 @@ const PostCard = ({ post, onToggleFeature, onTogglePin, onToggleEditorsPick, onU
               size="sm"
               variant={post.isPinned ? "default" : "outline"}
               className={post.isPinned ? "bg-blue-500 hover:bg-blue-600" : ""}
-              onClick={() => onTogglePin(post._id)}
+              onClick={() => onTogglePin(post.id)}
             >
               <Pin className="w-4 h-4" />
             </Button>
@@ -120,7 +120,7 @@ const PostCard = ({ post, onToggleFeature, onTogglePin, onToggleEditorsPick, onU
               size="sm"
               variant={post.isEditorsPick ? "default" : "outline"}
               className={post.isEditorsPick ? "bg-purple-500 hover:bg-purple-600" : ""}
-              onClick={() => onToggleEditorsPick(post._id)}
+              onClick={() => onToggleEditorsPick(post.id)}
             >
               <Award className="w-4 h-4" />
             </Button>
@@ -324,7 +324,7 @@ const FeaturedContentManager = () => {
             <>
               {filteredPosts.map((post) => (
                 <PostCard
-                  key={post._id}
+                  key={post.id}
                   post={post}
                   onToggleFeature={(id) => toggleFeatureMutation.mutate(id)}
                   onTogglePin={(id) => togglePinMutation.mutate(id)}

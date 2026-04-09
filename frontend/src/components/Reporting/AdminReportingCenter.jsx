@@ -486,7 +486,7 @@ export default function AdminReportingCenter() {
                     </TableHeader>
                     <TableBody>
                       {topReadersData?.slice(0, 5).map((reader, idx) => (
-                        <TableRow key={reader.user?._id || idx}>
+                        <TableRow key={reader.user?.id || idx}>
                           <TableCell className="font-medium">{idx + 1}</TableCell>
                           <TableCell>
                             <div className="flex flex-col">
@@ -535,7 +535,7 @@ export default function AdminReportingCenter() {
                     </TableHeader>
                     <TableBody>
                       {weakestData?.slice(0, 5).map((member, idx) => (
-                        <TableRow key={member.user?._id || idx}>
+                        <TableRow key={member.user?.id || idx}>
                           <TableCell>
                             <div className="flex flex-col">
                               <span className="font-medium">{member.member?.name || "Unknown"}</span>
@@ -821,7 +821,7 @@ export default function AdminReportingCenter() {
                     </TableHeader>
                     <TableBody>
                       {healthData.data.inactiveReaders.slice(0, 10).map((item, idx) => (
-                        <TableRow key={item.user?._id || idx}>
+                        <TableRow key={item.user?.id || idx}>
                           <TableCell>
                             <span className="font-medium">{item.member?.name || "Unknown"}</span>
                           </TableCell>
@@ -863,7 +863,7 @@ export default function AdminReportingCenter() {
                     </TableHeader>
                     <TableBody>
                       {healthData.data.noReports.slice(0, 10).map((item, idx) => (
-                        <TableRow key={item.user?._id || idx}>
+                        <TableRow key={item.user?.id || idx}>
                           <TableCell className="font-medium">{item.member?.name || "Unknown"}</TableCell>
                           <TableCell className="text-muted-foreground">
                             {item.member?.department || "-"}
@@ -901,7 +901,7 @@ export default function AdminReportingCenter() {
                   </TableHeader>
                   <TableBody>
                     {healthData.data.overdueInactive.map((item, idx) => (
-                      <TableRow key={item._id || idx}>
+                      <TableRow key={item.id || idx}>
                         <TableCell className="font-medium">
                           {item.member?.first_name} {item.member?.last_name}
                         </TableCell>
@@ -952,7 +952,7 @@ export default function AdminReportingCenter() {
                   </TableHeader>
                   <TableBody>
                     {adminReportsData.data.map((report) => (
-                      <TableRow key={report._id}>
+                      <TableRow key={report.id}>
                         <TableCell className="text-sm">
                           {new Date(report.readingDate).toLocaleDateString()}
                         </TableCell>
@@ -995,7 +995,7 @@ export default function AdminReportingCenter() {
                                 size="sm"
                                 variant="outline"
                                 disabled={reviewMutation.isPending || report.status === "Approved"}
-                                onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Approved" })}
+                                onClick={() => reviewMutation.mutate({ reportId: report.id, status: "Approved" })}
                               >
                                 Approve
                               </Button>
@@ -1003,7 +1003,7 @@ export default function AdminReportingCenter() {
                                 size="sm"
                                 variant="outline"
                                 disabled={reviewMutation.isPending || report.status === "Needs Improvement"}
-                                onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Needs Improvement" })}
+                                onClick={() => reviewMutation.mutate({ reportId: report.id, status: "Needs Improvement" })}
                               >
                                 Needs work
                               </Button>

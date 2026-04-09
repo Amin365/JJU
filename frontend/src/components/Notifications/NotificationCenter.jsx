@@ -102,7 +102,7 @@ function NotificationSkeleton() {
 }
 
 function NotificationItem({ notification, onMarkRead, onDelete }) {
-  const { _id, title, message, type, category, read, createdAt, meta } = notification;
+  const { id, title, message, type, category, read, createdAt, meta } = notification;
 
   return (
     <motion.div
@@ -131,7 +131,7 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
                   variant="ghost"
                   size="icon"
                   className="h-7 w-7"
-                  onClick={() => onMarkRead(_id)}
+                  onClick={() => onMarkRead(id)}
                   title="Mark as read"
                 >
                   <Check className="h-3.5 w-3.5" />
@@ -141,7 +141,7 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
                 variant="ghost"
                 size="icon"
                 className="h-7 w-7 text-zinc-500 hover:text-red-500"
-                onClick={() => onDelete(_id)}
+                onClick={() => onDelete(id)}
                 title="Delete"
               >
                 <Trash2 className="h-3.5 w-3.5" />
@@ -407,7 +407,7 @@ export default function NotificationCenter() {
             <AnimatePresence>
               {notifications.map((n) => (
                 <NotificationItem
-                  key={n._id}
+                  key={n.id}
                   notification={n}
                   onMarkRead={(id) => markReadMutation.mutate(id)}
                   onDelete={(id) => deleteMutation.mutate(id)}

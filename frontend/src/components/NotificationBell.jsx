@@ -102,9 +102,9 @@ export default function NotificationBell() {
 
         {!isLoading && unreadItems.map((n) => (
           <DropdownMenuItem
-            key={n._id || n.id}
+            key={n.id || n.id}
             className="flex items-center gap-2 cursor-pointer"
-            onClick={() => markOne.mutate(n._id || n.id)}
+            onClick={() => markOne.mutate(n.id || n.id)}
           >
             {getNotificationIcon(n.type)}
             <div className="flex-1">

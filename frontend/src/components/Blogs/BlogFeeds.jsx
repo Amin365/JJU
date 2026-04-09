@@ -118,7 +118,7 @@ export default function BlogFeed({ onPostClick }) {
         .filter(Boolean);
 
       return {
-        id: String(post?._id || post?.id || `fallback-${index}`),
+        id: String(post?.id || post?.id || `fallback-${index}`),
         title: stripHtml(post?.title) || "Untitled",
         excerpt:
           stripHtml(post?.excerpt) ||
@@ -144,7 +144,7 @@ export default function BlogFeed({ onPostClick }) {
 
   const featuredPosts = useMemo(() => {
     return (featuredData?.data || []).map((post, index) => ({
-      id: String(post?._id || post?.id || `featured-${index}`),
+      id: String(post?.id || post?.id || `featured-${index}`),
       title: stripHtml(post?.title) || "Untitled",
       excerpt: stripHtml(post?.seoDescription) || `${stripHtml(post?.content || "").slice(0, 140)}...`,
       coverImage: post?.blog_picture || FALLBACK_IMAGE,

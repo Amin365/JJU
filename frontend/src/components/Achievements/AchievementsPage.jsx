@@ -85,7 +85,7 @@ export default function AchievementsPage() {
                 const unlockDate = achievement.unlockedAt || null;
 
                 return (
-                  <Tooltip key={achievement._id}>
+                  <Tooltip key={achievement.id}>
                     <TooltipTrigger asChild>
                       <motion.div
                         initial={{ opacity: 0, scale: 0.9 }}

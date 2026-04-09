@@ -82,7 +82,7 @@ const ReserveBookModal = ({ book, onClose, onSuccess }) => {
     try {
       const r = await api.get(`/members/by-code/${encodeURIComponent(memberCode.trim())}`);
       const m = r.data?.data ?? r.data;
-      setMemberId(m._id);
+      setMemberId(m.id);
       setMemberInfo(m);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Member not found");
@@ -93,7 +93,7 @@ const ReserveBookModal = ({ book, onClose, onSuccess }) => {
 
   const mutation = useMutation({
     mutationFn: async () => {
-      const r = await api.post("/reservations", { book: book._id, member: memberId });
+      const r = await api.post("/reservations", { book: book.id, member: memberId });
       return r.data;
     },
     onSuccess: (data) => {
@@ -258,10 +258,10 @@ export default function BookDetails() {
   });
 
   const handleDeleteConfirm = async () => {
-    if (!book?._id && !book?.id) return;
+    if (!book?.id && !book?.id) return;
     setIsOperationLoading(true);
     try {
-      await deleteMutation.mutateAsync(book._id);
+      await deleteMutation.mutateAsync(book.id);
     } finally {
       setIsOperationLoading(false);
       setIsDeleteOpen(false);
@@ -326,7 +326,7 @@ export default function BookDetails() {
             )}
           </h1>
           <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 mt-1">
-            Book ID: #{book._id} · ISBN: <span className="font-semibold">{book.isbn ?? "N/A"}</span>
+            Book ID: #{book.id} · ISBN: <span className="font-semibold">{book.isbn ?? "N/A"}</span>
           </p>
         </div>
 
@@ -588,7 +588,7 @@ export default function BookDetails() {
                         const name = issue.member?.full_name ||
                           [issue.member?.first_name, issue.member?.last_name].filter(Boolean).join(" ");
                         return (
-                          <tr key={issue._id} className="hover:bg-slate-50 dark:hover:bg-gray-800">
+                          <tr key={issue.id} className="hover:bg-slate-50 dark:hover:bg-gray-800">
                             <td className="p-4">
                               <div className="font-medium text-slate-800 dark:text-white">{name || "—"}</div>
                               <div className="text-xs text-slate-500">{issue.member?.code || ""}</div>
@@ -680,7 +680,7 @@ export default function BookDetails() {
         mode="edit"
         onSuccess={(updated) => {
           setIsEditOpen(false);
-          qc.invalidateQueries({ queryKey: ["book", book._id ?? book.id] });
+          qc.invalidateQueries({ queryKey: ["book", book.id ?? book.id] });
         }}
       />
     </div>

@@ -97,16 +97,16 @@ export default function DailyReadingReport() {
     const books = issues.map((it) => it.book).filter(Boolean);
 
     const map = new Map();
-    for (const b of books) map.set(b._id, b);
+    for (const b of books) map.set(b.id, b);
     return Array.from(map.values());
   }, [issuesResp]);
 
   useEffect(() => {
-    if (!selectedBookId && issuedBooks.length) setSelectedBookId(issuedBooks[0]._id);
+    if (!selectedBookId && issuedBooks.length) setSelectedBookId(issuedBooks[0].id);
   }, [issuedBooks, selectedBookId]);
 
   const selectedBook = useMemo(
-    () => issuedBooks.find((b) => b._id === selectedBookId) || null,
+    () => issuedBooks.find((b) => b.id === selectedBookId) || null,
     [issuedBooks, selectedBookId]
   );
 
@@ -197,7 +197,7 @@ export default function DailyReadingReport() {
 
   const { data: restoreResp } = useQuery({
     queryKey: ["daily-reports", "streak-restore"],
-    enabled: Boolean(authUser?._id),
+    enabled: Boolean(authUser?.id),
     queryFn: async () => {
       const res = await api.get("/daily-reports/streak-restore");
       return res.data;
@@ -321,7 +321,7 @@ export default function DailyReadingReport() {
                 </SelectTrigger>
                 <SelectContent>
                   {issuedBooks.map((book) => (
-                    <SelectItem key={book._id} value={book._id}>
+                    <SelectItem key={book.id} value={book.id}>
                       {book.title} {book.author ? `— ${book.author}` : ""}
                     </SelectItem>
                   ))}
@@ -462,7 +462,7 @@ export default function DailyReadingReport() {
             ) : (
               <div className="space-y-3">
                 {lastThree.map((r) => (
-                  <div key={r._id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
+                  <div key={r.id} className="border rounded-lg p-4 hover:shadow-sm transition-shadow">
                     <div className="flex items-start justify-between gap-4">
                       <div className="flex-1">
                         <div className="flex items-center gap-4 text-sm text-gray-600 mb-2">

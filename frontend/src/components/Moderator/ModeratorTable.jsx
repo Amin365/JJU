@@ -155,7 +155,7 @@ export default function ModeratorMembersPage() {
                       m.full_name ||
                       [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(" ");
                     return (
-                      <tr key={m._id} className="border-b ">
+                      <tr key={m.id} className="border-b ">
                         <td className="px-4 py-3">{name || "N/A"}</td>
                         <td className="px-4 py-3">{m.email || "N/A"}</td>
                         <td className="px-4 py-3">{m.code || "N/A"}</td>
@@ -163,7 +163,7 @@ export default function ModeratorMembersPage() {
                           <Button
                             variant="destructive"
                             size="sm"
-                            onClick={() => unassignMutation.mutate(m._id)}
+                            onClick={() => unassignMutation.mutate(m.id)}
                             disabled={unassignMutation.isPending}
                           >
                             Unassign
@@ -219,7 +219,7 @@ export default function ModeratorMembersPage() {
                         m.full_name ||
                         [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(" ");
                       return (
-                        <tr key={m._id} className="border-b ">
+                        <tr key={m.id} className="border-b ">
                           <td className="px-4 py-3">{name || "N/A"}</td>
                           <td className="px-4 py-3">{m.email || "N/A"}</td>
                           <td className="px-4 py-3">{m.code || "N/A"}</td>
@@ -227,7 +227,7 @@ export default function ModeratorMembersPage() {
                             <Button
                               size="sm"
                               className="dark:bg-orange-600"
-                              onClick={() => assignMutation.mutate(m._id)}
+                              onClick={() => assignMutation.mutate(m.id)}
                               disabled={assignMutation.isPending}
                             >
                               Assign

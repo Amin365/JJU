@@ -1,5 +1,5 @@
 import Comment from "../models/Comments.js";
-import { Op } from 'sequelize';
+import { Op, literal } from "sequelize";
 import BlogPost from "../models/BlogPost.js";
 import User from "../models/user.js";
 import Role from "../models/Role.js";
@@ -8,12 +8,16 @@ import Role from "../models/Role.js";
  * Helper: Check if user is admin/moderator
  */
 const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findByPk(userId).populate("role", "role plural");
+  const user = await User.findByPk(userId, {
+    include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+  });
   if (!user) return false;
 
   const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
-  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName);
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
 };
+
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
 /**
  * GET /comments/moderation/queue
@@ -25,41 +29,36 @@ export const getModerationQueue = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { status, hasReports, page = 1, limit = 20 } = req.query;
 
-    const filter = {};
+    const where = {};
 
-    // Filter by status
     if (status && ["approved", "pending", "hidden", "deleted"].includes(status)) {
-      filter.status = status;
+      where.status = status;
     } else {
-      // Default: show pending and hidden
-      filter.status = { [Op.in]: ["pending", "hidden"] };
+      where.status = { [Op.in]: ["pending", "hidden"] };
     }
 
-    // Filter by comments with reports
     if (hasReports === "true") {
-      filter.reports = { $exists: true, [Op.not]: { $size: 0 } };
+      where[Op.and] = [literal(`JSON_LENGTH(reports) > 0`)];
     }
 
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const perPage = Math.min(100, Math.max(1, parseInt(limit, 10)));
-    const skip = (pageNum - 1) * perPage;
+    const pageNum = Math.max(1, parseInt(page, 10) || 1);
+    const perPage = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
+    const offset = (pageNum - 1) * perPage;
 
-    const [comments, total] = await Promise.all([
-      Comment.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(perPage)
-        .populate("postId", "title slug")
-        .populate("moderatedBy", "first_name last_name email")
-        ,
-      Comment.countDocuments(filter),
-    ]);
+    const { rows: comments, count: total } = await Comment.findAndCountAll({
+      where,
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: perPage,
+      include: [
+        { model: BlogPost, as: "post", attributes: ["id", "title", "slug"], required: false },
+        { model: User, as: "moderator", attributes: ["id", "first_name", "last_name", "email"], required: false },
+      ],
+    });
 
     return res.status(200).json({
       data: comments,
@@ -84,15 +83,18 @@ export const getModerationStats = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const [pending, hidden, reported, total] = await Promise.all([
       Comment.count({ where: { status: "pending" } }),
       Comment.count({ where: { status: "hidden" } }),
-      Comment.countDocuments({ "reports.0": { $exists: true }, status: { [Op.ne]: "deleted" } }),
-      Comment.countDocuments({ status: { [Op.ne]: "deleted" } }),
+      Comment.count({
+        where: {
+          status: { [Op.ne]: "deleted" },
+          [Op.and]: [literal(`JSON_LENGTH(reports) > 0`)],
+        },
+      }),
+      Comment.count({ where: { status: { [Op.ne]: "deleted" } } }),
     ]);
 
     return res.status(200).json({
@@ -101,7 +103,7 @@ export const getModerationStats = async (req, res) => {
         hidden,
         reported,
         total,
-        approved: total - pending - hidden,
+        approved: Math.max(0, total - pending - hidden),
       },
     });
   } catch (err) {
@@ -120,33 +122,27 @@ export const moderateComment = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
     const { action, note } = req.body;
 
-    if (!mongoose.isValidObjectId(commentId)) {
-      return res.status(400).json({ message: "Invalid comment ID" });
-    }
+    if (!isValidId(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
 
     if (!["approve", "hide", "delete", "restore"].includes(action)) {
       return res.status(400).json({ message: "Invalid action. Use: approve, hide, delete, or restore" });
     }
 
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
+    const comment = await Comment.findByPk(Number(commentId));
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    // Update moderation fields
     comment.moderatedBy = userId;
     comment.moderatedAt = new Date();
-    if (note) comment.moderationNote = note.trim();
+    if (note) comment.moderationNote = String(note).trim();
 
     switch (action) {
       case "approve":
+      case "restore":
         comment.status = "approved";
         break;
       case "hide":
@@ -155,8 +151,7 @@ export const moderateComment = async (req, res) => {
       case "delete":
         comment.status = "deleted";
         break;
-      case "restore":
-        comment.status = "approved";
+      default:
         break;
     }
 
@@ -184,40 +179,32 @@ export const reportComment = async (req, res) => {
     const { commentId } = req.params;
     const { reason, details } = req.body;
 
-    if (!mongoose.isValidObjectId(commentId)) {
-      return res.status(400).json({ message: "Invalid comment ID" });
-    }
+    if (!isValidId(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
+    if (!reason?.trim()) return res.status(400).json({ message: "Report reason is required" });
 
-    if (!reason?.trim()) {
-      return res.status(400).json({ message: "Report reason is required" });
-    }
+    const comment = await Comment.findByPk(Number(commentId));
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
+    const reports = Array.isArray(comment.reports) ? [...comment.reports] : [];
 
-    // Check if user already reported this comment
-    const alreadyReported = comment.reports.some(
-      (r) => String(r.reportedBy) === String(userId)
-    );
-
+    const alreadyReported = reports.some((r) => String(r.reportedBy) === String(userId));
     if (alreadyReported) {
       return res.status(400).json({ message: "You have already reported this comment" });
     }
 
-    // Add the report
-    comment.reports.push({
+    reports.push({
       reportedBy: userId,
       reason: reason.trim(),
       details: details?.trim() || "",
+      createdAt: new Date(),
     });
 
+    comment.reports = reports;
     await comment.save();
 
     return res.status(200).json({
       message: "Comment reported successfully",
-      reportCount: comment.reports.length,
+      reportCount: reports.length,
     });
   } catch (err) {
     console.error("reportComment:", err);
@@ -235,20 +222,13 @@ export const clearReports = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
+    if (!isValidId(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
 
-    if (!mongoose.isValidObjectId(commentId)) {
-      return res.status(400).json({ message: "Invalid comment ID" });
-    }
-
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
+    const comment = await Comment.findByPk(Number(commentId));
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
 
     comment.reports = [];
     comment.moderatedBy = userId;
@@ -275,20 +255,13 @@ export const togglePinComment = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
+    if (!isValidId(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
 
-    if (!mongoose.isValidObjectId(commentId)) {
-      return res.status(400).json({ message: "Invalid comment ID" });
-    }
-
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
+    const comment = await Comment.findByPk(Number(commentId));
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
 
     comment.isPinned = !comment.isPinned;
     await comment.save();
@@ -313,20 +286,13 @@ export const toggleBestInsight = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) {
-      return res.status(403).json({ message: "Permission denied" });
-    }
+    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
+    if (!isValidId(commentId)) return res.status(400).json({ message: "Invalid comment ID" });
 
-    if (!mongoose.isValidObjectId(commentId)) {
-      return res.status(400).json({ message: "Invalid comment ID" });
-    }
-
-    const comment = await Comment.findByPk(commentId);
-    if (!comment) {
-      return res.status(404).json({ message: "Comment not found" });
-    }
+    const comment = await Comment.findByPk(Number(commentId));
+    if (!comment) return res.status(404).json({ message: "Comment not found" });
 
     comment.isBestInsight = !comment.isBestInsight;
     await comment.save();
@@ -339,4 +305,14 @@ export const toggleBestInsight = async (req, res) => {
     console.error("toggleBestInsight:", err);
     return res.status(500).json({ message: err.message || "Server error" });
   }
+};
+
+export default {
+  getModerationQueue,
+  getModerationStats,
+  moderateComment,
+  reportComment,
+  clearReports,
+  togglePinComment,
+  toggleBestInsight,
 };

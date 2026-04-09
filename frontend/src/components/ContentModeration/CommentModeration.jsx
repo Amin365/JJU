@@ -128,7 +128,7 @@ const CommentCard = ({ comment, onModerate, onClearReports, onTogglePin, onToggl
                   size="sm"
                   variant="outline"
                   className="mt-2"
-                  onClick={() => onClearReports(comment._id)}
+                  onClick={() => onClearReports(comment.id)}
                 >
                   Clear all reports
                 </Button>
@@ -144,7 +144,7 @@ const CommentCard = ({ comment, onModerate, onClearReports, onTogglePin, onToggl
               size="sm"
               variant="outline"
               className="text-green-600 border-green-200 hover:bg-green-50 dark:hover:bg-green-900/20"
-              onClick={() => onModerate(comment._id, "approve")}
+              onClick={() => onModerate(comment.id, "approve")}
             >
               <Check className="w-4 h-4 mr-1" /> Approve
             </Button>
@@ -154,7 +154,7 @@ const CommentCard = ({ comment, onModerate, onClearReports, onTogglePin, onToggl
               size="sm"
               variant="outline"
               className="text-yellow-600 border-yellow-200 hover:bg-yellow-50 dark:hover:bg-yellow-900/20"
-              onClick={() => onModerate(comment._id, "hide")}
+              onClick={() => onModerate(comment.id, "hide")}
             >
               <EyeOff className="w-4 h-4 mr-1" /> Hide
             </Button>
@@ -164,7 +164,7 @@ const CommentCard = ({ comment, onModerate, onClearReports, onTogglePin, onToggl
               size="sm"
               variant="outline"
               className="text-blue-600 border-blue-200 hover:bg-blue-50 dark:hover:bg-blue-900/20"
-              onClick={() => onModerate(comment._id, "restore")}
+              onClick={() => onModerate(comment.id, "restore")}
             >
               <Eye className="w-4 h-4 mr-1" /> Restore
             </Button>
@@ -173,21 +173,21 @@ const CommentCard = ({ comment, onModerate, onClearReports, onTogglePin, onToggl
             size="sm"
             variant="outline"
             className="text-red-600 border-red-200 hover:bg-red-50 dark:hover:bg-red-900/20"
-            onClick={() => onModerate(comment._id, "delete")}
+            onClick={() => onModerate(comment.id, "delete")}
           >
             <Trash2 className="w-4 h-4 mr-1" /> Delete
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onTogglePin(comment._id)}
+            onClick={() => onTogglePin(comment.id)}
           >
             <Pin className="w-4 h-4 mr-1" /> {comment.isPinned ? "Unpin" : "Pin"}
           </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => onToggleBestInsight(comment._id)}
+            onClick={() => onToggleBestInsight(comment.id)}
           >
             <Sparkles className="w-4 h-4 mr-1" /> {comment.isBestInsight ? "Remove Best" : "Best Insight"}
           </Button>
@@ -391,7 +391,7 @@ const CommentModeration = () => {
             <>
               {comments.map((comment) => (
                 <CommentCard
-                  key={comment._id}
+                  key={comment.id}
                   comment={comment}
                   onModerate={(id, action) => moderateMutation.mutate({ commentId: id, action })}
                   onClearReports={(id) => clearReportsMutation.mutate(id)}

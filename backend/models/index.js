@@ -29,14 +29,16 @@ import PushSubscription from './ushSubscription.js';
 import StreakRestore from './StreakRestore.js';
 import Resource from './Resource.js';
 
-// ── Associations ──────────────────────────────────────────────
+// ── Associations 
 
 // Role ↔ User
 User.belongsTo(Role, { foreignKey: 'role_id', as: 'roleInfo' });
+User.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
 Role.hasMany(User, { foreignKey: 'role_id' });
 
 // Member ↔ Role
 Member.belongsTo(Role, { foreignKey: 'role_id', as: 'role' });
+Member.belongsTo(Role, { foreignKey: 'role_id', as: 'roleRef' });
 
 // User ↔ Member
 User.belongsTo(Member, { foreignKey: 'member_id_fk', as: 'member' });

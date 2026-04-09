@@ -1,7 +1,6 @@
 import NotificationPreferences from "../models/NotificationPreferences.js";
 import User from "../models/user.js";
 
-// Default preferences structure
 const defaultPreferences = {
   pushOnOverdue: true,
   pushOnDueTomorrow: true,
@@ -23,17 +22,21 @@ const defaultPreferences = {
   quietHoursEnd: "08:00",
 };
 
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
 // Get user's notification preferences
 export const getMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.id ?? req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    let prefs = await NotificationPreferences.findOne({ user: userId });
+    let prefs = await NotificationPreferences.findOne({
+      where: { user_id: Number(userId) },
+    });
 
-    // If no preferences exist, return defaults
     if (!prefs) {
-      prefs = { user: userId, ...defaultPreferences };
+      // Do not persist yet, just return defaults merged with user_id
+      prefs = { user_id: Number(userId), ...defaultPreferences };
     }
 
     return res.json({ data: prefs });
@@ -45,7 +48,7 @@ export const getMyPreferences = async (req, res, next) => {
 // Update user's notification preferences
 export const updateMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.id ?? req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const allowedFields = [
@@ -69,19 +72,24 @@ export const updateMyPreferences = async (req, res, next) => {
       "quietHoursEnd",
     ];
 
-    // Filter input to only allowed fields
     const updates = {};
     for (const field of allowedFields) {
-      if (req.body[field] !== undefined) {
-        updates[field] = req.body[field];
-      }
+      if (req.body[field] !== undefined) updates[field] = req.body[field];
     }
 
-    const prefs = await NotificationPreferences.findOneAndUpdate(
-      { user: userId },
-      { $set: updates },
-      { new: true, upsert: true, setDefaultsOnInsert: true }
-    );
+    let prefs = await NotificationPreferences.findOne({
+      where: { user_id: Number(userId) },
+    });
+
+    if (!prefs) {
+      prefs = await NotificationPreferences.create({
+        user_id: Number(userId),
+        ...defaultPreferences,
+        ...updates,
+      });
+    } else {
+      await prefs.update(updates);
+    }
 
     return res.json({ data: prefs, message: "Preferences updated successfully" });
   } catch (err) {
@@ -92,14 +100,21 @@ export const updateMyPreferences = async (req, res, next) => {
 // Reset preferences to defaults
 export const resetMyPreferences = async (req, res, next) => {
   try {
-    const userId = req.user?.id;
+    const userId = req.user?.id ?? req.user?._id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const prefs = await NotificationPreferences.findOneAndUpdate(
-      { user: userId },
-      { $set: defaultPreferences },
-      { new: true, upsert: true }
-    );
+    let prefs = await NotificationPreferences.findOne({
+      where: { user_id: Number(userId) },
+    });
+
+    if (!prefs) {
+      prefs = await NotificationPreferences.create({
+        user_id: Number(userId),
+        ...defaultPreferences,
+      });
+    } else {
+      await prefs.update(defaultPreferences);
+    }
 
     return res.json({ data: prefs, message: "Preferences reset to defaults" });
   } catch (err) {
@@ -107,51 +122,60 @@ export const resetMyPreferences = async (req, res, next) => {
   }
 };
 
-// Check if user has specific preference enabled (helper for other modules)
+// Helper: check preference key
 export async function checkUserPreference(userId, preferenceKey) {
   if (!userId) return defaultPreferences[preferenceKey] ?? true;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId });
-  if (!prefs) return defaultPreferences[preferenceKey] ?? true;
+  const prefs = await NotificationPreferences.findOne({
+    where: { user_id: Number(userId) },
+  });
 
+  if (!prefs) return defaultPreferences[preferenceKey] ?? true;
   return prefs[preferenceKey] ?? defaultPreferences[preferenceKey] ?? true;
 }
 
-// Helper to parse time string safely
+// Helper to parse "HH:mm"
 function parseTimeString(timeStr) {
   if (!timeStr || typeof timeStr !== "string") return null;
+
   const parts = timeStr.split(":");
   if (parts.length !== 2) return null;
+
   const hours = parseInt(parts[0], 10);
   const minutes = parseInt(parts[1], 10);
-  if (isNaN(hours) || isNaN(minutes) || hours < 0 || hours > 23 || minutes < 0 || minutes > 59) {
-    return null;
-  }
+
+  if (Number.isNaN(hours) || Number.isNaN(minutes)) return null;
+  if (hours < 0 || hours > 23 || minutes < 0 || minutes > 59) return null;
+
   return hours * 60 + minutes;
 }
 
-// Check if current time is within quiet hours for user
+// Check quiet hours
 export async function isInQuietHours(userId) {
   if (!userId) return false;
 
-  const prefs = await NotificationPreferences.findOne({ user: userId });
+  const prefs = await NotificationPreferences.findOne({
+    where: { user_id: Number(userId) },
+  });
+
   if (!prefs || !prefs.quietHoursEnabled) return false;
 
   const now = new Date();
-  const currentHour = now.getHours();
-  const currentMinute = now.getMinutes();
-  const currentTime = currentHour * 60 + currentMinute;
+  const currentTime = now.getHours() * 60 + now.getMinutes();
 
   const startTime = parseTimeString(prefs.quietHoursStart);
   const endTime = parseTimeString(prefs.quietHoursEnd);
 
-  // If parsing failed, default to not in quiet hours
   if (startTime === null || endTime === null) {
-    console.warn(`Invalid quiet hours format for user ${userId}:`, prefs.quietHoursStart, prefs.quietHoursEnd);
+    console.warn(
+      `Invalid quiet hours format for user ${userId}:`,
+      prefs.quietHoursStart,
+      prefs.quietHoursEnd
+    );
     return false;
   }
 
-  // Handle overnight quiet hours (e.g., 22:00 - 08:00)
+  // Overnight range: 22:00 -> 08:00
   if (startTime > endTime) {
     return currentTime >= startTime || currentTime < endTime;
   }

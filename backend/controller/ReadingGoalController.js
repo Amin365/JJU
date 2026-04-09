@@ -1,5 +1,5 @@
 import DailyReport from "../models/DailyReport.js";
-import { Op } from 'sequelize';
+import { Op } from "sequelize";
 import Notification from "../models/Notification.js";
 import ReadingGoal from "../models/ReadingGoal.js";
 import User from "../models/user.js";
@@ -21,14 +21,20 @@ const GOAL_TYPE_LABELS = {
   reports_per_week: "Reports / Week",
 };
 
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
 function startOfUtcDay(value) {
   const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 0, 0, 0, 0)
+  );
 }
 
 function endOfUtcDay(value) {
   const date = new Date(value);
-  return new Date(Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999));
+  return new Date(
+    Date.UTC(date.getUTCFullYear(), date.getUTCMonth(), date.getUTCDate(), 23, 59, 59, 999)
+  );
 }
 
 function diffDaysInclusive(start, end) {
@@ -100,20 +106,26 @@ async function computeGoalProgress(goal) {
     lookbackDate.setUTCDate(lookbackDate.getUTCDate() - 6);
     const rangeStart = goalStart > lookbackDate ? goalStart : lookbackDate;
 
-    const reports = await DailyReport.find({
-      createdBy: goal.user,
-      readingDate: { [Op.gte]: rangeStart, [Op.lte]: effectiveEnd },
+    const reports = await DailyReport.findAll({
+      where: {
+        created_by: goal.user_id,
+        readingDate: { [Op.gte]: rangeStart, [Op.lte]: effectiveEnd },
+      },
     });
 
     let total = 0;
     if (goalType === "pages_per_day") {
       total = reports.reduce((sum, r) => sum + calcPagesRead(r), 0);
     } else {
-      total = reports.reduce((sum, r) => sum + (r.timeSpent || 0), 0);
+      total = reports.reduce((sum, r) => sum + Number(r.timeSpent || 0), 0);
     }
 
     const average = total / diffDaysInclusive(rangeStart, effectiveEnd);
-    const percentage = Math.min(100, Math.round((average / targetValue) * 100));
+    const percentage =
+      Number(targetValue) > 0
+        ? Math.min(100, Math.round((average / Number(targetValue)) * 100))
+        : 0;
+
     return { currentValue: Math.round(average), percentage };
   }
 
@@ -123,12 +135,18 @@ async function computeGoalProgress(goal) {
     startOfWeek.setUTCDate(startOfWeek.getUTCDate() - dayOfWeek);
     const rangeStart = goalStart > startOfWeek ? goalStart : startOfWeek;
 
-    const count = await DailyReport.countDocuments({
-      createdBy: goal.user,
-      readingDate: { [Op.gte]: rangeStart, [Op.lte]: effectiveEnd },
+    const count = await DailyReport.count({
+      where: {
+        created_by: goal.user_id,
+        readingDate: { [Op.gte]: rangeStart, [Op.lte]: effectiveEnd },
+      },
     });
 
-    const percentage = Math.min(100, Math.round((count / targetValue) * 100));
+    const percentage =
+      Number(targetValue) > 0
+        ? Math.min(100, Math.round((count / Number(targetValue)) * 100))
+        : 0;
+
     return { currentValue: count, percentage };
   }
 
@@ -139,10 +157,13 @@ async function sendGoalCompletionNotifications(goal, user, progress) {
   const goalLabel = getGoalLabel(goal);
   const currentValue = Number(progress?.currentValue || 0);
   const targetValue = Number(goal?.targetValue || 0);
-  const recipientName = `${user?.first_name || ""} ${user?.last_name || ""}`.trim() || user?.username || "Reader";
+  const recipientName =
+    `${user?.first_name || ""} ${user?.last_name || ""}`.trim() ||
+    user?.username ||
+    "Reader";
 
   await Notification.create({
-    user: user.id,
+    user_id: user.id,
     title: `Goal completed: ${goalLabel}`,
     message: `Congratulations ${recipientName}! You reached ${currentValue}/${targetValue} on your ${goalLabel.toLowerCase()} goal.`,
     type: "success",
@@ -199,12 +220,17 @@ export async function syncGoalStatesForUser(userId, options = {}) {
 
   const now = options.now || new Date();
   const sendNotifications = options.sendNotifications !== false;
-  const goals = await ReadingGoal.find({ user: userId });
+
+  const goals = await ReadingGoal.findAll({
+    where: { user_id: Number(userId) },
+  });
 
   if (!goals.length) return [];
 
   const user = sendNotifications
-    ? await User.findByPk(userId).select("_id first_name last_name username email")
+    ? await User.findByPk(Number(userId), {
+        attributes: ["id", "first_name", "last_name", "username", "email"],
+      })
     : null;
 
   const results = [];
@@ -235,23 +261,28 @@ export async function syncGoalStatesForUser(userId, options = {}) {
 
     if (shouldNotify) {
       try {
-        await sendGoalCompletionNotifications({ ...goal, ...updates }, user, progress);
+        await sendGoalCompletionNotifications({ ...goal.toJSON(), ...updates }, user, progress);
         completionNotifiedAt = now;
         updates.completionNotifiedAt = now;
       } catch (notificationError) {
-        console.error(`Goal completion notification failed for goal ${goal.id}:`, notificationError.message);
+        console.error(
+          `Goal completion notification failed for goal ${goal.id}:`,
+          notificationError.message
+        );
       }
     }
 
     if (Object.keys(updates).length > 0) {
-      await ReadingGoal.findByIdAndUpdate(goal.id, { $set: updates });
+      await goal.update(updates);
     }
 
     results.push({
-      ...goal,
+      ...(goal.toJSON ? goal.toJSON() : goal),
       ...progress,
       status: updates.status || goal.status || GOAL_STATUS.ACTIVE,
-      completedAt: Object.prototype.hasOwnProperty.call(updates, "completedAt") ? updates.completedAt : goal.completedAt || null,
+      completedAt: Object.prototype.hasOwnProperty.call(updates, "completedAt")
+        ? updates.completedAt
+        : goal.completedAt || null,
       completionNotifiedAt,
     });
   }
@@ -262,7 +293,13 @@ export async function syncGoalStatesForUser(userId, options = {}) {
 // GET /users/me/goals
 export const getMyGoals = async (req, res, next) => {
   try {
-    const goalsWithProgress = await syncGoalStatesForUser(req.user.id, { sendNotifications: true });
+    const userId = req.user?.id ?? req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
+    const goalsWithProgress = await syncGoalStatesForUser(userId, {
+      sendNotifications: true,
+    });
+
     return res.status(200).json({ data: goalsWithProgress });
   } catch (err) {
     return next(err);
@@ -272,25 +309,35 @@ export const getMyGoals = async (req, res, next) => {
 // POST /users/me/goals
 export const createGoal = async (req, res, next) => {
   try {
+    const userId = req.user?.id ?? req.user?._id;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+
     const { goalType, targetValue, startDate, endDate } = req.body;
     const validTypes = ["pages_per_day", "minutes_per_day", "reports_per_week"];
+
     if (!goalType || !validTypes.includes(goalType)) {
-      return res.status(400).json({ message: `goalType must be one of: ${validTypes.join(", ")}` });
+      return res.status(400).json({
+        message: `goalType must be one of: ${validTypes.join(", ")}`,
+      });
     }
+
     if (!targetValue || Number(targetValue) < 1) {
       return res.status(400).json({ message: "targetValue must be at least 1" });
     }
+
     if (!startDate) {
       return res.status(400).json({ message: "startDate is required" });
     }
 
     const goal = await ReadingGoal.create({
-      user: req.user.id,
+      user_id: Number(userId),
       goalType,
       targetValue: Number(targetValue),
       startDate,
       endDate: endDate || null,
       status: GOAL_STATUS.ACTIVE,
+      completedAt: null,
+      completionNotifiedAt: null,
     });
 
     return res.status(201).json({ data: goal });
@@ -302,29 +349,46 @@ export const createGoal = async (req, res, next) => {
 // PATCH /users/me/goals/:id
 export const updateGoal = async (req, res, next) => {
   try {
+    const userId = req.user?.id ?? req.user?._id;
+    const { id } = req.params;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid goal id" });
+
     const { targetValue, endDate } = req.body;
     const update = {};
+
     if (targetValue !== undefined) {
       const val = Number(targetValue);
       if (val < 1) return res.status(400).json({ message: "targetValue must be at least 1" });
       update.targetValue = val;
     }
+
     if (endDate !== undefined) update.endDate = endDate;
+
     if (Object.keys(update).length > 0) {
       update.status = GOAL_STATUS.ACTIVE;
       update.completedAt = null;
       update.completionNotifiedAt = null;
     }
 
-    const goal = await ReadingGoal.findOneAndUpdate(
-      { _id: req.params.id, user: req.user.id },
-      update,
-      { new: true }
-    );
+    const goal = await ReadingGoal.findOne({
+      where: { id: Number(id), user_id: Number(userId) },
+    });
 
     if (!goal) return res.status(404).json({ message: "Goal not found" });
-    const goalsWithProgress = await syncGoalStatesForUser(req.user.id, { sendNotifications: false });
-    const goalWithProgress = goalsWithProgress.find((item) => String(item.id) === String(goal.id));
+
+    if (Object.keys(update).length > 0) {
+      await goal.update(update);
+    }
+
+    const goalsWithProgress = await syncGoalStatesForUser(userId, {
+      sendNotifications: false,
+    });
+
+    const goalWithProgress = goalsWithProgress.find(
+      (item) => String(item.id) === String(goal.id)
+    );
+
     return res.status(200).json({ data: goalWithProgress || goal });
   } catch (err) {
     return next(err);
@@ -334,10 +398,28 @@ export const updateGoal = async (req, res, next) => {
 // DELETE /users/me/goals/:id
 export const deleteGoal = async (req, res, next) => {
   try {
-    const goal = await ReadingGoal.findOneAndDelete({ _id: req.params.id, user: req.user.id });
+    const userId = req.user?.id ?? req.user?._id;
+    const { id } = req.params;
+    if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid goal id" });
+
+    const goal = await ReadingGoal.findOne({
+      where: { id: Number(id), user_id: Number(userId) },
+    });
+
     if (!goal) return res.status(404).json({ message: "Goal not found" });
+
+    await goal.destroy();
     return res.status(200).json({ message: "Goal deleted" });
   } catch (err) {
     return next(err);
   }
+};
+
+export default {
+  getMyGoals,
+  createGoal,
+  updateGoal,
+  deleteGoal,
+  syncGoalStatesForUser,
 };

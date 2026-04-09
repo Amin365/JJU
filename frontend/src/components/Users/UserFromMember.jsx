@@ -94,7 +94,7 @@ const CreateUserForm = () => {
 
   const selectedMember = useMemo(() => {
     if (!memberId) return null;
-    return members.find((m) => m._id === memberId) || null;
+    return members.find((m) => String(m.id) === String(memberId)) || null;
   }, [members, memberId]);
 
   useEffect(() => {
@@ -220,7 +220,7 @@ const CreateUserForm = () => {
                         </label>
 
                         <Select
-                          value={memberId}
+                          value={memberId ? String(memberId) : ""}
                           onValueChange={(v) => setValue("member", v, { shouldValidate: true })}
                           disabled={isLoadingMembers}
                         >
@@ -234,7 +234,7 @@ const CreateUserForm = () => {
                                 [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(" ");
                               const label = `${fullName}`;
                               return (
-                                <SelectItem key={m._id} value={m._id}>
+                                <SelectItem key={m.id} value={String(m.id)}>
                                   {label}
                                 </SelectItem>
                               );

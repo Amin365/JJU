@@ -1,15 +1,21 @@
-/**
- * Phase 8 - Audit Log Controller
- * API endpoints for querying audit logs (admin only)
- */
-
 import AuditLog from "../models/AuditLog.js";
-import { Op } from 'sequelize';
+import { Op, col, fn, where as sqlWhere } from "sequelize";
+
+const toPositiveInt = (value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
+  const n = parseInt(value, 10);
+  if (!Number.isFinite(n)) return fallback;
+  return Math.min(max, Math.max(min, n));
+};
+
+const toValidDate = (value) => {
+  if (!value) return null;
+  const d = new Date(value);
+  return Number.isNaN(d.getTime()) ? null : d;
+};
 
 /**
  * Get audit logs with filtering and pagination
  * GET /audit-logs
- * Query params: page, limit, action, entityType, entityId, userId, startDate, endDate
  */
 export const getAuditLogs = async (req, res, next) => {
   try {
@@ -27,67 +33,54 @@ export const getAuditLogs = async (req, res, next) => {
 
     const filter = {};
 
-    // Filter by action
-    if (action) {
-      filter.action = action;
+    if (action) filter.action = action;
+    if (entityType) filter.entityType = entityType;
+    if (entityId) filter.entityId = entityId;
+    if (userId) filter.user_id = userId;
+
+    const start = toValidDate(startDate);
+    const end = toValidDate(endDate);
+
+    if (startDate && !start) {
+      return res.status(400).json({ message: "Invalid startDate" });
+    }
+    if (endDate && !end) {
+      return res.status(400).json({ message: "Invalid endDate" });
     }
 
-    // Filter by entity type
-    if (entityType) {
-      filter.entityType = entityType;
-    }
-
-    // Filter by entity ID
-    if (entityId) {
-      filter.entityId = entityId;
-    }
-
-    // Filter by user who performed the action
-    if (userId) {
-      filter.user = userId;
-    }
-
-    // Filter by date range
-    if (startDate || endDate) {
+    if (start || end) {
       filter.createdAt = {};
-      if (startDate) {
-        filter.createdAt.$gte = new Date(startDate);
-      }
-      if (endDate) {
-        filter.createdAt.$lte = new Date(endDate);
-      }
+      if (start) filter.createdAt[Op.gte] = start;
+      if (end) filter.createdAt[Op.lte] = end;
     }
 
-    // Search in description or entity label
     if (search) {
-      const regex = new RegExp(search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [
-        { description: regex },
-        { entityLabel: regex },
-        { userEmail: regex },
-        { userName: regex },
+      const escaped = `%${String(search).replace(/[\\%_]/g, "\\$&").toLowerCase()}%`;
+      filter[Op.or] = [
+        sqlWhere(fn("LOWER", col("description")), { [Op.like]: escaped }),
+        sqlWhere(fn("LOWER", col("entityLabel")), { [Op.like]: escaped }),
+        sqlWhere(fn("LOWER", col("userEmail")), { [Op.like]: escaped }),
+        sqlWhere(fn("LOWER", col("userName")), { [Op.like]: escaped }),
       ];
     }
 
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
+    const pageNum = toPositiveInt(page, 1, 1);
+    const perPage = toPositiveInt(limit, 50, 1, 100);
+    const offset = (pageNum - 1) * perPage;
 
-    const [logs, total] = await Promise.all([
-      AuditLog.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit, 10))
-        .populate("user", "first_name last_name email username")
-        
-        ,
-      AuditLog.countDocuments(filter),
-    ]);
+    const { rows: logs, count: total } = await AuditLog.findAndCountAll({
+      where: filter,
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: perPage,
+    });
 
     return res.status(200).json({
       data: logs,
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
+      page: pageNum,
+      limit: perPage,
       total,
-      totalPages: Math.ceil(total / parseInt(limit, 10)),
+      totalPages: Math.ceil(total / perPage),
     });
   } catch (err) {
     return next(err);
@@ -101,11 +94,7 @@ export const getAuditLogs = async (req, res, next) => {
 export const getAuditLogById = async (req, res, next) => {
   try {
     const { id } = req.params;
-
-    const log = await AuditLog.findByPk(id)
-      .populate("user", "first_name last_name email username")
-      
-      ;
+    const log = await AuditLog.findByPk(id);
 
     if (!log) {
       return res.status(404).json({ message: "Audit log not found" });
@@ -123,45 +112,70 @@ export const getAuditLogById = async (req, res, next) => {
  */
 export const getAuditLogStats = async (req, res, next) => {
   try {
-    const { days = 30 } = req.query;
+    const days = toPositiveInt(req.query.days, 30, 1, 3650);
     const startDate = new Date();
-    startDate.setDate(startDate.getDate() - parseInt(days, 10));
+    startDate.setDate(startDate.getDate() - days);
 
-    // Get counts by action type
-    const actionCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate } } },
-      { $group: { _id: "$action", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]);
+    const rangeFilter = { createdAt: { [Op.gte]: startDate } };
 
-    // Get counts by entity type
-    const entityCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate } } },
-      { $group: { _id: "$entityType", count: { $sum: 1 } } },
-      { $sort: { count: -1 } },
-    ]);
+    const [actionCountsRaw, entityCountsRaw, activeUsersRaw, dailyCountsRaw, totalCount] =
+      await Promise.all([
+        AuditLog.findAll({
+          where: rangeFilter,
+          attributes: ["action", [fn("COUNT", col("id")), "count"]],
+          group: ["action"],
+          order: [[fn("COUNT", col("id")), "DESC"]],
+          raw: true,
+        }),
+        AuditLog.findAll({
+          where: rangeFilter,
+          attributes: ["entityType", [fn("COUNT", col("id")), "count"]],
+          group: ["entityType"],
+          order: [[fn("COUNT", col("id")), "DESC"]],
+          raw: true,
+        }),
+        AuditLog.findAll({
+          where: { ...rangeFilter, user_id: { [Op.ne]: null } },
+          attributes: ["user_id", "userName", "userEmail", [fn("COUNT", col("id")), "count"]],
+          group: ["user_id", "userName", "userEmail"],
+          order: [[fn("COUNT", col("id")), "DESC"]],
+          limit: 10,
+          raw: true,
+        }),
+        AuditLog.findAll({
+          where: rangeFilter,
+          attributes: [
+            [fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d"), "date"],
+            [fn("COUNT", col("id")), "count"],
+          ],
+          group: [fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d")],
+          order: [[fn("DATE_FORMAT", col("createdAt"), "%Y-%m-%d"), "ASC"]],
+          raw: true,
+        }),
+        AuditLog.count({ where: rangeFilter }),
+      ]);
 
-    // Get most active users
-    const activeUsers = await AuditLog.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate }, user: { [Op.ne]: null } } },
-      { $group: { _id: "$user", count: { $sum: 1 }, userName: { $first: "$userName" }, userEmail: { $first: "$userEmail" } } },
-      { $sort: { count: -1 } },
-      { $limit: 10 },
-    ]);
+    const actionCounts = actionCountsRaw.map((row) => ({
+      key: row.action,
+      count: Number(row.count || 0),
+    }));
 
-    // Get daily counts for chart
-    const dailyCounts = await AuditLog.aggregate([
-      { $match: { createdAt: { [Op.gte]: startDate } } },
-      {
-        $group: {
-          _id: { $dateToString: { format: "%Y-%m-%d", date: "$createdAt" } },
-          count: { $sum: 1 },
-        },
-      },
-      { $sort: { _id: 1 } },
-    ]);
+    const entityCounts = entityCountsRaw.map((row) => ({
+      key: row.entityType,
+      count: Number(row.count || 0),
+    }));
 
-    const totalCount = await AuditLog.countDocuments({ createdAt: { [Op.gte]: startDate } });
+    const activeUsers = activeUsersRaw.map((row) => ({
+      userId: row.user_id,
+      count: Number(row.count || 0),
+      userName: row.userName,
+      userEmail: row.userEmail,
+    }));
+
+    const dailyCounts = dailyCountsRaw.map((row) => ({
+      date: row.date,
+      count: Number(row.count || 0),
+    }));
 
     return res.status(200).json({
       data: {
@@ -170,7 +184,7 @@ export const getAuditLogStats = async (req, res, next) => {
         entityCounts,
         activeUsers,
         dailyCounts,
-        period: parseInt(days, 10),
+        period: days,
       },
     });
   } catch (err) {
@@ -185,28 +199,23 @@ export const getAuditLogStats = async (req, res, next) => {
 export const getEntityAuditLogs = async (req, res, next) => {
   try {
     const { entityType, entityId } = req.params;
-    const { page = 1, limit = 20 } = req.query;
+    const pageNum = toPositiveInt(req.query.page, 1, 1);
+    const perPage = toPositiveInt(req.query.limit, 20, 1, 100);
+    const offset = (pageNum - 1) * perPage;
 
-    const filter = { entityType, entityId };
-    const skip = (parseInt(page, 10) - 1) * parseInt(limit, 10);
-
-    const [logs, total] = await Promise.all([
-      AuditLog.find(filter)
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(parseInt(limit, 10))
-        .populate("user", "first_name last_name email username")
-        
-        ,
-      AuditLog.countDocuments(filter),
-    ]);
+    const { rows: logs, count: total } = await AuditLog.findAndCountAll({
+      where: { entityType, entityId },
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: perPage,
+    });
 
     return res.status(200).json({
       data: logs,
-      page: parseInt(page, 10),
-      limit: parseInt(limit, 10),
+      page: pageNum,
+      limit: perPage,
       total,
-      totalPages: Math.ceil(total / parseInt(limit, 10)),
+      totalPages: Math.ceil(total / perPage),
     });
   } catch (err) {
     return next(err);
@@ -219,8 +228,14 @@ export const getEntityAuditLogs = async (req, res, next) => {
  */
 export const getActionTypes = async (req, res, next) => {
   try {
-    const actions = await AuditLog.distinct("action");
-    return res.status(200).json({ data: actions });
+    const rows = await AuditLog.findAll({
+      attributes: [[fn("DISTINCT", col("action")), "action"]],
+      raw: true,
+    });
+
+    return res.status(200).json({
+      data: rows.map((r) => r.action).filter(Boolean),
+    });
   } catch (err) {
     return next(err);
   }
@@ -232,8 +247,14 @@ export const getActionTypes = async (req, res, next) => {
  */
 export const getEntityTypes = async (req, res, next) => {
   try {
-    const entityTypes = await AuditLog.distinct("entityType");
-    return res.status(200).json({ data: entityTypes });
+    const rows = await AuditLog.findAll({
+      attributes: [[fn("DISTINCT", col("entityType")), "entityType"]],
+      raw: true,
+    });
+
+    return res.status(200).json({
+      data: rows.map((r) => r.entityType).filter(Boolean),
+    });
   } catch (err) {
     return next(err);
   }

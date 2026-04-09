@@ -2,17 +2,23 @@ import dotenv from "dotenv";
 dotenv.config();
 
 import crypto from "crypto";
-import User from "../models/user.js";
 import rateLimit from "express-rate-limit";
 import bcrypt from "bcryptjs";
-import jwt from "jsonwebtoken";
+import { Op } from "sequelize";
+
+import User from "../models/user.js";
 import Role from "../models/Role.js";
 import RolePermission from "../models/RolePermission.js";
 import UserPermission from "../models/UserPermission.js";
 import Permission from "../models/Permissions.js";
 import RefreshToken from "../models/RefreshToken.js";
-import { Op } from 'sequelize';
-import { signAccessToken, signRefreshToken, hashToken, verifyRefreshToken } from "../utility/tokenUtils.js";
+
+import {
+  signAccessToken,
+  signRefreshToken,
+  hashToken,
+  verifyRefreshToken,
+} from "../utility/tokenUtils.js";
 import { logAuthAction } from "../utility/auditLog.js";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 
@@ -23,86 +29,112 @@ export const loginLimiter = rateLimit({
   legacyHeaders: false,
   handler: (req, res) => {
     let retryAfterMinutes = 1;
-    if (req.rateLimit && req.rateLimit.resetTime) {
+    if (req.rateLimit?.resetTime) {
       retryAfterMinutes = Math.ceil((req.rateLimit.resetTime - Date.now()) / 60000);
       if (retryAfterMinutes < 1) retryAfterMinutes = 1;
     }
     return res.status(429).json({
       error: true,
-      message: `Too many login attempts. Try again in ${retryAfterMinutes} minute${retryAfterMinutes > 1 ? "s" : ""}.`,
+      message: `Too many login attempts. Try again in ${retryAfterMinutes} minute${
+        retryAfterMinutes > 1 ? "s" : ""
+      }.`,
     });
   },
 });
 
 export const registerUser = async (req, res) => {
   const { username, email, password } = req.body;
+
   if (!username || !email || !password) {
-    return res.status(400).json({ message: "username, email and password are required" });
+    return res.status(400).json({
+      message: "username, email and password are required",
+    });
   }
 
   try {
-    const normalizedEmail = String(email || "").trim().toLowerCase();
-    const normalizedUsername = String(username || "").trim();
-    const normalizedPassword = String(password || "");
+    const normalizedEmail = String(email).trim().toLowerCase();
+    const normalizedUsername = String(username).trim();
+    const normalizedPassword = String(password);
 
-    const userExists = await User.findOne({ where: { email: normalizedEmail } });
-    if (userExists) return res.status(400).json({ message: "User already exists" });
+    const userExists = await User.findOne({
+      where: { email: normalizedEmail },
+    });
+
+    if (userExists) {
+      return res.status(400).json({ message: "User already exists" });
+    }
 
     const user = await User.create({
       username: normalizedUsername,
       email: normalizedEmail,
-      // User model beforeSave hook hashes this password.
+      // password hashing should be handled in model hook
       password: normalizedPassword,
     });
 
-    if (user) {
-      return res.status(201).json({
-        id: user.id,
-        username: user.username,
-        email: user.email,
-        role_id: user.role_id,
-      });
-    } else {
+    if (!user) {
       return res.status(400).json({ message: "Invalid user data" });
     }
+
+    return res.status(201).json({
+      id: user.id,
+      username: user.username,
+      email: user.email,
+      role_id: user.role_id,
+    });
   } catch (error) {
-    console.error(error);
+    console.error("registerUser error:", error);
     return res.status(500).json({ message: "Server error" });
   }
 };
 
 export const loginUser = async (req, res) => {
   const { email, username, identifier, password } = req.body;
-  const id = String(identifier || email || username || "").trim();
-  const rawPassword = String(password || "");
-  const normalizedPassword = rawPassword.trim();
+
+  const id = String(identifier || email || username || "")
+    .trim()
+    .toLowerCase();
+  const normalizedPassword = String(password || "").trim();
 
   const rateLimitRemaining = req.rateLimit ? req.rateLimit.remaining : "unknown";
 
   if (!id || !normalizedPassword) {
-    return res.status(400).json({ message: "identifier (email or username) and password are required" });
+    return res.status(400).json({
+      message: "identifier (email or username) and password are required",
+    });
   }
 
   try {
     const user = await User.findOne({
-      where: { [Op.or]: [{ email: id }, { username: id }] },
+      where: {
+        [Op.or]: [{ email: id }, { username: id }],
+      },
     });
 
     if (!user) {
-      return res
-        .status(401)
-        .send({ message: "Incorrect Credentials." + (rateLimitRemaining != "unknown" ? " ( " + rateLimitRemaining + " attempts left )" : "") });
+      return res.status(401).json({
+        message:
+          "Incorrect Credentials." +
+          (rateLimitRemaining !== "unknown"
+            ? ` ( ${rateLimitRemaining} attempts left )`
+            : ""),
+      });
     }
 
     if (user.status && user.status !== "Active") {
-      return res.status(403).json({ message: "Account is not active. Please contact support." });
+      return res
+        .status(403)
+        .json({ message: "Account is not active. Please contact support." });
     }
 
     const isMatch = await bcrypt.compare(normalizedPassword, user.password);
     if (!isMatch) {
-      return res
-        .status(401)
-        .send({ message: "Incorrect Credentials." + (rateLimitRemaining != "unknown" ? " ( " + rateLimitRemaining + " attempts left )" : "") });
+      return res.status(401).json({
+        message:
+          "Incorrect Credentials." +
+          (rateLimitRemaining !== "unknown"
+            ? ` ( ${rateLimitRemaining} attempts left )`
+            : ""),
+      });
     }
 
     const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
@@ -122,10 +154,13 @@ export const loginUser = async (req, res) => {
       }),
     ]);
 
-    const permissionIds = [...new Set([
-      ...rolePermDocs.map((rp) => rp.permission_id),
-      ...userPermDocs.map((up) => up.permission_id),
-    ].filter(Boolean))];
+    const permissionIds = [
+      ...new Set(
+        [...rolePermDocs.map((rp) => rp.permission_id), ...userPermDocs.map((up) => up.permission_id)].filter(
+          Boolean
+        )
+      ),
+    ];
 
     const permissionDocs = permissionIds.length
       ? await Permission.findAll({
@@ -137,7 +172,7 @@ export const loginUser = async (req, res) => {
 
     const permissionSet = new Set(permissionDocs.map((p) => p.permission).filter(Boolean));
 
-    const payload = { id: user.id, role: user.role_id };
+    const payload = { id: user.id, role: user.role_id || null };
 
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
@@ -154,15 +189,13 @@ export const loginUser = async (req, res) => {
       userAgent: req.get("User-Agent"),
     });
 
-    const cookieOptions = {
+    res.cookie("refreshToken", refreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
-      path: "/api/auth", 
-      maxAge: expiresAt.getTime() - Date.now(),
-    };
-
-    res.cookie("refreshToken", refreshToken, cookieOptions);
+      path: "/api/auth",
+      maxAge: Math.max(0, expiresAt.getTime() - Date.now()),
+    });
 
     await logAuthAction("login", user, req, {
       description: `User "${user.email}" logged in successfully`,
@@ -196,13 +229,13 @@ export const refreshToken = async (req, res) => {
     let payload;
     try {
       payload = verifyRefreshToken(token);
-    } catch (err) {
+    } catch {
       return res.status(401).json({ message: "Invalid refresh token" });
     }
 
     const tokenHash = hashToken(token);
-
     const stored = await RefreshToken.findOne({ where: { tokenHash } });
+
     if (!stored || stored.revoked) {
       return res.status(401).json({ message: "Refresh token revoked or not found" });
     }
@@ -231,14 +264,13 @@ export const refreshToken = async (req, res) => {
       userAgent: req.get("User-Agent"),
     });
 
-    const cookieOptions = {
+    res.cookie("refreshToken", newRefreshToken, {
       httpOnly: true,
       secure: process.env.NODE_ENV === "production",
       sameSite: "lax",
       path: "/api/auth",
-      maxAge: newExpiresAt.getTime() - Date.now(),
-    };
-    res.cookie("refreshToken", newRefreshToken, cookieOptions);
+      maxAge: Math.max(0, newExpiresAt.getTime() - Date.now()),
+    });
 
     return res.json({ token: newAccessToken });
   } catch (err) {
@@ -254,6 +286,7 @@ export const logout = async (req, res) => {
       const tokenHash = hashToken(token);
       await RefreshToken.update({ revoked: true }, { where: { tokenHash } });
     }
+
     res.clearCookie("refreshToken", { path: "/api/auth" });
     return res.json({ message: "Logged out" });
   } catch (err) {
@@ -265,22 +298,24 @@ export const logout = async (req, res) => {
 export const GetProfile = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
-      attributes: { exclude: ['password'] },
+      attributes: { exclude: ["password"] },
     });
-    if (!user) return res.status(404).json({ message: "User not found" });
+
+    if (!user) {
+      return res.status(404).json({ message: "User not found" });
+    }
 
     const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
-    const plainUser = user.toJSON();
 
-    res.json({
+    return res.json({
       success: true,
       user: {
-        ...plainUser,
+        ...user.toJSON(),
         roleInfo: roleDoc ? roleDoc.toJSON() : null,
       },
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
@@ -297,7 +332,7 @@ export const validateInviteToken = async (req, res, next) => {
         inviteToken: token,
         inviteTokenExpires: { [Op.gt]: new Date() },
       },
-      attributes: ['first_name', 'last_name', 'email', 'inviteTokenExpires'],
+      attributes: ["first_name", "last_name", "email", "inviteTokenExpires"],
     });
 
     if (!user) {
@@ -314,7 +349,7 @@ export const validateInviteToken = async (req, res, next) => {
       },
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
@@ -326,7 +361,7 @@ export const setupPasswordFromInvite = async (req, res, next) => {
       return res.status(400).json({ message: "Token is required" });
     }
 
-    if (!password || password.length < 8) {
+    if (!password || String(password).length < 8) {
       return res.status(400).json({ message: "Password must be at least 8 characters" });
     }
 
@@ -354,19 +389,21 @@ export const setupPasswordFromInvite = async (req, res, next) => {
       message: "Password set successfully. You can now log in.",
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
 export const resendInvite = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body.email || "").trim().toLowerCase();
 
     if (!email) {
       return res.status(400).json({ message: "Email is required" });
     }
 
-    const user = await User.findOne({ where: { email, mustChangePassword: true } });
+    const user = await User.findOne({
+      where: { email, mustChangePassword: true },
+    });
 
     if (!user) {
       return res.status(404).json({ message: "No pending invite found for this email" });
@@ -388,7 +425,7 @@ export const resendInvite = async (req, res, next) => {
       html: buildEmailHtml({
         title: "Complete Your Account Setup",
         preheader: "Set up your account password",
-        greeting: `Hello ${user.first_name}`,
+        greeting: `Hello ${user.first_name || "there"}`,
         bodyLines: [
           "This is a reminder to set up your JJU Reading Club account.",
           "Please click the button below to set up your password.",
@@ -405,7 +442,7 @@ export const resendInvite = async (req, res, next) => {
       message: "Invite email has been resent",
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
@@ -417,8 +454,21 @@ export const checkMustChangePassword = async (req, res, next) => {
         mustChangePassword: true,
       });
     }
-    next();
+    return next();
   } catch (err) {
-    next(err);
+    return next(err);
   }
+};
+
+export default {
+  loginLimiter,
+  registerUser,
+  loginUser,
+  refreshToken,
+  logout,
+  GetProfile,
+  validateInviteToken,
+  setupPasswordFromInvite,
+  resendInvite,
+  checkMustChangePassword,
 };

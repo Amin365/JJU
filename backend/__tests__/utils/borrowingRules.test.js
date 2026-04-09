@@ -3,7 +3,7 @@ import { describe, it, expect, vi, beforeEach } from "vitest";
 // Mock the Issue model before importing the module under test
 vi.mock("../../models/Issue.js", () => ({
   default: {
-    countDocuments: vi.fn(),
+    count: vi.fn(),
   },
 }));
 
@@ -32,12 +32,12 @@ describe("checkBorrowingRules", () => {
   it("immediately allows when adminOverride is true without querying DB", async () => {
     const result = await checkBorrowingRules("member123", { adminOverride: true });
     expect(result).toEqual({ allowed: true, reason: null });
-    expect(Issue.countDocuments).not.toHaveBeenCalled();
+    expect(Issue.count).not.toHaveBeenCalled();
   });
 
   it("blocks borrowing when member has overdue items", async () => {
     // First call: overdue count = 2, second call (active) should not be reached
-    Issue.countDocuments.mockResolvedValueOnce(2);
+    Issue.count.mockResolvedValueOnce(2);
 
     const result = await checkBorrowingRules("member123");
     expect(result.allowed).toBe(false);
@@ -46,7 +46,7 @@ describe("checkBorrowingRules", () => {
 
   it("blocks borrowing when member has reached the active issue limit", async () => {
     // overdue = 0, active = MAX_ACTIVE_ISSUES
-    Issue.countDocuments
+    Issue.count
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(MAX_ACTIVE_ISSUES);
 
@@ -56,7 +56,7 @@ describe("checkBorrowingRules", () => {
   });
 
   it("allows borrowing when member has no overdue items and is below the active limit", async () => {
-    Issue.countDocuments
+    Issue.count
       .mockResolvedValueOnce(0)
       .mockResolvedValueOnce(MAX_ACTIVE_ISSUES - 1);
 
@@ -65,7 +65,7 @@ describe("checkBorrowingRules", () => {
   });
 
   it("allows borrowing when member has zero active issues", async () => {
-    Issue.countDocuments.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
+    Issue.count.mockResolvedValueOnce(0).mockResolvedValueOnce(0);
 
     const result = await checkBorrowingRules("member123");
     expect(result).toEqual({ allowed: true, reason: null });

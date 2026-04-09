@@ -88,7 +88,7 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
     onSuccess: (data) => {
       toast.success("Book updated");
       qc.invalidateQueries({ queryKey: ["books"] });
-      qc.invalidateQueries({ queryKey: ["book", data._id ?? data.id] });
+      qc.invalidateQueries({ queryKey: ["book", data.id ?? data.id] });
       onSuccess && onSuccess(data);
       onClose && onClose();
     },
@@ -126,8 +126,8 @@ export default function BookModal({ isOpen, onClose, onSuccess, initialData = nu
       // formData.append('book_picture', initialData.book_picture);
     }
 
-    if (mode === "edit" && initialData && initialData._id) {
-      updateMutation.mutate({ id: initialData._id, formData });
+    if (mode === "edit" && initialData && initialData.id) {
+      updateMutation.mutate({ id: initialData.id, formData });
     } else {
       createMutation.mutate(formData);
     }

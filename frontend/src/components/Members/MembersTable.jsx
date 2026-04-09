@@ -112,7 +112,7 @@ export default function MemberTable() {
   const userRoleName = (authUser?.role?.role || authUser?.role?.plural || "").toLowerCase();
   const userIsModerator = /moderator/i.test(userRoleName);
 
-  const scopedModeratorId = urlModeratorId || (userIsModerator ? authUser?._id : null);
+  const scopedModeratorId = urlModeratorId || (userIsModerator ? authUser?.id : null);
 
   // Fetch moderators for filter dropdown
   const { data: moderatorsData } = useQuery({
@@ -332,7 +332,7 @@ export default function MemberTable() {
                   <SelectContent>
                     <SelectItem value="All">All Moderators</SelectItem>
                     {moderators.map((mod) => (
-                      <SelectItem key={mod._id} value={mod._id}>
+                      <SelectItem key={mod.id} value={mod.id}>
                         {mod.first_name} {mod.last_name}
                       </SelectItem>
                     ))}
@@ -362,7 +362,7 @@ export default function MemberTable() {
 
             <tbody className="divide-y divide-border">
               {members.map((m) => (
-                <tr key={m._id ?? m.id} onClick={() => handleRowClick(m._id ?? m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
+                <tr key={m.id} onClick={() => handleRowClick(m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
                   <td className="p-4 flex items-center gap-3">
                     {m.Profile_picture ? (
                       <Avatar className="w-10 h-10 rounded-md">

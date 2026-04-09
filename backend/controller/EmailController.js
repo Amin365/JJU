@@ -4,14 +4,12 @@ import Member from "../models/Members.js";
 
 dotenv.config();
 
-// Destructure environment variables
 const { RESEND_API_KEY, EMAIL_FROM_NAME, EMAIL_FROM, APP_NAME } = process.env;
 
 if (!RESEND_API_KEY) {
   console.warn("⚠️ Missing RESEND_API_KEY in environment");
 }
 
-// Initialize Resend client
 const resend = new Resend(RESEND_API_KEY);
 
 export const buildEmailHtml = ({
@@ -32,15 +30,16 @@ export const buildEmailHtml = ({
     .map((line) => `<p style="margin:0 0 12px;">${line}</p>`)
     .join("");
 
-  const cta = ctaLabel && ctaUrl
-    ? `
+  const cta =
+    ctaLabel && ctaUrl
+      ? `
       <div style="margin:20px 0 8px;">
         <a href="${ctaUrl}" style="display:inline-block;padding:12px 18px;border-radius:8px;background:#f97316;color:#fff;text-decoration:none;font-weight:600;">
           ${ctaLabel}
         </a>
       </div>
     `
-    : "";
+      : "";
 
   return `
   <div style="display:none;font-size:1px;color:#f5f5f5;line-height:1px;max-height:0;max-width:0;opacity:0;overflow:hidden;">
@@ -83,12 +82,12 @@ export async function sendMail({ to, subject, text, html }) {
 
   const fromName = EMAIL_FROM_NAME || APP_NAME || "No Reply";
   const fromAddress = EMAIL_FROM || "noreply@jjureadingclub.com";
+
   if (process.env.NODE_ENV === "production" && !EMAIL_FROM) {
     throw new Error("EMAIL_FROM is required in production (must be a verified sender)");
   }
-  const from = `"${fromName}" <${fromAddress}>`; // Use verified domain
 
-  // Resend requires HTML; fallback to plain text wrapped in <pre>
+  const from = `"${fromName}" <${fromAddress}>`;
   const finalHtml = html || `<pre>${text || ""}</pre>`;
 
   const { data, error } = await resend.emails.send({
@@ -125,8 +124,11 @@ export const sendMemberEmail = async (req, res) => {
       return res.status(400).json({ message: "Missing member id" });
     }
 
-    // Load member
-    const member = await Member.findByPk(id);
+    if (!Number.isInteger(Number(id))) {
+      return res.status(400).json({ message: "Invalid member id" });
+    }
+
+    const member = await Member.findByPk(Number(id));
     if (!member) {
       return res.status(404).json({ message: "Member not found" });
     }
@@ -136,10 +138,8 @@ export const sendMemberEmail = async (req, res) => {
       return res.status(400).json({ message: "Member has no email" });
     }
 
-    // Default subject
     const finalSubject = subject || `Message from ${APP_NAME || "the team"}`;
 
-    // Default plain text
     const finalText =
       text ||
       `Hello ${member.first_name ?? ""} ${member.last_name ?? ""},
@@ -150,7 +150,6 @@ If you have any questions, feel free to reply to this email and we will assist y
 Regards,
 ${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
 
-    // Default HTML version
     const finalHtml =
       html ||
       buildEmailHtml({
@@ -165,7 +164,6 @@ ${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
         footerNote: `Regards, ${EMAIL_FROM_NAME || APP_NAME || "Team"}`,
       });
 
-    // Send email
     const info = await sendMail({
       to: recipient,
       subject: finalSubject,
@@ -185,4 +183,8 @@ ${EMAIL_FROM_NAME || APP_NAME || "Team"}`;
   }
 };
 
-export default { sendMemberEmail, sendMail };
+export default {
+  sendMemberEmail,
+  sendMail,
+  buildEmailHtml,
+};

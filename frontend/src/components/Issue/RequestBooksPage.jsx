@@ -70,7 +70,7 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
     try {
       const r = await api.get(`/members/by-code/${encodeURIComponent(memberCode.trim())}`);
       const m = r.data?.data ?? r.data;
-      setMemberId(m._id);
+      setMemberId(m.id);
       setMemberInfo(m);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Member not found");
@@ -158,7 +158,7 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
               </SelectTrigger>
               <SelectContent>
                 {books.map((b) => (
-                  <SelectItem key={b._id} value={b._id}>
+                  <SelectItem key={b.id} value={b.id}>
                     {b.title} — {b.author || "Unknown"} ({b.availableCopies ?? 0} available)
                   </SelectItem>
                 ))}
@@ -230,13 +230,13 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
   const mutation = useMutation({
     mutationFn: async () => {
       if (action === "approve") {
-        return api.patch(`/issue-requests/${request._id}/approve`, { reviewNote });
+        return api.patch(`/issue-requests/${request.id}/approve`, { reviewNote });
       }
       if (action === "reject") {
-        return api.patch(`/issue-requests/${request._id}/reject`, { reviewNote });
+        return api.patch(`/issue-requests/${request.id}/reject`, { reviewNote });
       }
       if (action === "issue") {
-        return api.patch(`/issue-requests/${request._id}/issue`, { issueDate, returnDate });
+        return api.patch(`/issue-requests/${request.id}/issue`, { issueDate, returnDate });
       }
     },
     onSuccess: () => {
@@ -337,9 +337,20 @@ const RequestBooksPage = () => {
   });
 
   const roleName = useMemo(() => {
-    const src = profileData?.user?.role || user?.role;
-    if (!src) return "";
-    return typeof src === "object" ? (src.role || src.name || "").toLowerCase() : String(src).toLowerCase();
+    const profileUser = profileData?.user;
+    const candidates = [
+      profileUser?.roleInfo?.role,
+      profileUser?.roleInfo?.plural,
+      profileUser?.role?.role,
+      profileUser?.role?.name,
+      profileUser?.role,
+      user?.role?.role,
+      user?.role?.name,
+      user?.role,
+    ];
+
+    const resolved = candidates.find((v) => typeof v === "string" && v.trim());
+    return (resolved || "").toLowerCase();
   }, [profileData, user]);
 
   const isAdmin = roleName.includes("super") || roleName.includes("admin");
@@ -437,7 +448,7 @@ const RequestBooksPage = () => {
                   req.member?.full_name ||
                   [req.member?.first_name, req.member?.last_name].filter(Boolean).join(" ");
                 return (
-                  <tr key={req._id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <tr key={req.id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="p-4">
                       <div className="font-medium text-slate-800 dark:text-white">{req.book?.title || "—"}</div>
                       <div className="text-xs text-slate-500">{req.book?.isbn || ""}</div>
@@ -487,7 +498,7 @@ const RequestBooksPage = () => {
                             size="sm"
                             variant="outline"
                             className="text-slate-500"
-                            onClick={() => cancelMutation.mutate(req._id)}
+                            onClick={() => cancelMutation.mutate(req.id)}
                             disabled={cancelMutation.isPending}
                           >
                             Cancel

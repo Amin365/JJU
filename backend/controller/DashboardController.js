@@ -1,4 +1,3 @@
-
 import Book from "../models/Books.js";
 import { Op } from "sequelize";
 import Member from "../models/Members.js";
@@ -34,7 +33,7 @@ export const getDashboardStats = async (req, res) => {
       DailyReport.count({ where: { status: "Pending" } }),
     ]);
 
-    res.json({
+    return res.json({
       totalBooks,
       availableBooks: availableBooks ?? 0,
       borrowedBooks,
@@ -45,7 +44,7 @@ export const getDashboardStats = async (req, res) => {
       pendingDailyReports,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -67,13 +66,13 @@ export const getRecentActivity = async (req, res) => {
       Member.findAll({
         order: [["createdAt", "DESC"]],
         limit: 5,
-        attributes: ["first_name", "last_name", "code", "createdAt"],
+        attributes: ["id", "first_name", "last_name", "code", "createdAt"],
         raw: true,
       }),
       Book.findAll({
         order: [["createdAt", "DESC"]],
         limit: 5,
-        attributes: ["title", "author", "createdAt"],
+        attributes: ["id", "title", "author", "createdAt"],
         raw: true,
       }),
       Issue.findAll({
@@ -93,44 +92,63 @@ export const getRecentActivity = async (req, res) => {
       Clubreq.findAll({
         order: [["createdAt", "DESC"]],
         limit: 5,
-        attributes: ["FullName", "email", "status", "createdAt"],
+        attributes: ["id", "FullName", "email", "status", "createdAt"],
         raw: true,
       }),
       DailyReport.findAll({
         order: [["createdAt", "DESC"]],
         limit: 5,
-        attributes: ["created_by", "book_id", "createdAt"],
+        attributes: ["id", "created_by", "book_id", "createdAt"],
         raw: true,
       }),
       BlogPost.findAll({
         where: { status: "Published" },
         order: [["createdAt", "DESC"]],
         limit: 5,
-        attributes: ["title", "author_name", "status", "createdAt"],
+        attributes: ["id", "title", "author_name", "status", "createdAt"],
         raw: true,
       }),
     ]);
 
-    const issueBookIds = [...new Set([
-      ...recentIssuesRaw.map((i) => i.book_id),
-      ...recentReturnsRaw.map((i) => i.book_id),
-      ...recentReportsRaw.map((r) => r.book_id),
-    ].filter(Boolean))];
-    const issueMemberIds = [...new Set([
-      ...recentIssuesRaw.map((i) => i.member_id),
-      ...recentReturnsRaw.map((i) => i.member_id),
-    ].filter(Boolean))];
+    const issueBookIds = [
+      ...new Set(
+        [
+          ...recentIssuesRaw.map((i) => i.book_id),
+          ...recentReturnsRaw.map((i) => i.book_id),
+          ...recentReportsRaw.map((r) => r.book_id),
+        ].filter(Boolean)
+      ),
+    ];
+
+    const issueMemberIds = [
+      ...new Set(
+        [...recentIssuesRaw.map((i) => i.member_id), ...recentReturnsRaw.map((i) => i.member_id)].filter(Boolean)
+      ),
+    ];
+
     const reportUserIds = [...new Set(recentReportsRaw.map((r) => r.created_by).filter(Boolean))];
 
     const [books, members, users] = await Promise.all([
       issueBookIds.length
-        ? Book.findAll({ where: { id: { [Op.in]: issueBookIds } }, attributes: ["id", "title"], raw: true })
+        ? Book.findAll({
+            where: { id: { [Op.in]: issueBookIds } },
+            attributes: ["id", "title"],
+            raw: true,
+          })
         : [],
       issueMemberIds.length
-        ? Member.findAll({ where: { id: { [Op.in]: issueMemberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+        ? Member.findAll({
+            where: { id: { [Op.in]: issueMemberIds } },
+            attributes: ["id", "first_name", "last_name", "code"],
+            raw: true,
+          })
         : [],
       reportUserIds.length
-        ? User.findAll({ where: { id: { [Op.in]: reportUserIds } }, attributes: ["id", "first_name", "last_name"], raw: true })
+        ? User.findAll({
+            where: { id: { [Op.in]: reportUserIds } },
+            attributes: ["id", "first_name", "last_name"],
+            raw: true,
+          })
         : [],
     ]);
 
@@ -161,7 +179,11 @@ export const getRecentActivity = async (req, res) => {
     recentIssuesRaw.forEach((i) =>
       events.push({
         type: "issue_created",
-        label: `Book issued: "${booksById.get(i.book_id)?.title ?? "?"}" → ${membersById.get(i.member_id) ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}` : "unknown member"}`,
+        label: `Book issued: "${booksById.get(i.book_id)?.title ?? "?"}" → ${
+          membersById.get(i.member_id)
+            ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}`
+            : "unknown member"
+        }`,
         meta: {},
         timestamp: i.createdAt,
       })
@@ -170,7 +192,11 @@ export const getRecentActivity = async (req, res) => {
     recentReturnsRaw.forEach((i) =>
       events.push({
         type: "issue_returned",
-        label: `Book returned: "${booksById.get(i.book_id)?.title ?? "?"}" by ${membersById.get(i.member_id) ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}` : "unknown member"}`,
+        label: `Book returned: "${booksById.get(i.book_id)?.title ?? "?"}" by ${
+          membersById.get(i.member_id)
+            ? `${membersById.get(i.member_id).first_name} ${membersById.get(i.member_id).last_name}`
+            : "unknown member"
+        }`,
         meta: {},
         timestamp: i.returnedAt || i.updatedAt,
       })
@@ -209,9 +235,9 @@ export const getRecentActivity = async (req, res) => {
 
     events.sort((a, b) => new Date(b.timestamp) - new Date(a.timestamp));
 
-    res.json(events.slice(0, 20));
+    return res.json(events.slice(0, 20));
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -227,21 +253,26 @@ export const getTopReaders = async (req, res) => {
     });
 
     const groupedMap = new Map();
+
     for (const report of reports) {
       const userId = report.created_by;
       if (!userId) continue;
+
       const existing = groupedMap.get(userId) || {
-        _id: userId,
+        userId,
         reportCount: 0,
         lastReport: null,
         totalPages: 0,
       };
+
       existing.reportCount += 1;
-      const pages = Math.abs((report.pagesTo || 0) - (report.pagesFrom || 0));
+      const pages = Math.max(0, Number(report.pagesTo || 0) - Number(report.pagesFrom || 0));
       existing.totalPages += pages;
+
       if (!existing.lastReport || new Date(report.createdAt) > new Date(existing.lastReport)) {
         existing.lastReport = report.createdAt;
       }
+
       groupedMap.set(userId, existing);
     }
 
@@ -249,45 +280,51 @@ export const getTopReaders = async (req, res) => {
       .sort((a, b) => b.reportCount - a.reportCount)
       .slice(0, 10);
 
-    const userIds = grouped.map((g) => g.id);
+    const userIds = grouped.map((g) => g.userId);
+
     const users = userIds.length
       ? await User.findAll({
           where: { id: { [Op.in]: userIds } },
-          attributes: ["id", "first_name", "last_name", "profile_picture", "member_id_fk"],
+          attributes: ["id", "first_name", "last_name", "profile_picture", "member_id"],
           raw: true,
         })
       : [];
-    const memberIds = users.map((u) => u.member_id_fk).filter(Boolean);
+
+    const memberIds = users.map((u) => u.member_id).filter(Boolean);
+
     const members = memberIds.length
-      ? await Member.findAll({ where: { id: { [Op.in]: memberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+      ? await Member.findAll({
+          where: { id: { [Op.in]: memberIds } },
+          attributes: ["id", "first_name", "last_name", "code"],
+          raw: true,
+        })
       : [];
+
     const usersById = new Map(users.map((u) => [u.id, u]));
     const membersById = new Map(members.map((m) => [m.id, m]));
 
-    const enriched = await Promise.all(
-      grouped.map(async (entry) => {
-        const user = usersById.get(entry.id);
-        const member = user?.member_id_fk ? membersById.get(user.member_id_fk) : null;
+    const enriched = grouped.map((entry) => {
+      const user = usersById.get(entry.userId);
+      const member = user?.member_id ? membersById.get(user.member_id) : null;
 
-        return {
-          _id: entry.id,
-          reportCount: entry.reportCount,
-          lastReport: entry.lastReport,
-          totalPages: entry.totalPages,
-          name: member
-            ? `${member.first_name} ${member.last_name}`
-            : user
-            ? `${user.first_name} ${user.last_name}`
-            : "Unknown",
-          memberCode: member?.code ?? null,
-          avatar: user?.profile_picture ?? null,
-        };
-      })
-    );
+      return {
+        _id: entry.userId,
+        reportCount: entry.reportCount,
+        lastReport: entry.lastReport,
+        totalPages: entry.totalPages,
+        name: member
+          ? `${member.first_name} ${member.last_name}`
+          : user
+          ? `${user.first_name} ${user.last_name}`
+          : "Unknown",
+        memberCode: member?.code ?? null,
+        avatar: user?.profile_picture ?? null,
+      };
+    });
 
-    res.json(enriched);
+    return res.json(enriched);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -298,41 +335,47 @@ export const getTopReaders = async (req, res) => {
 export const getPopularBooks = async (req, res) => {
   try {
     const issues = await Issue.findAll({ attributes: ["book_id"], raw: true });
+
     const countMap = new Map();
     for (const issue of issues) {
       if (!issue.book_id) continue;
       countMap.set(issue.book_id, (countMap.get(issue.book_id) || 0) + 1);
     }
+
     const grouped = Array.from(countMap.entries())
-      .map(([bookId, issueCount]) => ({ _id: bookId, issueCount }))
+      .map(([bookId, issueCount]) => ({ bookId, issueCount }))
       .sort((a, b) => b.issueCount - a.issueCount)
       .slice(0, 10);
 
-    const bookIds = grouped.map((g) => g.id);
+    const bookIds = grouped.map((g) => g.bookId);
+
     const books = bookIds.length
-      ? await Book.findAll({ where: { id: { [Op.in]: bookIds } }, attributes: ["id", "title", "author", "availableCopies", "totalCopies", "book_picture"], raw: true })
+      ? await Book.findAll({
+          where: { id: { [Op.in]: bookIds } },
+          attributes: ["id", "title", "author", "availableCopies", "totalCopies", "book_picture"],
+          raw: true,
+        })
       : [];
+
     const booksById = new Map(books.map((b) => [b.id, b]));
 
-    const enriched = await Promise.all(
-      grouped.map(async (entry) => {
-        const book = booksById.get(entry.id);
+    const enriched = grouped.map((entry) => {
+      const book = booksById.get(entry.bookId);
 
-        return {
-          _id: entry.id,
-          issueCount: entry.issueCount,
-          title: book?.title ?? "Unknown",
-          author: book?.author ?? null,
-          availableCopies: book?.availableCopies ?? 0,
-          totalCopies: book?.totalCopies ?? 0,
-          cover: book?.book_picture ?? null,
-        };
-      })
-    );
+      return {
+        _id: entry.bookId,
+        issueCount: entry.issueCount,
+        title: book?.title ?? "Unknown",
+        author: book?.author ?? null,
+        availableCopies: book?.availableCopies ?? 0,
+        totalCopies: book?.totalCopies ?? 0,
+        cover: book?.book_picture ?? null,
+      };
+    });
 
-    res.json(enriched);
+    return res.json(enriched);
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
 };
 
@@ -352,7 +395,7 @@ export const getPendingApprovals = async (req, res) => {
         where: { status: "Pending" },
         order: [["createdAt", "DESC"]],
         limit: 10,
-        attributes: ["FullName", "email", "phone", "createdAt"],
+        attributes: ["id", "FullName", "email", "phone", "createdAt"],
         raw: true,
       }),
       Issue.findAll({
@@ -371,22 +414,34 @@ export const getPendingApprovals = async (req, res) => {
       }),
     ]);
 
-    const bookIds = [...new Set([
-      ...overdueIssuesRaw.map((i) => i.book_id),
-      ...todayReportsRaw.map((r) => r.book_id),
-    ].filter(Boolean))];
+    const bookIds = [
+      ...new Set([...overdueIssuesRaw.map((i) => i.book_id), ...todayReportsRaw.map((r) => r.book_id)].filter(Boolean)),
+    ];
+
     const memberIds = [...new Set(overdueIssuesRaw.map((i) => i.member_id).filter(Boolean))];
     const userIds = [...new Set(todayReportsRaw.map((r) => r.created_by).filter(Boolean))];
 
     const [books, members, users] = await Promise.all([
       bookIds.length
-        ? Book.findAll({ where: { id: { [Op.in]: bookIds } }, attributes: ["id", "title", "author"], raw: true })
+        ? Book.findAll({
+            where: { id: { [Op.in]: bookIds } },
+            attributes: ["id", "title", "author"],
+            raw: true,
+          })
         : [],
       memberIds.length
-        ? Member.findAll({ where: { id: { [Op.in]: memberIds } }, attributes: ["id", "first_name", "last_name", "code"], raw: true })
+        ? Member.findAll({
+            where: { id: { [Op.in]: memberIds } },
+            attributes: ["id", "first_name", "last_name", "code"],
+            raw: true,
+          })
         : [],
       userIds.length
-        ? User.findAll({ where: { id: { [Op.in]: userIds } }, attributes: ["id", "first_name", "last_name"], raw: true })
+        ? User.findAll({
+            where: { id: { [Op.in]: userIds } },
+            attributes: ["id", "first_name", "last_name"],
+            raw: true,
+          })
         : [],
     ]);
 
@@ -406,12 +461,20 @@ export const getPendingApprovals = async (req, res) => {
       book: booksById.get(r.book_id) || null,
     }));
 
-    res.json({
+    return res.json({
       pendingJoinRequests,
       overdueIssues,
       todayReports,
     });
   } catch (error) {
-    res.status(500).json({ message: error.message });
+    return res.status(500).json({ message: error.message });
   }
+};
+
+export default {
+  getDashboardStats,
+  getRecentActivity,
+  getTopReaders,
+  getPopularBooks,
+  getPendingApprovals,
 };

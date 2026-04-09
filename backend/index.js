@@ -41,6 +41,7 @@ import AuditLogRouter from './routers/AuditLogRouter.js';
 import SystemHealthRouter from './routers/SystemHealthRouter.js';
 import sequelize from "./config/database.js";
 import { runMigrations } from "./migrations/index.js";
+import "./models/index.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);

@@ -1,10 +1,20 @@
+import { Op } from "sequelize";
 import Role from "../models/Role.js";
-import { Op } from 'sequelize';
 import Permission from "../models/Permissions.js";
 import PermissionCategory from "../models/PermissionCategory.js";
 import RolePermission from "../models/RolePermission.js";
-import UserPermission from "../models/UserPermission.js";
 import { logRoleAction, logAudit, buildChanges } from "../utility/auditLog.js";
+
+/* -------------------------------- Helpers -------------------------------- */
+
+const isValidId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
+
+const sanitizeString = (value) => {
+  if (typeof value !== "string") return "";
+  return value.trim();
+};
+
+/* ------------------------------- Role APIs ------------------------------- */
 
 /**
  * Create a new role
@@ -13,69 +23,67 @@ import { logRoleAction, logAudit, buildChanges } from "../utility/auditLog.js";
 export async function createRole(req, res) {
   try {
     const { role, plural, color, system } = req.body;
-    
-    if (!role || !role.trim()) {
+
+    const roleName = sanitizeString(role);
+    if (!roleName) {
       return res.status(400).json({ message: "Role name is required" });
     }
 
-    const savedRole = await Role.create({ 
-      role: role.trim(), 
-      plural: plural?.trim() || "",
+    const savedRole = await Role.create({
+      role: roleName,
+      plural: sanitizeString(plural),
       color: color || "#00000000",
-      system: system || false,
+      system: Boolean(system),
     });
-    
-    // Audit log
+
     await logRoleAction("created", savedRole, req.user, req, {
       description: `Role "${savedRole.role}" was created`,
     });
 
-    res.status(201).json({ data: savedRole });
+    return res.status(201).json({ data: savedRole });
   } catch (error) {
-    if (error?.name === "SequelizeUniqueConstraintError") {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "Role with this name already exists" });
     }
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
 /**
  * Get all roles with optional permission counts
- * GET /roles
+ * GET /roles?includePermissions=true
  */
 export async function getRoles(req, res) {
   try {
     const { includePermissions } = req.query;
+    const roles = await Role.findAll();
 
-    const roles = await Role.findAll({
-      order: [["role", "ASC"]],
-    });
-
-    if (includePermissions === "true") {
-      const permissionCounts = await RolePermission.findAll({
-        attributes: [
-          "role",
-          [RolePermission.sequelize.fn("COUNT", RolePermission.sequelize.col("permission")), "count"],
-        ],
-        group: ["role"],
-        raw: true,
-      });
-
-      const countMap = new Map(
-        permissionCounts.map((pc) => [Number(pc.role), Number(pc.count) || 0])
-      );
-
-      return res.status(200).json({
-        data: roles.map((r) => ({
-          ...r.toJSON(),
-          permissionCount: countMap.get(Number(r.id)) || 0,
-        })),
-      });
+    if (includePermissions !== "true") {
+      return res.status(200).json({ data: roles });
     }
 
-    res.status(200).json({ data: roles.map((r) => r.toJSON()) });
+    const permissionCounts = await RolePermission.findAll({
+      attributes: [
+        "role_id",
+        [Role.sequelize.fn("COUNT", Role.sequelize.col("permission_id")), "count"],
+      ],
+      group: ["role_id"],
+      raw: true,
+    });
+
+    const countMap = {};
+    for (const row of permissionCounts) {
+      countMap[String(row.role_id)] = Number(row.count || 0);
+    }
+
+    const data = roles.map((role) => ({
+      ...role.toJSON(),
+      permissionCount: countMap[String(role.id)] || 0,
+    }));
+
+    return res.status(200).json({ data });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -87,7 +95,7 @@ export async function getRoleById(req, res) {
   try {
     const { id } = req.params;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
@@ -98,47 +106,42 @@ export async function getRoleById(req, res) {
 
     const rolePermissions = await RolePermission.findAll({
       where: { role_id: Number(id) },
-      raw: true,
+      include: [
+        {
+          model: Permission,
+          as: "permission",
+          required: false,
+          include: [
+            {
+              model: PermissionCategory,
+              as: "category",
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [["id", "ASC"]],
     });
 
-    const permissionIds = [...new Set(rolePermissions.map((rp) => rp.permission_id).filter(Boolean))];
-    const permissionsRaw = permissionIds.length
-      ? await Permission.findAll({
-          where: { id: { [Op.in]: permissionIds } },
-          raw: true,
-        })
-      : [];
-
-    const categoryIds = [...new Set(permissionsRaw.map((p) => p.category_id).filter(Boolean))];
-    const categories = categoryIds.length
-      ? await PermissionCategory.findAll({
-          where: { id: { [Op.in]: categoryIds } },
-          attributes: ["id", "name"],
-          raw: true,
-        })
-      : [];
-
-    const permissionMap = new Map(permissionsRaw.map((p) => [p.id, p]));
-    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-
     const permissions = rolePermissions
-      .map((rp) => {
-        const permission = permissionMap.get(rp.permission_id);
-        if (!permission) return null;
-        return {
-          id: permission.id,
-          permission: permission.permission,
-          category: permission.category_id ? categoryMap.get(permission.category_id) || null : null,
-          grouped_under: permission.grouped_under,
-          system: rp.system,
-          addedAt: null,
-        };
-      })
-      .filter(Boolean);
+      .filter((rp) => rp.permission)
+      .map((rp) => ({
+        _id: rp.permission.id,
+        permission: rp.permission.permission,
+        category: rp.permission.category?.name || null,
+        grouped_under: rp.permission.grouped_under ?? null,
+        system: Boolean(rp.permission.system),
+        addedAt: null,
+      }));
 
-    res.status(200).json({ data: { ...role.toJSON(), permissions } });
+    return res.status(200).json({
+      data: {
+        ...role.toJSON(),
+        permissions,
+      },
+    });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -151,7 +154,7 @@ export async function updateRole(req, res) {
     const { id } = req.params;
     const { role, plural, color } = req.body;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
@@ -160,32 +163,47 @@ export async function updateRole(req, res) {
       return res.status(404).json({ message: "Role not found" });
     }
 
-    // Don't allow editing system roles
     if (existing.system) {
       return res.status(403).json({ message: "Cannot modify system roles" });
     }
 
+    const before = existing.toJSON();
     const updateData = {};
-    if (role) updateData.role = role.trim();
-    if (plural !== undefined) updateData.plural = plural?.trim() || "";
-    if (color !== undefined) updateData.color = color;
 
-    await Role.update(updateData, { where: { id: Number(id) } });
-    const updated = await Role.findByPk(id);
+    if (role !== undefined) {
+      const roleName = sanitizeString(role);
+      if (!roleName) {
+        return res.status(400).json({ message: "Role name cannot be empty" });
+      }
+      updateData.role = roleName;
+    }
 
-    // Audit log
-    const changes = buildChanges(existing, updated, ["role", "plural", "color"]);
-    await logRoleAction("updated", updated, req.user, req, {
+    if (plural !== undefined) {
+      updateData.plural = sanitizeString(plural);
+    }
+
+    if (color !== undefined) {
+      updateData.color = color;
+    }
+
+    if (Object.keys(updateData).length > 0) {
+      await existing.update(updateData);
+    }
+
+    const after = existing.toJSON();
+    const changes = buildChanges(before, after, ["role", "plural", "color"]);
+
+    await logRoleAction("updated", existing, req.user, req, {
       changes,
-      description: `Role "${updated.role}" was updated`,
+      description: `Role "${existing.role}" was updated`,
     });
 
-    res.status(200).json({ data: updated });
+    return res.status(200).json({ data: existing });
   } catch (error) {
-    if (error?.name === "SequelizeUniqueConstraintError") {
+    if (error.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "Role with this name already exists" });
     }
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -197,7 +215,7 @@ export async function deleteRole(req, res) {
   try {
     const { id } = req.params;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
@@ -206,27 +224,32 @@ export async function deleteRole(req, res) {
       return res.status(404).json({ message: "Role not found" });
     }
 
-    // Don't allow deleting system roles
     if (role.system) {
       return res.status(403).json({ message: "Cannot delete system roles" });
     }
 
-    // Delete role-permission mappings
-    await RolePermission.destroy({ where: { role_id: Number(id) } });
+    const roleSnapshot = role.toJSON();
 
-    // Delete the role
-    await Role.destroy({ where: { id: Number(id) } });
+    await Role.sequelize.transaction(async (transaction) => {
+      await RolePermission.destroy({
+        where: { role_id: Number(id) },
+        transaction,
+      });
 
-    // Audit log
-    await logRoleAction("deleted", role, req.user, req, {
-      description: `Role "${role.role}" was deleted`,
+      await role.destroy({ transaction });
     });
 
-    res.status(200).json({ message: "Role deleted successfully" });
+    await logRoleAction("deleted", roleSnapshot, req.user, req, {
+      description: `Role "${roleSnapshot.role}" was deleted`,
+    });
+
+    return res.status(200).json({ message: "Role deleted successfully" });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
+
+/* --------------------------- Role Permission APIs -------------------------- */
 
 /**
  * Add permission to role
@@ -237,10 +260,10 @@ export async function addPermissionToRole(req, res) {
     const { id } = req.params;
     const { permissionId } = req.body;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
-    if (!Number.isInteger(Number(permissionId))) {
+    if (!isValidId(permissionId)) {
       return res.status(400).json({ message: "Invalid permission ID" });
     }
 
@@ -254,10 +277,10 @@ export async function addPermissionToRole(req, res) {
       return res.status(404).json({ message: "Permission not found" });
     }
 
-    // Check if mapping already exists
     const existing = await RolePermission.findOne({
       where: { role_id: Number(id), permission_id: Number(permissionId) },
     });
+
     if (existing) {
       return res.status(409).json({ message: "Permission already assigned to role" });
     }
@@ -268,7 +291,6 @@ export async function addPermissionToRole(req, res) {
       added_by: req.user?.id || null,
     });
 
-    // Audit log
     await logAudit({
       user: req.user,
       action: "role.permission_added",
@@ -276,13 +298,16 @@ export async function addPermissionToRole(req, res) {
       entityId: role.id,
       entityLabel: role.role,
       req,
-      meta: { permissionId, permissionName: permission.permission },
+      meta: {
+        permissionId: Number(permissionId),
+        permissionName: permission.permission,
+      },
       description: `Permission "${permission.permission}" added to role "${role.role}"`,
     });
 
-    res.status(201).json({ message: "Permission added to role" });
+    return res.status(201).json({ message: "Permission added to role" });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -294,10 +319,10 @@ export async function removePermissionFromRole(req, res) {
   try {
     const { id, permissionId } = req.params;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid role ID" });
     }
-    if (!Number.isInteger(Number(permissionId))) {
+    if (!isValidId(permissionId)) {
       return res.status(400).json({ message: "Invalid permission ID" });
     }
 
@@ -308,14 +333,14 @@ export async function removePermissionFromRole(req, res) {
 
     const permission = await Permission.findByPk(permissionId);
 
-    const deletedCount = await RolePermission.destroy({
+    const deleted = await RolePermission.destroy({
       where: { role_id: Number(id), permission_id: Number(permissionId) },
     });
-    if (!deletedCount) {
+
+    if (!deleted) {
       return res.status(404).json({ message: "Role-permission mapping not found" });
     }
 
-    // Audit log
     await logAudit({
       user: req.user,
       action: "role.permission_removed",
@@ -323,15 +348,20 @@ export async function removePermissionFromRole(req, res) {
       entityId: role.id,
       entityLabel: role.role,
       req,
-      meta: { permissionId, permissionName: permission?.permission },
-      description: `Permission "${permission?.permission}" removed from role "${role.role}"`,
+      meta: {
+        permissionId: Number(permissionId),
+        permissionName: permission?.permission || null,
+      },
+      description: `Permission "${permission?.permission || "unknown"}" removed from role "${role.role}"`,
     });
 
-    res.status(200).json({ message: "Permission removed from role" });
+    return res.status(200).json({ message: "Permission removed from role" });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
+
+/* ---------------------------- Permission APIs ----------------------------- */
 
 /**
  * Get all permissions grouped by category
@@ -339,35 +369,21 @@ export async function removePermissionFromRole(req, res) {
  */
 export async function getPermissions(req, res) {
   try {
-    const permissions = await Permission.findAll({ raw: true });
-    const categoryIds = [...new Set(permissions.map((p) => p.category_id).filter(Boolean))];
-    const categories = categoryIds.length
-      ? await PermissionCategory.findAll({
-          where: { id: { [Op.in]: categoryIds } },
-          attributes: ["id", "name"],
-          raw: true,
-        })
-      : [];
-    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-
-    const permissionsWithCategory = permissions.map((p) => ({
-      ...p,
-      category: p.category_id ? { id: p.category_id, name: categoryMap.get(p.category_id) || null } : null,
-    }));
-
-    // Group by category
-    const grouped = {};
-    permissionsWithCategory.forEach((p) => {
-      const catName = p.category?.name || "Uncategorized";
-      if (!grouped[catName]) {
-        grouped[catName] = [];
-      }
-      grouped[catName].push(p);
+    const permissions = await Permission.findAll({
+      include: [{ model: PermissionCategory, as: "category", required: false }],
+      order: [["id", "ASC"]],
     });
 
-    res.status(200).json({ data: { permissions: permissionsWithCategory, grouped } });
+    const grouped = {};
+    for (const p of permissions) {
+      const categoryName = p.category?.name || "Uncategorized";
+      if (!grouped[categoryName]) grouped[categoryName] = [];
+      grouped[categoryName].push(p);
+    }
+
+    return res.status(200).json({ data: { permissions, grouped } });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -377,10 +393,10 @@ export async function getPermissions(req, res) {
  */
 export async function getPermissionCategories(req, res) {
   try {
-    const categories = await PermissionCategory.findAll({ order: [["name", "ASC"]] });
-    res.status(200).json({ data: categories });
+    const categories = await PermissionCategory.findAll({ order: [["id", "ASC"]] });
+    return res.status(200).json({ data: categories });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -390,69 +406,51 @@ export async function getPermissionCategories(req, res) {
  */
 export async function getPermissionMatrix(req, res) {
   try {
-    // Get all roles
-    const roles = await Role.findAll({ raw: true });
+    const roles = await Role.findAll({ order: [["id", "ASC"]] });
 
-    // Get all permissions grouped by category
-    const permissions = await Permission.findAll({ raw: true });
-    const categoryIds = [...new Set(permissions.map((p) => p.category_id).filter(Boolean))];
-    const categories = categoryIds.length
-      ? await PermissionCategory.findAll({
-          where: { id: { [Op.in]: categoryIds } },
-          attributes: ["id", "name"],
-          raw: true,
-        })
-      : [];
-    const categoryMap = new Map(categories.map((c) => [c.id, c.name]));
-    const permissionsWithCategory = permissions.map((p) => ({
-      ...p,
-      category: p.category_id ? { id: p.category_id, name: categoryMap.get(p.category_id) || null } : null,
-    }));
-
-    // Get all role-permission mappings
-    const rolePermissions = await RolePermission.findAll({ raw: true });
-
-    // Build matrix
-    const matrix = {};
-    roles.forEach((role) => {
-      matrix[role.id.toString()] = {
-        role,
-        permissions: new Set(),
-      };
+    const permissions = await Permission.findAll({
+      include: [{ model: PermissionCategory, as: "category", required: false }],
+      order: [["id", "ASC"]],
     });
 
-    rolePermissions.forEach((rp) => {
+    const rolePermissions = await RolePermission.findAll({
+      attributes: ["role_id", "permission_id"],
+      raw: true,
+    });
+
+    const matrix = {};
+    for (const role of roles) {
+      matrix[String(role.id)] = new Set();
+    }
+
+    for (const rp of rolePermissions) {
       const roleId = String(rp.role_id);
       if (matrix[roleId]) {
-        matrix[roleId].permissions.add(String(rp.permission_id));
+        matrix[roleId].add(String(rp.permission_id));
       }
-    });
+    }
 
-    // Convert Sets to arrays and group permissions by category
-    const result = roles.map((role) => ({
-      ...role,
-      permissions: Array.from(matrix[role.id.toString()].permissions),
+    const rolesWithPermissions = roles.map((role) => ({
+      ...role.toJSON(),
+      permissions: Array.from(matrix[String(role.id)] || []),
     }));
 
-    // Group permissions by category
     const groupedPermissions = {};
-    permissionsWithCategory.forEach((p) => {
-      const catName = p.category?.name || "Uncategorized";
-      if (!groupedPermissions[catName]) {
-        groupedPermissions[catName] = [];
-      }
-      groupedPermissions[catName].push(p);
-    });
+    for (const p of permissions) {
+      const categoryName = p.category?.name || "Uncategorized";
+      if (!groupedPermissions[categoryName]) groupedPermissions[categoryName] = [];
+      groupedPermissions[categoryName].push(p);
+    }
 
-    res.status(200).json({
+    return res.status(200).json({
       data: {
-        roles: result,
-        permissions: permissionsWithCategory,
+        roles: rolesWithPermissions,
+        permissions,
         groupedPermissions,
       },
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -461,62 +459,69 @@ export async function getPermissionMatrix(req, res) {
  * PUT /roles/:id/permissions/bulk
  */
 export async function bulkUpdateRolePermissions(req, res) {
+  const transaction = await Role.sequelize.transaction();
+
   try {
     const { id } = req.params;
     const { permissionIds } = req.body;
 
-    if (!Number.isInteger(Number(id))) {
+    if (!isValidId(id)) {
+      await transaction.rollback();
       return res.status(400).json({ message: "Invalid role ID" });
     }
 
     if (!Array.isArray(permissionIds)) {
+      await transaction.rollback();
       return res.status(400).json({ message: "permissionIds must be an array" });
     }
 
-    const role = await Role.findByPk(id);
+    const role = await Role.findByPk(id, { transaction });
     if (!role) {
+      await transaction.rollback();
       return res.status(404).json({ message: "Role not found" });
     }
 
-    // Get current permissions
-    const normalizedPermissionIds = permissionIds
-      .map((pid) => Number(pid))
-      .filter((pid) => Number.isInteger(pid));
-
     const currentPermissions = await RolePermission.findAll({
       where: { role_id: Number(id) },
+      attributes: ["permission_id"],
       raw: true,
+      transaction,
     });
-    const currentPermIds = new Set(currentPermissions.map((rp) => Number(rp.permission_id)));
-    const newPermIds = new Set(normalizedPermissionIds);
 
-    // Permissions to add
+    const currentPermIds = new Set(currentPermissions.map((rp) => Number(rp.permission_id)));
+
+    const sanitizedNewIds = permissionIds
+      .map((pid) => parseInt(pid, 10))
+      .filter((pid) => Number.isInteger(pid) && pid > 0);
+
+    const newPermIds = new Set(sanitizedNewIds);
+
     const toAdd = [...newPermIds].filter((pid) => !currentPermIds.has(pid));
-    
-    // Permissions to remove
     const toRemove = [...currentPermIds].filter((pid) => !newPermIds.has(pid));
 
-    // Remove old permissions
     if (toRemove.length > 0) {
       await RolePermission.destroy({
         where: {
           role_id: Number(id),
           permission_id: { [Op.in]: toRemove },
         },
+        transaction,
       });
     }
 
-    // Add new permissions
     if (toAdd.length > 0) {
-      const newMappings = toAdd.map((pid) => ({
-        role_id: Number(id),
-        permission_id: pid,
-        added_by: req.user?.id || null,
-      }));
-      await RolePermission.bulkCreate(newMappings);
+      await RolePermission.bulkCreate(
+        toAdd.map((pid) => ({
+          role_id: Number(id),
+          permission_id: pid,
+          added_by: req.user?.id || null,
+        })),
+        { transaction }
+      );
     }
 
-    // Audit log
+    await transaction.commit();
+
     await logAudit({
       user: req.user,
       action: "role.updated",
@@ -528,13 +533,14 @@ export async function bulkUpdateRolePermissions(req, res) {
       description: `Role "${role.role}" permissions updated: ${toAdd.length} added, ${toRemove.length} removed`,
     });
 
-    res.status(200).json({
+    return res.status(200).json({
       message: "Role permissions updated",
       added: toAdd.length,
       removed: toRemove.length,
     });
   } catch (error) {
-    res.status(500).json({ message: "Server error", error: error.message });
+    await transaction.rollback();
+    return res.status(500).json({ message: "Server error", error: error.message });
   }
 }
 
@@ -551,4 +557,3 @@ export default {
   getPermissionMatrix,
   bulkUpdateRolePermissions,
 };
-

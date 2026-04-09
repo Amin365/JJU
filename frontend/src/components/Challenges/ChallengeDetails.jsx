@@ -356,7 +356,7 @@ export default function ChallengeDetails() {
                 </TableHeader>
                 <TableBody>
                   {leaderboard.map((entry, idx) => (
-                    <TableRow key={entry.user?._id ?? idx}>
+                    <TableRow key={entry.user?.id ?? idx}>
                       <TableCell className="font-bold text-muted-foreground">
                         {idx === 0 ? '🥇' : idx === 1 ? '🥈' : idx === 2 ? '🥉' : idx + 1}
                       </TableCell>

@@ -65,7 +65,7 @@ export default function RecentActions() {
         </CardHeader>
         <CardContent className="space-y-3">
           {recentBooks.map((b) => (
-            <div key={b._id} className="flex items-start justify-between gap-4 border rounded-md p-3">
+            <div key={b.id} className="flex items-start justify-between gap-4 border rounded-md p-3">
               <div className="min-w-0">
                 <div className="font-medium truncate">{b.title}</div>
                 <div className="text-xs text-muted-foreground truncate">
@@ -105,7 +105,7 @@ export default function RecentActions() {
               "(member not populated)";
 
             return (
-              <div key={it._id} className="flex items-start justify-between gap-4 border rounded-md p-3">
+              <div key={it.id} className="flex items-start justify-between gap-4 border rounded-md p-3">
                 <div className="min-w-0">
                   <div className="font-medium truncate">{bookTitle}</div>
                   <div className="text-xs text-muted-foreground truncate">

@@ -38,8 +38,10 @@ import {
   Search,
   Filter,
   RefreshCw,
+  ChevronsLeft,
   ChevronLeft,
   ChevronRight,
+  ChevronsRight,
   Clock,
   User,
   FileText,
@@ -90,7 +92,7 @@ export default function AuditLogViewer() {
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("all");
   const [selectedLog, setSelectedLog] = useState(null);
-  const limit = 25;
+  const limit = 15;
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["audit-logs", page, search, entityType],
@@ -116,6 +118,32 @@ export default function AuditLogViewer() {
   const logs = data?.data || [];
   const totalPages = data?.totalPages || 1;
   const total = data?.total || 0;
+  const startItem = total === 0 ? 0 : (page - 1) * limit + 1;
+  const endItem = Math.min(page * limit, total);
+
+  const getVisiblePages = () => {
+    if (totalPages <= 7) {
+      return Array.from({ length: totalPages }, (_, i) => i + 1);
+    }
+
+    const windowSize = 5;
+    let start = Math.max(1, page - Math.floor(windowSize / 2));
+    let end = start + windowSize - 1;
+
+    if (end > totalPages) {
+      end = totalPages;
+      start = end - windowSize + 1;
+    }
+
+    const pages = [];
+    if (start > 1) pages.push(1);
+    if (start > 2) pages.push("...");
+    for (let p = start; p <= end; p++) pages.push(p);
+    if (end < totalPages - 1) pages.push("...");
+    if (end < totalPages) pages.push(totalPages);
+
+    return pages;
+  };
 
   const handleSearch = (e) => {
     e.preventDefault();
@@ -176,7 +204,7 @@ export default function AuditLogViewer() {
                 <div>
                   <p className="text-sm text-slate-500 dark:text-gray-400">Top Action</p>
                   <p className="text-lg font-bold text-slate-800 dark:text-white truncate max-w-[120px]">
-                    {statsLoading ? "..." : statsData?.actionCounts?.[0]?._id?.split(".")[1] || "N/A"}
+                    {statsLoading ? "..." : statsData?.actionCounts?.[0]?.id?.split(".")[1] || "N/A"}
                   </p>
                 </div>
                 <CheckCircle className="h-8 w-8 text-purple-500" />
@@ -192,7 +220,7 @@ export default function AuditLogViewer() {
                     {statsLoading
                       ? "..."
                       : statsData?.dailyCounts?.find(
-                          (d) => d._id === new Date().toISOString().split("T")[0]
+                          (d) => d.id === new Date().toISOString().split("T")[0]
                         )?.count || 0}
                   </p>
                 </div>
@@ -270,7 +298,7 @@ export default function AuditLogViewer() {
                   </TableHeader>
                   <TableBody>
                     {logs.map((log) => (
-                      <TableRow key={log._id} className="hover:bg-slate-50 dark:hover:bg-gray-800">
+                      <TableRow key={log.id} className="hover:bg-slate-50 dark:hover:bg-gray-800">
                         <TableCell className="whitespace-nowrap">
                           {format(new Date(log.createdAt), "MMM d, HH:mm")}
                         </TableCell>
@@ -325,28 +353,65 @@ export default function AuditLogViewer() {
 
             {/* Pagination */}
             {totalPages > 1 && (
-              <div className="flex items-center justify-between mt-4 pt-4 border-t">
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mt-4 pt-4 border-t">
                 <p className="text-sm text-slate-500">
-                  Page {page} of {totalPages}
+                  Showing {startItem}-{endItem} of {total} entries
                 </p>
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page <= 1}
+                    onClick={() => setPage(1)}
+                    title="First page"
+                  >
+                    <ChevronsLeft className="h-4 w-4" />
+                  </Button>
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
+                    title="Previous page"
                   >
                     <ChevronLeft className="h-4 w-4" />
                     Previous
                   </Button>
+                  {getVisiblePages().map((p, idx) =>
+                    p === "..." ? (
+                      <span key={`ellipsis-${idx}`} className="px-2 text-slate-400">
+                        ...
+                      </span>
+                    ) : (
+                      <Button
+                        key={p}
+                        size="sm"
+                        variant={page === p ? "default" : "outline"}
+                        className={page === p ? "dark:bg-orange-600" : ""}
+                        onClick={() => setPage(p)}
+                      >
+                        {p}
+                      </Button>
+                    )
+                  )}
                   <Button
                     variant="outline"
                     size="sm"
                     disabled={page >= totalPages}
                     onClick={() => setPage((p) => p + 1)}
+                    title="Next page"
                   >
                     Next
                     <ChevronRight className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={page >= totalPages}
+                    onClick={() => setPage(totalPages)}
+                    title="Last page"
+                  >
+                    <ChevronsRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

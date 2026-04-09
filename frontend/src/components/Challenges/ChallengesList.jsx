@@ -372,7 +372,7 @@ export default function ChallengesList() {
     onSuccess: (book) => {
       setFormData((prev) => ({
         ...prev,
-        bookId: book._id,
+        bookId: book.id,
         bookIsbn: book.isbn || prev.bookIsbn,
         bookPreview: book,
       }));
@@ -496,14 +496,14 @@ export default function ChallengesList() {
           ? Array.from({ length: 6 }).map((_, index) => <ChallengeCardSkeleton key={index} />)
           : filtered.map((challenge) => (
               <motion.div
-                key={challenge._id}
+                key={challenge.id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
               >
                 <Card
                   className="flex h-full cursor-pointer flex-col border border-zinc-800 bg-zinc-900/50 transition-colors hover:border-zinc-600"
-                  onClick={() => navigate(`/dashboard/challenges/${challenge._id}`)}
+                  onClick={() => navigate(`/dashboard/challenges/${challenge.id}`)}
                 >
                   <CardHeader className="space-y-3 pb-3">
                     <div className="flex flex-wrap gap-2">
@@ -564,14 +564,14 @@ export default function ChallengesList() {
                         <Button
                           size="sm"
                           className="flex-1"
-                          disabled={joiningId === challenge._id}
+                          disabled={joiningId === challenge.id}
                           onClick={(e) => {
                             e.stopPropagation();
-                            setJoiningId(challenge._id);
-                            joinMutation.mutate(challenge._id);
+                            setJoiningId(challenge.id);
+                            joinMutation.mutate(challenge.id);
                           }}
                         >
-                          {joiningId === challenge._id ? (
+                          {joiningId === challenge.id ? (
                             <Loader2 className="mr-1 h-3.5 w-3.5 animate-spin" />
                           ) : null}
                           Join
@@ -588,7 +588,7 @@ export default function ChallengesList() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/dashboard/challenges/${challenge._id}`);
+                          navigate(`/dashboard/challenges/${challenge.id}`);
                         }}
                       >
                         View <ChevronRight className="ml-1 h-3.5 w-3.5" />

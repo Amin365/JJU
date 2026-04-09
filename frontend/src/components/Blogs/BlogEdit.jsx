@@ -92,8 +92,8 @@ const BlogEdit = () => {
     if (!isEditMode) return;
     if (!post) return;
 
-    const ownerId = post.created_by?._id || post.created_by;
-    const myId = user?.id || user?._id;
+    const ownerId = post.created_by?.id || post.created_by;
+    const myId = user?.id || user?.id;
 
     if (myId && ownerId && String(ownerId) !== String(myId)) {
       toast.error("You do not have permission to edit this article.");

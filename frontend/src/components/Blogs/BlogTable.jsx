@@ -154,9 +154,9 @@ const BlogTable = () => {
 
               {!isLoading && !error && filtered.map((post) => (
                 <tr
-                  key={post._id}
+                  key={post.id}
                   className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                  onClick={() => handleView(post._id)}
+                  onClick={() => handleView(post.id)}
                 >
                   <td className="p-3">
                     <div className="font-semibold text-slate-900 dark:text-white truncate max-w-[320px]">{post.title}</div>
@@ -179,7 +179,7 @@ const BlogTable = () => {
                         aria-label="Edit"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEdit(post._id);
+                          handleEdit(post.id);
                         }}
                       >
                         <Edit2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />
@@ -222,7 +222,7 @@ const BlogTable = () => {
               </button>
               <button
                 className="px-4 py-2 rounded bg-red-600 text-white hover:bg-red-700"
-                onClick={() => deleteMutation.mutate(deleteTarget?._id)}
+                onClick={() => deleteMutation.mutate(deleteTarget?.id)}
                 disabled={deleteMutation.isPending}
               >
                 {deleteMutation.isPending ? "Deleting..." : "Delete"}

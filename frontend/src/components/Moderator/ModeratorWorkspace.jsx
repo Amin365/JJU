@@ -44,7 +44,7 @@ const getRoleName = (roleValue) =>
 export default function ModeratorWorkspace() {
   const navigate = useNavigate();
   const user = useSelector((s) => s.auth?.user);
-  const [selectedModerator, setSelectedModerator] = useState(user?._id || "");
+  const [selectedModerator, setSelectedModerator] = useState(user?.id || "");
   const roleName = getRoleName(user?.role);
   const isSuperAdmin = /super\s*admin/i.test(roleName);
   const isModerator = /moderator/i.test(roleName);
@@ -60,8 +60,8 @@ export default function ModeratorWorkspace() {
     staleTime: 60_000,
   });
 
-  const moderators = isSuperAdmin ? modsData ?? [] : user?._id ? [{
-    _id: user._id,
+  const moderators = isSuperAdmin ? modsData ?? [] : user?.id ? [{
+    id: user.id,
     first_name: user.first_name,
     last_name: user.last_name,
     role: user.role,
@@ -70,9 +70,9 @@ export default function ModeratorWorkspace() {
   // Auto-select current user if they are in the list
   React.useEffect(() => {
     if (!selectedModerator && moderators.length > 0) {
-      const me = moderators.find((m) => m._id === user?._id);
-      if (me) setSelectedModerator(me._id);
-      else if (moderators.length > 0) setSelectedModerator(moderators[0]._id);
+      const me = moderators.find((m) => m.id === user?.id);
+      if (me) setSelectedModerator(me.id);
+      else if (moderators.length > 0) setSelectedModerator(moderators[0].id);
     }
   }, [moderators, user, selectedModerator]);
 
@@ -116,7 +116,7 @@ export default function ModeratorWorkspace() {
             onChange={(e) => setSelectedModerator(e.target.value)}
           >
             {moderators.map((m) => (
-              <option key={m._id} value={m._id}>
+              <option key={m.id} value={m.id}>
                 {m.first_name} {m.last_name} ({m.role?.role || "Moderator"})
               </option>
             ))}
@@ -185,7 +185,7 @@ export default function ModeratorWorkspace() {
                 <tbody className="divide-y">
                   {members.map((m) => (
                     <tr
-                      key={m._id}
+                      key={m.id}
                       className="hover:bg-slate-50 dark:hover:bg-gray-800 transition"
                     >
                       <td className="p-3 font-medium dark:text-white">
@@ -231,7 +231,7 @@ export default function ModeratorWorkspace() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => navigate(`/dashboard/members/${m._id}`)}
+                          onClick={() => navigate(`/dashboard/members/${m.id}`)}
                         >
                           View <ArrowRight size={13} className="ml-1" />
                         </Button>

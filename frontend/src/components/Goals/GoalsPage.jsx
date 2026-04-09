@@ -98,7 +98,7 @@ export default function GoalsPage() {
   });
 
   function openEdit(goal) {
-    setEditingGoal(goal._id);
+    setEditingGoal(goal.id);
     setFormData({
       goalType: goal.goalType,
       targetValue: String(goal.targetValue),
@@ -239,7 +239,7 @@ export default function GoalsPage() {
 
               return (
                 <motion.div
-                  key={goal._id}
+                  key={goal.id}
                   initial={{ opacity: 0, x: -12 }}
                   animate={{ opacity: 1, x: 0 }}
                   transition={{ duration: 0.2 }}
@@ -334,7 +334,7 @@ export default function GoalsPage() {
             <Button
               variant="destructive"
               disabled={deleteMutation.isPending}
-              onClick={() => deleteMutation.mutate(deleteTarget._id)}
+              onClick={() => deleteMutation.mutate(deleteTarget.id)}
             >
               {deleteMutation.isPending && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
               Delete

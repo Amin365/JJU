@@ -1,7 +1,6 @@
- 
 import DailyReport from "../models/DailyReport.js";
-import { Op } from 'sequelize';
-import Book from "../models/Books.js"; 
+import { Op, fn, col, literal } from "sequelize";
+import Book from "../models/Books.js";
 import Notification from "../models/Notification.js";
 import Role from "../models/Role.js";
 import User from "../models/user.js";
@@ -10,11 +9,13 @@ import StreakRestore from "../models/StreakRestore.js";
 import { checkAndUnlockAchievements } from "./AchievementController.js";
 import { syncGoalStatesForUser } from "./ReadingGoalController.js";
 import { calcLongestStreak } from "../utility/streakUtils.js";
-                       
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+
+const escapeLike = (s) =>
+  String(s)
+    .replace(/\\/g, "\\\\")
+    .replace(/[%_]/g, "\\$&");
 
 const toDateOnlyUTC = (d) => {
-  
   const dt = new Date(d);
   return new Date(Date.UTC(dt.getUTCFullYear(), dt.getUTCMonth(), dt.getUTCDate()));
 };
@@ -29,30 +30,34 @@ const isAllowed48Hours = (readingDate) => {
   return rd.getTime() === today.getTime() || rd.getTime() === yesterday.getTime();
 };
 
-const getRoleName = (user) => String(user?.role?.role || user?.role?.plural || user?.role || "").toLowerCase();
+const getRoleName = (user) =>
+  String(user?.role?.role || user?.role?.plural || user?.role || "").toLowerCase();
 
 const isSuperAdminUser = (user) => /super\s*admin/i.test(getRoleName(user));
 const isModeratorUser = (user) => /moderator/i.test(getRoleName(user));
 
-const intersectObjectIdArrays = (left = [], right = []) => {
-  const rightSet = new Set(right.map((id) => String(id)));
-  return left.filter((id) => rightSet.has(String(id)));
-};
-
 async function getScopedReportUserIds(currentUser) {
   if (!currentUser?.id) return [];
 
-  if (isSuperAdminUser(currentUser)) {
-    return null;
-  }
+  if (isSuperAdminUser(currentUser)) return null;
 
   if (isModeratorUser(currentUser)) {
-    const assignments = await ModeratorMember.find({ moderator: currentUser.id }).select("member");
-    const memberIds = assignments.map((assignment) => assignment.member).filter(Boolean);
+    const assignments = await ModeratorMember.findAll({
+      where: { moderator_id: currentUser.id },
+      attributes: ["member_id"],
+      raw: true,
+    });
+
+    const memberIds = assignments.map((a) => a.member_id).filter(Boolean);
     if (!memberIds.length) return [];
 
-    const users = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
-    return users.map((user) => user.id);
+    const users = await User.findAll({
+      where: { member_id: { [Op.in]: memberIds } },
+      attributes: ["id"],
+      raw: true,
+    });
+
+    return users.map((u) => u.id);
   }
 
   return [currentUser.id];
@@ -61,24 +66,30 @@ async function getScopedReportUserIds(currentUser) {
 // POST /daily-reports
 export const createDailyReport = async (req, res, next) => {
   try {
-    const createdBy = req.user?.id 
+    const createdBy = req.user?.id;
     const { book, readingDate, pagesFrom, pagesTo, timeSpent, summary, rating } = req.body;
 
     if (!createdBy) return res.status(401).json({ message: "Unauthorized" });
     if (!book || !readingDate || pagesFrom === undefined || pagesTo === undefined || !timeSpent || !summary || !rating) {
-      return res.status(400).json({ message: "book, readingDate, pagesFrom, pagesTo, timeSpent, summary, rating are required" });
+      return res.status(400).json({
+        message: "book, readingDate, pagesFrom, pagesTo, timeSpent, summary, rating are required",
+      });
     }
 
-    if (!Number.isInteger(Number(createdBy))) return res.status(400).json({ message: "Invalid createdBy" });
-    if (!Number.isInteger(Number(book))) return res.status(400).json({ message: "Invalid book id" });
+    if (!Number.isInteger(Number(createdBy))) {
+      return res.status(400).json({ message: "Invalid createdBy" });
+    }
+    if (!Number.isInteger(Number(book))) {
+      return res.status(400).json({ message: "Invalid book id" });
+    }
 
-    // Validate book exists
-    const bookDoc = await Book.findByPk(book);
+    const bookDoc = await Book.findByPk(Number(book));
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
 
-    // 48 hours rule: only today and yesterday
     if (!isAllowed48Hours(readingDate)) {
-      return res.status(400).json({ message: "You can only submit a report for today or yesterday (48 hours rule)." });
+      return res.status(400).json({
+        message: "You can only submit a report for today or yesterday (48 hours rule).",
+      });
     }
 
     const pf = Number(pagesFrom);
@@ -87,29 +98,30 @@ export const createDailyReport = async (req, res, next) => {
       return res.status(400).json({ message: "pagesTo must be greater than pagesFrom" });
     }
 
-    const last = await DailyReport.findOne({ createdBy, book })
-  .sort({ readingDate: -1, createdAt: -1 })
-  .select("pagesTo")
-  
-  ;
-
-if (!last) {
-  if (pf !== 1) {
-    return res.status(400).json({ message: "First report must start from page 1." });
-  }
-} else {
-  const expectedFrom = Number(last.pagesTo) + 1;
-  if (pf !== expectedFrom) {
-    return res.status(400).json({
-      message: `pagesFrom must be ${expectedFrom} based on your previous report.`,
+    const last = await DailyReport.findOne({
+      where: { createdBy: Number(createdBy), book: Number(book) },
+      order: [["readingDate", "DESC"], ["createdAt", "DESC"]],
+      attributes: ["pagesTo"],
     });
-  }
-}
+
+    if (!last) {
+      if (pf !== 1) {
+        return res.status(400).json({ message: "First report must start from page 1." });
+      }
+    } else {
+      const expectedFrom = Number(last.pagesTo) + 1;
+      if (pf !== expectedFrom) {
+        return res.status(400).json({
+          message: `pagesFrom must be ${expectedFrom} based on your previous report.`,
+        });
+      }
+    }
+
     const rd = toDateOnlyUTC(readingDate);
 
     const report = await DailyReport.create({
-      createdBy:createdBy,
-      book,
+      createdBy: Number(createdBy),
+      book: Number(book),
       readingDate: rd,
       pagesFrom: pf,
       pagesTo: pt,
@@ -119,13 +131,24 @@ if (!last) {
       status: "Pending",
     });
 
-    const populated = await DailyReport.findByPk(report.id)
-      .populate("createdBy", "username first_name last_name email role")
-      .populate("book", "title author isbn status")
-      
-      ;
+    const populated = await DailyReport.findByPk(report.id, {
+      include: [
+        {
+          model: User,
+          as: "creator",
+          attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"],
+          required: false,
+        },
+        {
+          model: Book,
+          as: "bookRef",
+          attributes: ["id", "title", "author", "isbn", "status"],
+          required: false,
+        },
+      ],
+    });
 
-    // Notify user about their submitted report
+    // notifications
     try {
       const submitterName =
         [req.user?.first_name, req.user?.middle_name, req.user?.last_name].filter(Boolean).join(" ") ||
@@ -133,22 +156,23 @@ if (!last) {
         "User";
 
       await Notification.create({
-        user: createdBy,
+        user_id: Number(createdBy),
         title: `Report submitted: ${bookDoc.title}`,
         message: `${submitterName} submitted a reading report on ${new Date(readingDate).toLocaleDateString()}.`,
         type: "success",
         meta: { report: report.id, kind: "report-submitted" },
       });
-    } catch (e) {}
 
-    // Additionally notify the assigned moderator (if any) and all super admins
-    try {
-      const memberId = req.user?.member;
+      const memberId = req.user?.member_id || req.user?.member;
       if (memberId) {
-        const assignment = await ModeratorMember.findOne({ member: memberId }).populate("moderator", "_id first_name last_name username email");
-        if (assignment && assignment.moderator) {
+        const assignment = await ModeratorMember.findOne({
+          where: { member_id: memberId },
+          attributes: ["moderator_id"],
+        });
+
+        if (assignment?.moderator_id) {
           await Notification.create({
-            user: assignment.moderator.id,
+            user_id: assignment.moderator_id,
             title: `Member report: ${bookDoc.title}`,
             message: `${submitterName} (member) submitted a reading report.`,
             type: "info",
@@ -157,31 +181,36 @@ if (!last) {
         }
       }
 
-      // Notify super admins
       const superAdminRole = await Role.findOne({
-        [Op.or]: [
-          { role: { [Op.like]: "^Super Admin$", $options: "i" } },
-          { plural: { [Op.like]: "^Super Admins$", $options: "i" } },
-        ],
+        where: {
+          [Op.or]: [
+            { role: { [Op.like]: "Super Admin" } },
+            { plural: { [Op.like]: "Super Admins" } },
+          ],
+        },
       });
 
       if (superAdminRole) {
-        const superAdmins = await User.find({ role: superAdminRole.id }).select("_id");
-        if (superAdmins && superAdmins.length > 0) {
-          const notifDocs = superAdmins.map((sa) => ({
-            user: sa.id,
-            title: `Member report: ${bookDoc.title}`,
-            message: `${submitterName} submitted a reading report.`,
-            type: "info",
-            meta: { report: report.id, member: req.user?.member, kind: "report-submitted" },
-            createdAt: new Date(),
-            updatedAt: new Date(),
-          }));
-          if (notifDocs.length > 0) await Notification.bulkCreate(notifDocs);
+        const superAdmins = await User.findAll({
+          where: { role_id: superAdminRole.id },
+          attributes: ["id"],
+          raw: true,
+        });
+
+        if (superAdmins.length) {
+          await Notification.bulkCreate(
+            superAdmins.map((sa) => ({
+              user_id: sa.id,
+              title: `Member report: ${bookDoc.title}`,
+              message: `${submitterName} submitted a reading report.`,
+              type: "info",
+              meta: { report: report.id, member: req.user?.member_id || req.user?.member, kind: "report-submitted" },
+            }))
+          );
         }
       }
-    } catch (e) {
-      // swallow notification errors so report creation still succeeds
+    } catch {
+      // swallow notification errors
     }
 
     checkAndUnlockAchievements(req.user.id).catch((err) => console.error("Achievement check failed:", err));
@@ -191,54 +220,44 @@ if (!last) {
 
     return res.status(201).json({ data: populated });
   } catch (err) {
-    if (err && err.code === 11000) {
-      // duplicate report per day
+    if (err?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({ message: "You already submitted a report for this book on this date." });
     }
     return next(err);
   }
 };
 
-// GET /daily-reports?book=&createdBy=&page=&limit=&q=
+// GET /daily-reports
 export const getDailyReports = async (req, res, next) => {
   try {
-    const {
-      page = 1,
-      limit = 20,
-      sort = "-readingDate",
-      book,
-      createdBy, // allow admin filtering or self
-      q,
-    } = req.query;
+    const { page = 1, limit = 20, sort = "-readingDate", book, createdBy, q } = req.query;
 
-    const filter = {};
-
-    // default: only current user's reports if auth exists and createdBy not provided
-    if (req.user?.id && !createdBy) filter.createdBy = req.user.id;
-    if (createdBy) filter.createdBy = createdBy;
-
-    if (book) filter.book = book;
+    const where = {};
+    if (req.user?.id && !createdBy) where.createdBy = req.user.id;
+    if (createdBy) where.createdBy = Number(createdBy);
+    if (book) where.book = Number(book);
 
     if (q) {
-      const re = new RegExp(escapeRegex(q), "i");
-      filter.summary = re;
+      where.summary = { [Op.like]: `%${escapeLike(q)}%` };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 20));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
-    const [items, total] = await Promise.all([
-      DailyReport.find(filter)
-        .populate("createdBy", "username first_name last_name email role")
-        .populate("book", "title author isbn status")
-        .sort(sort)
-        .skip(skip)
-        .limit(perPage)
-        
-        ,
-      DailyReport.countDocuments(filter),
-    ]);
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
+
+    const { rows: items, count: total } = await DailyReport.findAndCountAll({
+      where,
+      include: [
+        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+      ],
+      order: [[sortField || "readingDate", sortDir]],
+      offset,
+      limit: perPage,
+    });
 
     return res.status(200).json({
       data: items,
@@ -256,9 +275,7 @@ export const getDailyReports = async (req, res, next) => {
 export const updateDailyReportStatus = async (req, res, next) => {
   try {
     const currentUser = req.user;
-    if (!currentUser?.id) {
-      return res.status(401).json({ message: "Unauthorized" });
-    }
+    if (!currentUser?.id) return res.status(401).json({ message: "Unauthorized" });
 
     if (!isSuperAdminUser(currentUser) && !isModeratorUser(currentUser)) {
       return res.status(403).json({ message: "Only moderators or super admins can review reports" });
@@ -267,32 +284,27 @@ export const updateDailyReportStatus = async (req, res, next) => {
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid report id" });
-    }
+    if (!Number.isInteger(Number(id))) return res.status(400).json({ message: "Invalid report id" });
 
     const allowedStatuses = ["Approved", "Needs Improvement", "Pending"];
     if (!allowedStatuses.includes(status)) {
       return res.status(400).json({ message: `status must be one of: ${allowedStatuses.join(", ")}` });
     }
 
-    const report = await DailyReport.findByPk(id)
-      .populate({ path: "createdBy", select: "_id first_name last_name username member" })
-      .populate("book", "title author isbn")
-      ;
+    const report = await DailyReport.findByPk(Number(id), {
+      include: [
+        { model: User, as: "creator", attributes: ["id", "first_name", "last_name", "username", "member_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn"], required: false },
+      ],
+    });
 
-    if (!report) {
-      return res.status(404).json({ message: "Report not found" });
-    }
+    if (!report) return res.status(404).json({ message: "Report not found" });
 
     if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
       const assignment = await ModeratorMember.findOne({
-        moderator: currentUser.id,
-        member: report.createdBy?.member,
-      })
-        .select("_id")
-        
-        ;
+        where: { moderator_id: currentUser.id, member_id: report.creator?.member_id },
+        attributes: ["id"],
+      });
 
       if (!assignment) {
         return res.status(403).json({ message: "You can only review reports from your assigned members" });
@@ -304,26 +316,27 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     try {
       await Notification.create({
-        user: report.createdBy?.id,
-        title: `Report ${status.toLowerCase()}: ${report.book?.title || "Book"}`,
+        user_id: report.creator?.id,
+        title: `Report ${status.toLowerCase()}: ${report.bookRef?.title || "Book"}`,
         message:
           status === "Approved"
-            ? `Your reading report for "${report.book?.title || "this book"}" was approved.`
+            ? `Your reading report for "${report.bookRef?.title || "this book"}" was approved.`
             : status === "Needs Improvement"
-              ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
-              : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
+            ? `Your reading report for "${report.bookRef?.title || "this book"}" needs improvement.`
+            : `Your reading report for "${report.bookRef?.title || "this book"}" was moved back to pending review.`,
         type: status === "Approved" ? "success" : status === "Needs Improvement" ? "warning" : "info",
         meta: { report: report.id, kind: "report-status-updated", status },
       });
-    } catch (error) {
+    } catch {
       // ignore notification failure
     }
 
-    const populated = await DailyReport.findByPk(report.id)
-      .populate("createdBy", "username first_name last_name email role member")
-      .populate("book", "title author isbn status")
-      
-      ;
+    const populated = await DailyReport.findByPk(report.id, {
+      include: [
+        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+      ],
+    });
 
     return res.status(200).json({ data: populated });
   } catch (err) {
@@ -331,61 +344,63 @@ export const updateDailyReportStatus = async (req, res, next) => {
   }
 };
 
-// GET /daily-reports/admin?memberId=...&from=YYYY-MM-DD&to=YYYY-MM-DD&book=
+// GET /daily-reports/admin
 export const getDailyReportsByMember = async (req, res, next) => {
   try {
     const { memberId, from, to, book, limit = 5000 } = req.query;
-
     if (!memberId) return res.status(400).json({ message: "memberId is required" });
 
-    // find users that belong to this member
-    const users = await User.find({ member: memberId }).select("_id");
+    const users = await User.findAll({
+      where: { member_id: Number(memberId) },
+      attributes: ["id"],
+      raw: true,
+    });
     const userIds = users.map((u) => u.id);
 
-    if (userIds.length === 0) return res.status(200).json({ data: [] });
+    if (!userIds.length) return res.status(200).json({ data: [] });
 
-    const filter = { createdBy: { [Op.in]: userIds } };
-
-    if (book) filter.book = book;
+    const where = { createdBy: { [Op.in]: userIds } };
+    if (book) where.book = Number(book);
 
     if (from || to) {
-      filter.readingDate = {};
-      if (from) filter.readingDate.$gte = new Date(from);
-      if (to) filter.readingDate.$lte = new Date(to);
+      where.readingDate = {};
+      if (from) where.readingDate[Op.gte] = new Date(from);
+      if (to) where.readingDate[Op.lte] = new Date(to);
     }
 
-    const reports = await DailyReport.find(filter)
-      .populate("createdBy", "username first_name last_name email role member member_id")
-      .populate("book", "title author isbn status")
-      .sort("-readingDate")
-      .limit(Math.min(Number(limit) || 5000, 5000))
-      
-      ;
+    const reports = await DailyReport.findAll({
+      where,
+      include: [
+        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+      ],
+      order: [["readingDate", "DESC"]],
+      limit: Math.min(Number(limit) || 5000, 5000),
+    });
 
     return res.status(200).json({ data: reports });
   } catch (err) {
     return next(err);
   }
 };
-// Optional: GET /daily-reports/:id
+
+// GET /daily-reports/:id (or public passthrough)
 export const getDailyReportById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (id === "public") {
-      return getDailyReportsPublic(req, res, next);
-    }
+    if (id === "public") return getDailyReportsPublic(req, res, next);
     if (!Number.isInteger(Number(id))) return res.status(400).json({ message: "Invalid report id" });
 
-    const report = await DailyReport.findByPk(id)
-      .populate("createdBy", "username first_name last_name email role")
-      .populate("book", "title author isbn status")
-      
-      ;
+    const report = await DailyReport.findByPk(Number(id), {
+      include: [
+        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+      ],
+    });
 
     if (!report) return res.status(404).json({ message: "Report not found" });
 
-    // If you want strict privacy:
-    if (req.user?.id && String(report.createdBy?.id || report.createdBy) !== String(req.user.id)) {
+    if (req.user?.id && String(report.creator?.id || report.createdBy) !== String(req.user.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -395,86 +410,99 @@ export const getDailyReportById = async (req, res, next) => {
   }
 };
 
-
-
-// GET /daily-reports/scope?memberId=&from=&to=&limit=
+// GET /daily-reports/scope
 export const getDailyReportsScope = async (req, res, next) => {
   try {
     const { memberId, from, to, limit = 5000 } = req.query;
-    // require logged in
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
-    // load current user role (to determine if super admin or moderator)
-    const currentUser = await User.findByPk(req.user.id).populate("role", "role plural");
+    const currentUser = await User.findByPk(req.user.id, {
+      include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+    });
+
     const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
-   
-    const filter = {};
 
-    // optional date range
+    const where = {};
+
     if (from || to) {
-      filter.readingDate = {};
-      if (from) filter.readingDate.$gte = new Date(from);
-      if (to) filter.readingDate.$lte = new Date(to);
+      where.readingDate = {};
+      if (from) where.readingDate[Op.gte] = new Date(from);
+      if (to) where.readingDate[Op.lte] = new Date(to);
     }
-
-    // Behavior:
-    // - Super Admin: can view all reports (optionally filtered by memberId)
-    // - Moderator: can view reports only for members assigned to that moderator
-    // - Regular user: only their own reports
 
     if (isSuperAdmin) {
-      // if memberId provided, validate and filter by it
       if (memberId) {
         if (!Number.isInteger(Number(memberId))) {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
-        const users = await User.find({ member: memberId }).select("_id");
+        const users = await User.findAll({
+          where: { member_id: Number(memberId) },
+          attributes: ["id"],
+          raw: true,
+        });
         const ids = users.map((u) => u.id);
-        if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { [Op.in]: ids };
+        if (!ids.length) return res.status(200).json({ data: [] });
+        where.createdBy = { [Op.in]: ids };
       }
     } else if (isModerator) {
-      // moderator: restrict to members assigned to this moderator
-      // if moderator asks for a specific member, ensure assignment exists
       if (memberId) {
         if (!Number.isInteger(Number(memberId))) {
           return res.status(400).json({ message: "Invalid memberId" });
         }
 
-        const assigned = await ModeratorMember.findOne({ moderator: req.user.id, member: memberId });
+        const assigned = await ModeratorMember.findOne({
+          where: { moderator_id: req.user.id, member_id: Number(memberId) },
+          attributes: ["id"],
+        });
 
-        if (!assigned) return res.status(403).json({ message: "Forbidden: member not assigned to this moderator" });
+        if (!assigned) {
+          return res.status(403).json({ message: "Forbidden: member not assigned to this moderator" });
+        }
 
-        const users = await User.find({ member: memberId }).select("_id");
+        const users = await User.findAll({
+          where: { member_id: Number(memberId) },
+          attributes: ["id"],
+          raw: true,
+        });
         const ids = users.map((u) => u.id);
-        if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { [Op.in]: ids };
+        if (!ids.length) return res.status(200).json({ data: [] });
+        where.createdBy = { [Op.in]: ids };
       } else {
-        // no memberId: get all members assigned to moderator and return reports for users in those members
-        const assigned = await ModeratorMember.find({ moderator: req.user.id }).select("member");
-        const memberIds = assigned.map((a) => a.member);
-        if (memberIds.length === 0) return res.status(200).json({ data: [] });
+        const assigned = await ModeratorMember.findAll({
+          where: { moderator_id: req.user.id },
+          attributes: ["member_id"],
+          raw: true,
+        });
 
-        const users = await User.find({ member: { [Op.in]: memberIds } }).select("_id");
+        const memberIds = assigned.map((a) => a.member_id);
+        if (!memberIds.length) return res.status(200).json({ data: [] });
+
+        const users = await User.findAll({
+          where: { member_id: { [Op.in]: memberIds } },
+          attributes: ["id"],
+          raw: true,
+        });
+
         const ids = users.map((u) => u.id);
-        if (ids.length === 0) return res.status(200).json({ data: [] });
-        filter.createdBy = { [Op.in]: ids };
+        if (!ids.length) return res.status(200).json({ data: [] });
+        where.createdBy = { [Op.in]: ids };
       }
     } else {
-      // regular user: only their own reports
-      filter.createdBy = req.user.id;
+      where.createdBy = req.user.id;
     }
 
-    const items = await DailyReport.find(filter)
-      .populate("createdBy", "username first_name last_name email role member member_id")
-      .populate("book", "title author isbn status")
-      .sort("-readingDate")
-      .limit(Math.min(Number(limit) || 5000, 5000))
-      
-      ;
+    const items = await DailyReport.findAll({
+      where,
+      include: [
+        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+      ],
+      order: [["readingDate", "DESC"]],
+      limit: Math.min(Number(limit) || 5000, 5000),
+    });
 
     return res.status(200).json({ data: items });
   } catch (err) {
@@ -496,10 +524,10 @@ export const getStreakRestoreStatus = async (req, res, next) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const month = getMonthKey();
-    const doc = await StreakRestore.findOne({ user: userId, month })
-      .select("count restoredForDate month")
-      
-      ;
+    const doc = await StreakRestore.findOne({
+      where: { user_id: userId, month },
+      attributes: ["count", "restoredForDate", "month"],
+    });
 
     return res.status(200).json({
       count: doc?.count ?? 0,
@@ -521,147 +549,173 @@ export const restoreStreak = async (req, res, next) => {
     if (!restoredForDate) return res.status(400).json({ message: "restoredForDate is required" });
 
     const rd = toDateOnlyUTC(restoredForDate);
-    if (Number.isNaN(rd.getTime())) {
-      return res.status(400).json({ message: "Invalid restoredForDate" });
-    }
+    if (Number.isNaN(rd.getTime())) return res.status(400).json({ message: "Invalid restoredForDate" });
 
     const month = getMonthKey();
-    const existing = await StreakRestore.findOne({ user: userId, month });
-    if (existing && existing.count >= 5) {
+
+    let doc = await StreakRestore.findOne({ where: { user_id: userId, month } });
+    if (doc && doc.count >= 5) {
       return res.status(400).json({ message: "No restores left this month" });
     }
 
-    const updated = await StreakRestore.findOneAndUpdate(
-      { user: userId, month },
-      {
-        $inc: { count: 1 },
-        $set: { restoredForDate: rd },
-      },
-      { new: true, upsert: true }
-    )
-      .select("count restoredForDate month")
-      
-      ;
+    if (!doc) {
+      doc = await StreakRestore.create({
+        user_id: userId,
+        month,
+        count: 1,
+        restoredForDate: rd,
+      });
+    } else {
+      doc.count = Number(doc.count || 0) + 1;
+      doc.restoredForDate = rd;
+      await doc.save();
+    }
 
     return res.status(200).json({
-      count: updated?.count ?? 0,
-      restoredForDate: updated?.restoredForDate ? updated.restoredForDate.toISOString().slice(0, 10) : null,
-      month: updated?.month ?? month,
+      count: doc.count ?? 0,
+      restoredForDate: doc.restoredForDate ? doc.restoredForDate.toISOString().slice(0, 10) : null,
+      month: doc.month ?? month,
     });
   } catch (err) {
     return next(err);
   }
 };
 
-// GET /daily-reports/public?from=&to=&limit=
+// GET /daily-reports/public
 export const getDailyReportsPublic = async (req, res, next) => {
   try {
     const { from, to, limit = 5000 } = req.query;
 
-    const filter = {};
+    const where = {};
     if (from || to) {
-      filter.readingDate = {};
-      if (from) filter.readingDate.$gte = new Date(from);
-      if (to) filter.readingDate.$lte = new Date(to);
+      where.readingDate = {};
+      if (from) where.readingDate[Op.gte] = new Date(from);
+      if (to) where.readingDate[Op.lte] = new Date(to);
     }
 
-    const items = await DailyReport.find(filter)
-      .populate("createdBy", "username first_name last_name")
-      .select("createdBy readingDate")
-      .sort("-readingDate")
-      .limit(Math.min(Number(limit) || 5000, 5000))
-      
-      ;
+    const items = await DailyReport.findAll({
+      where,
+      attributes: ["id", "createdBy", "readingDate"],
+      include: [{ model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name"], required: false }],
+      order: [["readingDate", "DESC"]],
+      limit: Math.min(Number(limit) || 5000, 5000),
+    });
 
     return res.status(200).json({ data: items });
   } catch (err) {
     return next(err);
   }
 };
+
 // GET /daily-reports/leaderboard
 export const getLeaderboardEnhanced = async (req, res, next) => {
   try {
     const { period = "all-time", department, study_year, sortBy = "reports" } = req.query;
 
-    let dateFilter = {};
+    const where = { status: "Approved" };
+
     if (period === "weekly") {
       const since = new Date();
       since.setDate(since.getDate() - 7);
-      dateFilter = { [Op.gte]: since };
+      where.readingDate = { [Op.gte]: since };
     } else if (period === "monthly") {
       const since = new Date();
       since.setDate(since.getDate() - 30);
-      dateFilter = { [Op.gte]: since };
+      where.readingDate = { [Op.gte]: since };
     }
 
-    const matchStage = { status: "Approved" };
-    if (dateFilter.$gte) matchStage.readingDate = dateFilter;
+    const reports = await DailyReport.findAll({
+      where,
+      attributes: ["createdBy", "pagesFrom", "pagesTo", "timeSpent", "readingDate"],
+      raw: true,
+    });
 
-    // Aggregate reports by user
-    const agg = await DailyReport.aggregate([
-      { $match: matchStage },
-      {
-        $group: {
-          _id: "$createdBy",
-          reportsCount: { $sum: 1 },
-          pagesRead: { $sum: { $max: [0, { $subtract: ["$pagesTo", "$pagesFrom"] }] } },
-          minutesRead: { $sum: "$timeSpent" },
-          readingDates: { $addToSet: "$readingDate" },
-        },
-      },
-    ]);
+    if (!reports.length) return res.status(200).json({ data: [] });
 
-    if (!agg.length) return res.status(200).json({ data: [] });
+    const grouped = new Map();
 
-    const userIds = agg.map((a) => a.id);
+    for (const r of reports) {
+      const uid = String(r.createdBy);
+      if (!grouped.has(uid)) {
+        grouped.set(uid, {
+          userId: r.createdBy,
+          reportsCount: 0,
+          pagesRead: 0,
+          minutesRead: 0,
+          readingDates: [],
+        });
+      }
+      const g = grouped.get(uid);
+      g.reportsCount += 1;
+      g.pagesRead += Math.max(0, Number(r.pagesTo || 0) - Number(r.pagesFrom || 0));
+      g.minutesRead += Number(r.timeSpent || 0);
+      if (r.readingDate) g.readingDates.push(r.readingDate);
+    }
 
-    // Fetch user data with member info
-    const users = await User.find({ _id: { [Op.in]: userIds } })
-      .select("first_name last_name username profile_picture member")
-      .populate({
-        path: "member",
-        select: "department study_year Profile_picture",
-      })
-      ;
+    const userIds = [...grouped.values()].map((x) => x.userId);
+
+    const users = await User.findAll({
+      where: { id: { [Op.in]: userIds } },
+      attributes: ["id", "first_name", "last_name", "username", "profile_picture", "department", "study_year"],
+      raw: true,
+    });
 
     const userMap = new Map(users.map((u) => [String(u.id), u]));
 
-    // Build leaderboard entries
-    let entries = agg.map((a) => {
-      const user = userMap.get(String(a.id));
-      if (!user) return null;
+    let entries = [...grouped.values()]
+      .map((a) => {
+        const user = userMap.get(String(a.userId));
+        if (!user) return null;
 
-      const memberData = user.member || {};
-      if (department && memberData.department !== department) return null;
-      if (study_year && String(memberData.study_year) !== String(study_year)) return null;
+        if (department && user.department !== department) return null;
+        if (study_year && String(user.study_year) !== String(study_year)) return null;
 
-      // Compute streak from readingDates
-      const streak = calcLongestStreak(a.readingDates || []);
+        const streak = calcLongestStreak(a.readingDates || []);
 
-      return {
-        user: {
-          _id: user.id,
-          first_name: user.first_name,
-          last_name: user.last_name,
-          username: user.username,
-          profile_picture: memberData.Profile_picture || user.profile_picture || "",
-          department: memberData.department || null,
-          study_year: memberData.study_year || null,
-        },
-        reportsCount: a.reportsCount,
-        pagesRead: a.pagesRead,
-        minutesRead: a.minutesRead,
-        streak,
-      };
-    }).filter(Boolean);
+        return {
+          user: {
+            _id: user.id,
+            first_name: user.first_name,
+            last_name: user.last_name,
+            username: user.username,
+            profile_picture: user.profile_picture || "",
+            department: user.department || null,
+            study_year: user.study_year || null,
+          },
+          reportsCount: a.reportsCount,
+          pagesRead: a.pagesRead,
+          minutesRead: a.minutesRead,
+          streak,
+        };
+      })
+      .filter(Boolean);
 
-    const sortMap = { streak: "streak", pages: "pagesRead", minutes: "minutesRead", reports: "reportsCount" };
+    const sortMap = {
+      streak: "streak",
+      pages: "pagesRead",
+      minutes: "minutesRead",
+      reports: "reportsCount",
+    };
+
     const sortField = sortMap[sortBy] || "reportsCount";
-    entries.sort((a, b) => b[sortField] - a[sortField]);
+    entries.sort((a, b) => Number(b[sortField] || 0) - Number(a[sortField] || 0));
     entries = entries.slice(0, 100);
 
     return res.status(200).json({ data: entries });
   } catch (err) {
     return next(err);
   }
+};
+
+export default {
+  createDailyReport,
+  getDailyReports,
+  updateDailyReportStatus,
+  getDailyReportsByMember,
+  getDailyReportById,
+  getDailyReportsScope,
+  getStreakRestoreStatus,
+  restoreStreak,
+  getDailyReportsPublic,
+  getLeaderboardEnhanced,
 };

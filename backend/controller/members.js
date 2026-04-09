@@ -1,39 +1,52 @@
 import crypto from "crypto";
-import { Op } from 'sequelize';
-import Member from "../models/Members.js"; 
+import { Op } from "sequelize";
+import Member from "../models/Members.js";
 import Role from "../models/Role.js";
-import User from '../models/user.js'
-import ModeratorMember from '../models/ModeratorMember.js'
+import User from "../models/user.js";
+import ModeratorMember from "../models/ModeratorMember.js";
 import Clubreq from "../models/Clubreq.js";
 import Notification from "../models/Notification.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
 import MemberNote from "../models/MemberNote.js";
-import { logMemberAction, logUserAction, logJoinRequestAction } from "../utility/auditLog.js";
-import { sendMail, buildEmailHtml } from "./EmailController.js";
-import { joinApprovalTemplate, joinRejectionTemplate, welcomeEmailTemplate } from "../utility/emailTemplates.js";
+import { logMemberAction, logUserAction } from "../utility/auditLog.js";
+import { sendMail } from "./EmailController.js";
+import {
+  joinApprovalTemplate,
+  joinRejectionTemplate,
+  welcomeEmailTemplate,
+} from "../utility/emailTemplates.js";
 
-const escapeRegex = (s) => String(s).replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
+const normalize = (v) => (typeof v === "string" ? v.trim() : v);
+const normalizeEmail = (v) => {
+  const s = normalize(v);
+  return s ? String(s).trim().toLowerCase() : "";
+};
+const toDateOrNull = (v) => {
+  if (!v) return null;
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return null;
+  return d;
+};
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
 async function findDefaultMemberRole() {
   return Role.findOne({
-    [Op.or]: [
-      { role: { [Op.like]: /^members?$/i } },
-      { plural: { [Op.like]: /^members?$/i } },
-    ],
-  })
-    .select("_id role plural")
-    
-    ;
+    where: {
+      [Op.or]: [
+        { role: { [Op.regexp]: "^[Mm]embers?$" } },
+        { plural: { [Op.regexp]: "^[Mm]embers?$" } },
+      ],
+    },
+    attributes: ["id", "role", "plural"],
+  });
 }
 
 /**
- * Create a new member
  * POST /members
- * Body: { first_name, middle_name, last_name, code?, phone?, email?, date_of_birth?, gender?, region?, join_date? }
- * Response: { data: member }
  */
-
 export const createMember = async (req, res, next) => {
   try {
     const {
@@ -43,15 +56,14 @@ export const createMember = async (req, res, next) => {
       code,
       phone,
       email,
-      // date_of_birth,
       gender,
       region,
       join_date,
       department,
       student_id,
       study_year,
-      role, //  ADD THIS
-      Profile_picture
+      role,
+      Profile_picture,
     } = req.body;
 
     if (!first_name || !last_name) {
@@ -62,142 +74,118 @@ export const createMember = async (req, res, next) => {
       return res.status(400).json({ message: "email is required to create a user automatically" });
     }
 
-    //  Validate role if provided
     if (role) {
-      if (!Number.isInteger(Number(role))) {
-        return res.status(400).json({ message: "Invalid role id" });
-      }
-      const roleExists = await Role.findOne({ where: { _id: role } });
-      if (!roleExists) {
-        return res.status(400).json({ message: "Role not found" });
-      }
+      if (!isValidId(role)) return res.status(400).json({ message: "Invalid role id" });
+      const roleExists = await Role.findByPk(Number(role));
+      if (!roleExists) return res.status(400).json({ message: "Role not found" });
     }
 
-    // Prevent duplicate user email before creating member
-    const existingUserByEmail = await User.findOne({ email });
+    const existingUserByEmail = await User.findOne({ where: { email: normalizeEmail(email) } });
     if (existingUserByEmail) {
       return res.status(409).json({ message: "Email already exists for another user" });
     }
 
-    const member = new Member({
-      first_name,
-      middle_name,
-      last_name,
-      code,
-      phone,
-      email,
-      // date_of_birth,
-      gender,
-      region,
-      join_date,
-      department,
-      student_id,
-      study_year,
-      Profile_picture: req.file ? req.file.path : null,
-      role: role || null, //  SAVE ROLE
-    });
+    const memberPayload = {
+      first_name: normalize(first_name),
+      middle_name: normalize(middle_name) || "",
+      last_name: normalize(last_name),
+      code: normalize(code) || null,
+      phone: normalize(phone) || "",
+      email: normalizeEmail(email),
+      gender: normalize(gender) || null,
+      region: normalize(region) || "",
+      join_date: toDateOrNull(join_date) || null,
+      department: normalize(department) || "",
+      student_id: normalize(student_id) || "",
+      study_year: normalize(study_year) || "",
+      Profile_picture: req.file?.path || Profile_picture || null,
+      role_id: role ? Number(role) : null,
+      status: "Active",
+    };
+
+    const saved = await Member.create(memberPayload);
+
+    const baseUsername = String(saved.email || `${saved.first_name}${saved.last_name}`)
+      .toLowerCase()
+      .replace(/\s+/g, "")
+      .replace(/[^a-z0-9._-]/g, "");
+
+    let username = baseUsername || `user${String(saved.id).slice(-4)}`;
+    const existingUsername = await User.findOne({ where: { username } });
+    if (existingUsername) username = `${username}-${String(saved.id).slice(-4)}`;
+
+    const securePassword = crypto.randomBytes(32).toString("hex");
+    const inviteToken = crypto.randomBytes(32).toString("hex");
+    const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
     try {
-      const saved = await member.save();
+      const newUser = await User.create({
+        first_name: saved.first_name,
+        middle_name: saved.middle_name || "",
+        last_name: saved.last_name,
+        username,
+        email: saved.email,
+        password: securePassword,
+        member_id: saved.code || String(saved.id),
+        role_id: saved.role_id || null,
+        status: "pending",
+        member_id_fk: saved.id,
+        added_by: req.user?.id || null,
+        updated_by: req.user?.id || null,
+        mustChangePassword: true,
+        inviteToken,
+        inviteTokenExpires,
+        invitedBy: req.user?.id || null,
+        invitedAt: new Date(),
+      });
 
-      // Create user with secure invite-based onboarding (Phase 8)
-      // Generate a secure random password and invite token
-      const baseUsername = String(saved.email || `${saved.first_name}${saved.last_name}`)
-        .toLowerCase()
-        .replace(/\s+/g, "")
-        .replace(/[^a-z0-9._-]/gi, "");
-
-      let username = baseUsername || `user${String(saved.id).slice(-4)}`;
-      const existingUsername = await User.findOne({ username });
-      if (existingUsername) {
-        username = `${username}-${String(saved.id).slice(-4)}`;
-      }
-
-      // Generate secure random password (user won't know this - they must reset)
-      const securePassword = crypto.randomBytes(32).toString("hex");
-      
-      // Generate invite token for password setup
-      const inviteToken = crypto.randomBytes(32).toString("hex");
-      const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000); // 72 hours
+      const appUrl = process.env.APP_URL || "http://localhost:5173";
+      const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
 
       try {
-        const newUser = await User.create({
-          first_name: saved.first_name,
-          middle_name: saved.middle_name || "",
-          last_name: saved.last_name,
+        const welcomeEmail = welcomeEmailTemplate({
+          firstName: saved.first_name,
+          lastName: saved.last_name,
+          memberCode: saved.code || String(saved.id),
           username,
-          email: saved.email,
-          password: securePassword,
-          member_id: saved.code || String(saved.id),
-          role: saved.role || null,
-          status: "pending", // User must set password before becoming active
-          member: saved.id,
-          added_by: req.user?.id || null,
-          updated_by: req.user?.id || null,
-          mustChangePassword: true,
-          inviteToken,
-          inviteTokenExpires,
-          invitedBy: req.user?.id || null,
-          invitedAt: new Date(),
+          setupUrl,
         });
 
-        // Send invite email with password setup link
-        const appUrl = process.env.APP_URL || "http://localhost:5173";
-        const setupUrl = `${appUrl}/setup-password?token=${inviteToken}`;
-
-        try {
-          const welcomeEmail = welcomeEmailTemplate({
-            firstName: saved.first_name,
-            lastName: saved.last_name,
-            memberCode: saved.code || String(saved.id),
-            username,
-            setupUrl,
-          });
-
-          await sendMail({
-            to: saved.email,
-            subject: welcomeEmail.subject,
-            text: welcomeEmail.text,
-            html: welcomeEmail.html,
-          });
-        } catch (emailErr) {
-          console.error("Failed to send invite email:", emailErr.message);
-          // Don't fail the operation if email fails
-        }
-
-        // Audit log
-        await logMemberAction("created", saved, req.user, req, {
-          description: `Member "${saved.first_name} ${saved.last_name}" was created`,
+        await sendMail({
+          to: saved.email,
+          subject: welcomeEmail.subject,
+          text: welcomeEmail.text,
+          html: welcomeEmail.html,
         });
-        await logUserAction("invited", newUser, req.user, req, {
-          description: `User account created with invite for ${saved.email}`,
-        });
-      } catch (userErr) {
-        // rollback member if user creation fails
-        await (Member.destroy({ where: { id: saved.id } }).then(() => Member.findByPk(saved.id_deleted)));
-        return res.status(500).json({ message: "Member created but user creation failed" });
+      } catch (emailErr) {
+        console.error("Failed to send invite email:", emailErr.message);
       }
 
-      // optional: return populated role for UI
-      const populated = await Member.findByPk(saved.id).populate("role");
-
-      return res.status(201).json({ data: populated });
-    } catch (err) {
-      if (err && err.code === 11000) {
-        const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
-        return res.status(409).json({
-          message: `Duplicate ${dupField}: a member with this value already exists.`,
-          details: err.keyValue || null,
-        });
-      }
-      return next(err);
+      await logMemberAction("created", saved, req.user, req, {
+        description: `Member "${saved.first_name} ${saved.last_name}" was created`,
+      });
+      await logUserAction("invited", newUser, req.user, req, {
+        description: `User account created with invite for ${saved.email}`,
+      });
+    } catch (userErr) {
+      await Member.destroy({ where: { id: saved.id } });
+      return res.status(500).json({ message: "Member created but user creation failed" });
     }
+
+    const populated = await Member.findByPk(saved.id, {
+      include: [{ model: Role, as: "roleRef", attributes: ["id", "role", "plural", "color", "system"], required: false }],
+    });
+
+    return res.status(201).json({ data: populated });
   } catch (err) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        message: "Duplicate value: a member with this unique field already exists.",
+      });
+    }
     return next(err);
   }
 };
-
-
 
 export const getMembers = async (req, res, next) => {
   try {
@@ -254,11 +242,10 @@ export const getMembers = async (req, res, next) => {
         const d = new Date(to);
         if (!Number.isNaN(d.getTime())) where.join_date[Op.lte] = d;
       }
-      if (Object.keys(where.join_date).length === 0) delete where.join_date;
+      if (!Object.keys(where.join_date).length) delete where.join_date;
     }
 
-    // Filter by moderator assignment
-    if (moderator && Number.isInteger(Number(moderator))) {
+    if (moderator && isValidId(moderator)) {
       const assignedRows = await ModeratorMember.findAll({
         where: { moderator_id: Number(moderator) },
         attributes: ["member_id"],
@@ -270,10 +257,8 @@ export const getMembers = async (req, res, next) => {
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(500, parseInt(limit, 10) || 20));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
-    // Explicitly select the fields you want returned.
-    // Add any other member fields you need here.
     const selectFields = [
       "id",
       "first_name",
@@ -303,7 +288,7 @@ export const getMembers = async (req, res, next) => {
         where,
         attributes: selectFields,
         order: [[sortField || "createdAt", sortDir]],
-        offset: skip,
+        offset,
         limit: perPage,
         raw: true,
       }),
@@ -320,7 +305,6 @@ export const getMembers = async (req, res, next) => {
       : [];
     const roleMap = new Map(roles.map((r) => [r.id, r]));
 
-    // Optional: map/format join_date to ISO or desired format
     const mapped = items.map((it) => ({
       ...it,
       join_date: it.join_date ? new Date(it.join_date).toISOString() : null,
@@ -340,80 +324,76 @@ export const getMembers = async (req, res, next) => {
   }
 };
 
-
-
-
 export const updateMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
 
     const update = { ...req.body };
-    if (req.file) {
-      update.Profile_picture = req.file.path;
-    }
-    if (update.id) delete update.id;
+    if (req.file) update.Profile_picture = req.file.path;
+    delete update.id;
 
-    //  Validate role if client sends it
     if (Object.prototype.hasOwnProperty.call(update, "role")) {
       if (update.role) {
-        if (!Number.isInteger(Number(update.role))) {
-          return res.status(400).json({ message: "Invalid role id" });
-        }
-        const roleExists = await Role.findOne({ where: { _id: update.role } });
-        if (!roleExists) {
-          return res.status(400).json({ message: "Role not found" });
-        }
+        if (!isValidId(update.role)) return res.status(400).json({ message: "Invalid role id" });
+        const roleExists = await Role.findByPk(Number(update.role));
+        if (!roleExists) return res.status(400).json({ message: "Role not found" });
+        update.role_id = Number(update.role);
       } else {
-        // allow clearing role by sending null/"":
-        update.role = null;
+        update.role_id = null;
       }
+      delete update.role;
     }
 
-    try {
-      const updated = await Member.findByIdAndUpdate(id, update, {
-        new: true,
-        runValidators: true,
-        context: "query",
-      })
-        .populate("role")   //  populate for UI
-        
-        ;
+    const member = await Member.findByPk(Number(id));
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
-      if (!updated) return res.status(404).json({ message: "Member not found" });
+    await member.update(update);
 
-      return res.status(200).json({ data: updated });
-    } catch (err) {
-      if (err && err.code === 11000) {
-        const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
-        return res.status(409).json({
-          message: `Duplicate ${dupField}: a member with this value already exists.`,
-          details: err.keyValue || null,
-        });
-      }
-      return next(err);
+    const populated = await Member.findByPk(member.id, {
+      include: [{ model: Role, as: "roleRef", attributes: ["id", "role", "plural", "color", "system"], required: false }],
+    });
+
+    return res.status(200).json({ data: populated });
+  } catch (err) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
+      return res.status(409).json({
+        message: "Duplicate value: a member with this unique field already exists.",
+      });
     }
+    return next(err);
+  }
+};
+
+export const getMemberById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+
+    const member = await Member.findByPk(Number(id), {
+      include: [{ model: Role, as: "roleRef", attributes: ["role", "color", "plural", "system"], required: false }],
+    });
+
+    if (!member) return res.status(404).json({ message: "Member not found" });
+    return res.status(200).json({ data: member });
   } catch (err) {
     return next(err);
   }
 };
 
-
-export const getMemberById = async (req, res, next) => {
+/**
+ * POST /members/:id/archive
+ */
+export const archiveMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
 
-    const member = await Member.findByPk(id)
-      .populate("role", "role color plural system") //  add this
-      
-      ;
-
+    const member = await Member.findByPk(Number(id));
     if (!member) return res.status(404).json({ message: "Member not found" });
+
+    member.isArchived = true;
+    await member.save();
 
     return res.status(200).json({ data: member });
   } catch (err) {
@@ -422,70 +402,40 @@ export const getMemberById = async (req, res, next) => {
 };
 
 /**
- * Soft-archive a member (mark isArchived = true)
- * POST /members/:id/archive
- */
-export const archiveMember = async (req, res, next) => {
-  try {
-    const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
-
-    const updated = await Member.findByIdAndUpdate(
-      id,
-      { isArchived: true },
-      { new: true, runValidators: true, context: "query" }
-    );
-
-    if (!updated) return res.status(404).json({ message: "Member not found" });
-
-    return res.status(200).json({ data: updated });
-  } catch (err) {
-    return next(err);
-  }
-};
-
-/**
- * Restore archived member (isArchived = false)
  * POST /members/:id/restore
  */
 export const restoreMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
 
-    const updated = await Member.findByIdAndUpdate(
-      id,
-      { isArchived: false },
-      { new: true, runValidators: true, context: "query" }
-    );
+    const member = await Member.findByPk(Number(id));
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
-    if (!updated) return res.status(404).json({ message: "Member not found" });
+    member.isArchived = false;
+    await member.save();
 
-    return res.status(200).json({ data: updated });
+    return res.status(200).json({ data: member });
   } catch (err) {
     return next(err);
   }
 };
 
 /**
- * Delete a member (hard delete)
  * DELETE /members/:id
  */
 export const deleteMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
 
-    const removed = await (Member.destroy({ where: { id: id } }).then(() => Member.findByPk(id_deleted)));
-    if (!removed) return res.status(404).json({ message: "Member not found" });
+    const member = await Member.findByPk(Number(id));
+    if (!member) return res.status(404).json({ message: "Member not found" });
 
-    return res.status(200).json({ message: "Member deleted", id: removed.id });
+    const removedId = member.id;
+    await member.destroy();
+
+    return res.status(200).json({ message: "Member deleted", id: removedId });
   } catch (err) {
     return next(err);
   }
@@ -496,24 +446,33 @@ export const getMemberByCode = async (req, res, next) => {
     const { code } = req.params;
     if (!code) return res.status(400).json({ message: "MemberId is required" });
 
-    const member = await Member.findOne({ code }).populate("role", "role color");
-
-    if (!member) return res.status(404).json({
-      message: "Before requesting a book you must be member of the Club",
+    const member = await Member.findOne({
+      where: { code: String(code).trim() },
+      include: [{ model: Role, as: "roleRef", attributes: ["role", "color"], required: false }],
     });
+
+    if (!member) {
+      return res.status(404).json({
+        message: "Before requesting a book you must be member of the Club",
+      });
+    }
 
     return res.status(200).json({ data: member });
   } catch (err) {
     return next(err);
   }
 };
+
 export const getMembersList = async (req, res, next) => {
   try {
-    // If requester not authenticated, deny (we require auth for scoped list)
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
-    // determine role of requester
-    const roleName = (req.user?.role?.role || req.user?.role?.plural || '').toLowerCase();
+    const currentUser = await User.findByPk(req.user.id, {
+      attributes: ["id", "member_id_fk", "role_id"],
+      include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+    });
+
+    const roleName = (currentUser?.role?.role || currentUser?.role?.plural || "").toLowerCase();
     const isSuperAdmin = /super\s*admin/i.test(roleName);
     const isModerator = /moderator/i.test(roleName);
 
@@ -527,14 +486,14 @@ export const getMembersList = async (req, res, next) => {
     }
 
     if (isModerator) {
-      // return only members assigned to this moderator
       const assigned = await ModeratorMember.findAll({
         where: { moderator_id: req.user.id },
         attributes: ["member_id"],
         raw: true,
       });
-      const memberIds = assigned.map(a => a.member_id).filter(Boolean);
-      if (memberIds.length === 0) return res.status(200).json({ data: [] });
+      const memberIds = assigned.map((a) => a.member_id).filter(Boolean);
+      if (!memberIds.length) return res.status(200).json({ data: [] });
+
       const members = await Member.findAll({
         where: { id: { [Op.in]: memberIds } },
         attributes: ["id", "first_name", "middle_name", "last_name", "code", "email", "createdAt"],
@@ -544,8 +503,7 @@ export const getMembersList = async (req, res, next) => {
       return res.status(200).json({ data: members });
     }
 
-    // regular users: return only the member record they belong to (if any)
-    const memberId = req.user?.member_id_fk || null;
+    const memberId = currentUser?.member_id_fk || null;
     if (memberId) {
       const m = await Member.findByPk(memberId, {
         attributes: ["id", "first_name", "middle_name", "last_name", "code", "email", "createdAt"],
@@ -555,29 +513,10 @@ export const getMembersList = async (req, res, next) => {
       return res.status(200).json({ data: [m] });
     }
 
-    // fallback: empty
     return res.status(200).json({ data: [] });
   } catch (err) {
     return next(err);
   }
-};
-
-
-const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-
-const normalize = (v) => (typeof v === "string" ? v.trim() : v);
-
-const normalizeEmail = (v) => {
-  const s = normalize(v);
-  return s ? String(s).trim().toLowerCase() : "";
-};
-
-const toDateOrNull = (v) => {
-  if (!v) return null;
-  const d = new Date(v);
-  // invalid date
-  if (Number.isNaN(d.getTime())) return null;
-  return d;
 };
 
 export const bulkCreateMembers = async (req, res, next) => {
@@ -588,7 +527,6 @@ export const bulkCreateMembers = async (req, res, next) => {
       return res.status(400).json({ message: "members must be a non-empty array" });
     }
 
-    // sanitize + basic validation
     const prepared = [];
     const errors = [];
 
@@ -619,26 +557,23 @@ export const bulkCreateMembers = async (req, res, next) => {
         department: normalize(raw.department) ? String(raw.department).trim() : "",
         student_id: normalize(raw.student_id) ? String(raw.student_id).trim() : "",
         study_year: normalize(raw.study_year) ? String(raw.study_year).trim() : "",
-        gender: raw.gender || undefined,
+        gender: raw.gender || null,
         region: normalize(raw.region) ? String(raw.region).trim() : "",
         city: normalize(raw.city) ? String(raw.city).trim() : "",
-        status: raw.status || undefined,
-        // date_of_birth: toDateOrNull(raw.date_of_birth),
-        join_date: toDateOrNull(raw.join_date) || undefined,
-        role: raw.role || undefined, // optional
+        status: raw.status || null,
+        join_date: toDateOrNull(raw.join_date) || null,
+        role_id: raw.role && isValidId(raw.role) ? Number(raw.role) : null,
       };
 
-      // allow optional custom code if you import it; else schema generates it
       if (raw.code && String(raw.code).trim()) doc.code = String(raw.code).trim();
 
       prepared.push(doc);
     }
 
-    // Deduplicate inside the file payload by email/code
     const seenEmail = new Set();
     const seenCode = new Set();
-
     const deduped = [];
+
     for (const doc of prepared) {
       const e = doc.email ? doc.email.toLowerCase() : "";
       const c = doc.code ? doc.code : "";
@@ -652,26 +587,23 @@ export const bulkCreateMembers = async (req, res, next) => {
       deduped.push(doc);
     }
 
-    // Find existing duplicates in DB
     const emails = deduped.map((d) => d.email).filter(Boolean);
     const codes = deduped.map((d) => d.code).filter(Boolean);
 
-    const existingWhere = {
-      [Op.or]: [
-        ...(emails.length ? [{ email: { [Op.in]: emails } }] : []),
-        ...(codes.length ? [{ code: { [Op.in]: codes } }] : []),
-      ],
-    };
+    const orList = [
+      ...(emails.length ? [{ email: { [Op.in]: emails } }] : []),
+      ...(codes.length ? [{ code: { [Op.in]: codes } }] : []),
+    ];
 
-    const existing = existingWhere[Op.or].length
+    const existing = orList.length
       ? await Member.findAll({
-          where: existingWhere,
+          where: { [Op.or]: orList },
           attributes: ["email", "code"],
           raw: true,
         })
       : [];
 
-    const existingEmails = new Set(existing.map((x) => x.email).filter(Boolean));
+    const existingEmails = new Set(existing.map((x) => x.email).filter(Boolean).map((x) => String(x).toLowerCase()));
     const existingCodes = new Set(existing.map((x) => x.code).filter(Boolean));
 
     const toInsert = [];
@@ -680,7 +612,6 @@ export const bulkCreateMembers = async (req, res, next) => {
     for (const doc of deduped) {
       const e = doc.email ? doc.email.toLowerCase() : "";
       const c = doc.code ? doc.code : "";
-
       if ((e && existingEmails.has(e)) || (c && existingCodes.has(c))) {
         skippedCount++;
         continue;
@@ -688,7 +619,7 @@ export const bulkCreateMembers = async (req, res, next) => {
       toInsert.push(doc);
     }
 
-    if (toInsert.length === 0) {
+    if (!toInsert.length) {
       return res.status(200).json({
         message: "No new members inserted (all duplicates or invalid).",
         insertedCount: 0,
@@ -698,94 +629,92 @@ export const bulkCreateMembers = async (req, res, next) => {
       });
     }
 
-    // Insert
-    const inserted = await Member.bulkCreate(toInsert, {
-      ordered: false, // continue on duplicates
-    });
+    const inserted = await Member.bulkCreate(toInsert);
 
     return res.status(201).json({
-      message: `Bulk members import complete.`,
+      message: "Bulk members import complete.",
       insertedCount: inserted.length,
       skippedCount,
       errorCount: errors.length,
       errors,
     });
   } catch (err) {
-    // If insertMany ordered:false still throws for duplicates, report nicely
-    if (err?.code === 11000) {
+    if (err?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
         message: "Some records already exist (duplicate email/code).",
-        details: err?.keyValue,
       });
     }
     return next(err);
   }
 };
 
-
-
-
 export const JoinClub = async (req, res, next) => {
   try {
-    const { FullName, phone, email } = req.body
+    const { FullName, phone, email } = req.body;
 
-    // Basic validation
     if (!FullName || !phone || !email) {
       return res.status(400).json({
         message: "Full name, phone, and email are required",
-      })
+      });
     }
 
-    // Prevent duplicate requests
-    const existingRequest = await Clubreq.findOne({ email })
+    const normalizedEmail = normalizeEmail(email);
+
+    const existingRequest = await Clubreq.findOne({ where: { email: normalizedEmail } });
     if (existingRequest) {
       return res.status(409).json({
         message: "A join request with this email already exists",
-      })
+      });
     }
 
     const clubRequest = await Clubreq.create({
-      FullName,
-      phone,
-      email,
+      FullName: normalize(FullName),
+      phone: normalize(phone),
+      email: normalizedEmail,
       status: "Pending",
-    })
+    });
 
     return res.status(201).json({
       message: "Join club request submitted successfully",
       data: clubRequest,
-    })
+    });
   } catch (error) {
-    next(error)
+    return next(error);
   }
-}
+};
 
-/**
- * @desc    Get all join club requests
- * @route   GET /api/join-club
- * @access  Admin
- */
 export const getJoinClubs = async (req, res, next) => {
   try {
     const { status, page = 1, limit = 20 } = req.query;
-    const filter = {};
+    const where = {};
     if (status && ["Pending", "Approved", "Rejected"].includes(status)) {
-      filter.status = status;
+      where.status = status;
     }
+
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 20));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
-    const [requests, total] = await Promise.all([
-      Clubreq.find(filter)
-        .populate("memberId", "first_name last_name code email")
-        .populate("reviewedBy", "first_name last_name username")
-        .sort({ createdAt: -1 })
-        .skip(skip)
-        .limit(perPage)
-        ,
-      Clubreq.countDocuments(filter),
-    ]);
+    const { rows: requests, count: total } = await Clubreq.findAndCountAll({
+      where,
+      include: [
+        {
+          model: Member,
+          as: "member",
+          attributes: ["first_name", "last_name", "code", "email"],
+          required: false,
+        },
+        {
+          model: User,
+          as: "reviewedBy",
+          attributes: ["first_name", "last_name", "username"],
+          required: false,
+        },
+      ],
+      order: [["createdAt", "DESC"]],
+      offset,
+      limit: perPage,
+    });
 
     return res.status(200).json({
       count: total,
@@ -793,74 +722,72 @@ export const getJoinClubs = async (req, res, next) => {
       page: pageNum,
       limit: perPage,
       totalPages: Math.ceil(total / perPage),
-    })
+    });
   } catch (error) {
-    next(error)
+    return next(error);
   }
-}
+};
 
-/**
- * @desc    Get single join club request by ID
- * @route   GET /api/join-club/:id
- * @access  Admin
- */
 export const getJoinClubById = async (req, res, next) => {
   try {
-    const { id } = req.params
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid id" });
 
-    const request = await Clubreq.findByPk(id)
-      .populate("memberId", "first_name last_name code email")
-      .populate("reviewedBy", "first_name last_name username")
-      ;
+    const request = await Clubreq.findByPk(Number(id), {
+      include: [
+        {
+          model: Member,
+          as: "member",
+          attributes: ["first_name", "last_name", "code", "email"],
+          required: false,
+        },
+        {
+          model: User,
+          as: "reviewedBy",
+          attributes: ["first_name", "last_name", "username"],
+          required: false,
+        },
+      ],
+    });
+
     if (!request) {
-      return res.status(404).json({
-        message: "Join club request not found",
-      })
+      return res.status(404).json({ message: "Join club request not found" });
     }
 
-    return res.status(200).json(request)
+    return res.status(200).json(request);
   } catch (error) {
-    next(error)
+    return next(error);
   }
-}
+};
 
-/**
- * @desc    Update join club request status (Approve / Reject)
- *          On Approve: creates a Member + User record if not already existing.
- *          On Reject: stores rejectionReason.
- *          In both cases: sends a Notification to the linked user (if any).
- * @route   PATCH /api/join-club/:id/status
- * @access  Admin/Moderator (protected)
- */
 export const updateJoinClubStatus = async (req, res, next) => {
   try {
-    const { id } = req.params
-    const { status, rejectionReason } = req.body
+    const { id } = req.params;
+    const { status, rejectionReason } = req.body;
 
-    // Validate status
     if (!["Approved", "Rejected"].includes(status)) {
       return res.status(400).json({
         message: "Status must be either Approved or Rejected",
-      })
+      });
     }
 
-    const clubReq = await Clubreq.findByPk(id);
-    if (!clubReq) {
-      return res.status(404).json({ message: "Join club request not found" })
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid id" });
 
-    // Prevent re-processing already decided requests
+    const clubReq = await Clubreq.findByPk(Number(id));
+    if (!clubReq) return res.status(404).json({ message: "Join club request not found" });
+
     if (clubReq.status !== "Pending") {
-      return res.status(409).json({ message: `Request is already ${clubReq.status}` })
+      return res.status(409).json({ message: `Request is already ${clubReq.status}` });
     }
 
-    const update = {
+    const updateData = {
       status,
-      reviewedBy: req.user?.id || null,
+      reviewed_by: req.user?.id || null,
       reviewedAt: new Date(),
     };
+
     if (status === "Rejected" && rejectionReason) {
-      update.rejectionReason = String(rejectionReason).trim();
+      updateData.rejectionReason = String(rejectionReason).trim();
     }
 
     let createdMember = null;
@@ -869,77 +796,60 @@ export const updateJoinClubStatus = async (req, res, next) => {
     if (status === "Approved") {
       const defaultMemberRole = await findDefaultMemberRole();
 
-      // Check if a member with this email already exists
-      let member = await Member.findOne({ email: clubReq.email });
+      let member = await Member.findOne({ where: { email: normalizeEmail(clubReq.email) } });
 
       if (!member) {
-        // Create member from request data
         const nameParts = clubReq.FullName.trim().split(/\s+/);
         const first_name = nameParts[0] || clubReq.FullName;
         const last_name = nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-";
 
-        const newMember = new Member({
+        member = await Member.create({
           first_name,
           last_name,
-          email: clubReq.email,
-          phone: clubReq.phone,
+          email: normalizeEmail(clubReq.email),
+          phone: normalize(clubReq.phone),
           status: "Active",
           isArchived: false,
-          role: defaultMemberRole?.id || null,
+          role_id: defaultMemberRole?.id || null,
         });
-        member = await newMember.save();
+
         createdMember = member;
       } else {
-        let memberChanged = false;
-
-        if (member.status !== "Active") {
-          member.status = "Active";
-          memberChanged = true;
-        }
-
-        if (member.isArchived) {
-          member.isArchived = false;
-          memberChanged = true;
-        }
-
-        if (!member.role && defaultMemberRole?.id) {
-          member.role = defaultMemberRole.id;
-          memberChanged = true;
-        }
-
-        if (memberChanged) {
-          await member.save();
-        }
+        const patch = {};
+        if (member.status !== "Active") patch.status = "Active";
+        if (member.isArchived) patch.isArchived = false;
+        if (!member.role_id && defaultMemberRole?.id) patch.role_id = defaultMemberRole.id;
+        if (Object.keys(patch).length) await member.update(patch);
       }
 
-      update.memberId = member.id;
+      updateData.member_id = member.id;
 
       const inviteToken = crypto.randomBytes(32).toString("hex");
       const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
-      // Check if a user with this email already exists
-      let user = await User.findOne({ email: clubReq.email });
-      if (!user) {
-        // Generate a random temporary password and invite-based password setup
-        const tempPassword = crypto.randomBytes(32).toString("hex");
+      let user = await User.findOne({ where: { email: normalizeEmail(clubReq.email) } });
 
+      if (!user) {
+        const tempPassword = crypto.randomBytes(32).toString("hex");
         const rawBase = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "");
         const baseUsername = rawBase.length > 0 ? rawBase : `user${Date.now().toString().slice(-6)}`;
         let username = baseUsername;
-        const existing = await User.findOne({ username });
+
+        const existing = await User.findOne({ where: { username } });
         if (existing) username = `${username}-${Date.now().toString().slice(-4)}`;
 
         const nameParts = clubReq.FullName.trim().split(/\s+/);
+
         try {
           user = await User.create({
             first_name: nameParts[0] || clubReq.FullName,
             last_name: nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-",
             username,
-            email: clubReq.email,
+            email: normalizeEmail(clubReq.email),
             password: tempPassword,
             member_id: member.code || String(member.id),
-            role: member.role || defaultMemberRole?.id || null,
-            member: member.id,
+            role_id: member.role_id || defaultMemberRole?.id || null,
+            member_id_fk: member.id,
             status: "pending",
             added_by: req.user?.id || null,
             mustChangePassword: true,
@@ -950,50 +860,41 @@ export const updateJoinClubStatus = async (req, res, next) => {
           });
           linkedUser = user;
         } catch (userErr) {
-          // User creation failure is non-fatal; log and continue
           console.error("updateJoinClubStatus: user creation failed", userErr?.message);
         }
       } else {
         linkedUser = user;
-
         try {
-          linkedUser = await User.findByIdAndUpdate(
-            user.id,
-            {
-              $set: {
-                mustChangePassword: true,
-                inviteToken,
-                inviteTokenExpires,
-                invitedBy: req.user?.id || null,
-                invitedAt: new Date(),
-                status: "pending",
-                member: member.id,
-                member_id: member.code || String(member.id),
-                role: user.role || member.role || defaultMemberRole?.id || null,
-              },
-              $unset: {
-                resetPasswordCode: 1,
-                resetPasswordExpires: 1,
-              },
-            },
-            { new: true }
-          );
+          await user.update({
+            mustChangePassword: true,
+            inviteToken,
+            inviteTokenExpires,
+            invitedBy: req.user?.id || null,
+            invitedAt: new Date(),
+            status: "pending",
+            member_id_fk: member.id,
+            member_id: member.code || String(member.id),
+            role_id: user.role_id || member.role_id || defaultMemberRole?.id || null,
+            resetPasswordCode: null,
+            resetPasswordExpires: null,
+          });
         } catch (updateUserErr) {
           console.error("updateJoinClubStatus: invite token update failed", updateUserErr?.message);
         }
       }
 
-      // Send notification to linked user
       if (linkedUser) {
         try {
           await Notification.create({
-            user: linkedUser.id,
+            user_id: linkedUser.id,
             title: "Welcome to the Club! 🎉",
             message: `Your join request has been approved. Welcome, ${clubReq.FullName}!`,
             type: "success",
             meta: { kind: "join-request-approved", clubreqId: clubReq.id },
           });
-        } catch (_) { /* non-fatal */ }
+        } catch {
+          // non-fatal
+        }
       }
 
       try {
@@ -1032,12 +933,11 @@ export const updateJoinClubStatus = async (req, res, next) => {
         console.error("updateJoinClubStatus: approval email failed", emailErr?.message);
       }
     } else {
-      // Rejected – send notification if user exists
-      const existingUser = await User.findOne({ email: clubReq.email });
+      const existingUser = await User.findOne({ where: { email: normalizeEmail(clubReq.email) } });
       if (existingUser) {
         try {
           await Notification.create({
-            user: existingUser.id,
+            user_id: existingUser.id,
             title: "Join Request Update",
             message: rejectionReason
               ? `Your join request was not approved. Reason: ${rejectionReason}`
@@ -1045,7 +945,9 @@ export const updateJoinClubStatus = async (req, res, next) => {
             type: "warning",
             meta: { kind: "join-request-rejected", clubreqId: clubReq.id },
           });
-        } catch (_) { /* non-fatal */ }
+        } catch {
+          // non-fatal
+        }
       }
 
       try {
@@ -1068,85 +970,103 @@ export const updateJoinClubStatus = async (req, res, next) => {
       }
     }
 
-    const updatedRequest = await Clubreq.findByIdAndUpdate(id, update, { new: true })
-      .populate("memberId", "first_name last_name code email")
-      .populate("reviewedBy", "first_name last_name username")
-      ;
+    await clubReq.update(updateData);
+
+    const updatedRequest = await Clubreq.findByPk(clubReq.id, {
+      include: [
+        {
+          model: Member,
+          as: "member",
+          attributes: ["first_name", "last_name", "code", "email"],
+          required: false,
+        },
+        {
+          model: User,
+          as: "reviewedBy",
+          attributes: ["first_name", "last_name", "username"],
+          required: false,
+        },
+      ],
+    });
 
     return res.status(200).json({
       message: `Join request ${status.toLowerCase()} successfully`,
       data: updatedRequest,
       createdMember: createdMember || undefined,
-    })
+    });
   } catch (error) {
-    next(error)
+    return next(error);
   }
-}
+};
 
-/**
- * @desc    Get aggregated overview for a member (profile timeline)
- * @route   GET /api/members/:id/overview
- * @access  Protected
- */
 export const getMemberOverview = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
 
-    const member = await Member.findByPk(id).populate("role", "role plural color");
+    const member = await Member.findByPk(Number(id), {
+      include: [{ model: Role, as: "roleRef", attributes: ["role", "plural", "color"], required: false }],
+    });
     if (!member) return res.status(404).json({ message: "Member not found" });
 
-    // Linked user
-    const user = await User.findOne({ member: member.id })
-      .select("_id username email status role createdAt")
-      .populate("role", "role plural")
-      ;
+    const user = await User.findOne({
+      where: { member_id_fk: member.id },
+      attributes: ["id", "username", "email", "status", "role_id", "createdAt"],
+      include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+    });
 
-    // Moderator assignment
-    const modAssignment = await ModeratorMember.findOne({ member: member.id })
-      .populate("moderator", "_id first_name last_name username email")
-      ;
+    const modAssignment = await ModeratorMember.findOne({
+      where: { member_id: member.id },
+      include: [
+        {
+          model: User,
+          as: "moderator",
+          attributes: ["id", "first_name", "last_name", "username", "email"],
+          required: false,
+        },
+      ],
+    });
 
-    // Issue history
-    const issues = await Issue.find({ member: member.id })
-      .populate("book", "title author")
-      .sort({ issueDate: -1 })
-      ;
+    const issues = await Issue.findAll({
+      where: { member_id: member.id },
+      include: [{ model: Book, as: "book", attributes: ["title", "author"], required: false }],
+      order: [["issueDate", "DESC"]],
+    });
 
     const overdueCount = issues.filter((i) => i.status === "Overdue").length;
     const issuedCount = issues.filter((i) => i.status === "Issued").length;
     const returnedCount = issues.filter((i) => i.status === "Returned").length;
 
-    // Daily reports (via user)
     let dailyReports = [];
     let reportStreak = 0;
-    if (user) {
-      dailyReports = await DailyReport.find({ createdBy: user.id })
-        .populate("book", "title author")
-        .sort({ readingDate: -1 })
-        .limit(50)
-        ;
 
-      // Simple streak: consecutive days with reports going backwards from today (max 365 days)
+    if (user) {
+      dailyReports = await DailyReport.findAll({
+        where: { createdBy: user.id },
+        include: [{ model: Book, as: "bookRef", attributes: ["title", "author"], required: false }],
+        order: [["readingDate", "DESC"]],
+        limit: 50,
+      });
+
       const reportDays = new Set(
         dailyReports.map((r) => new Date(r.readingDate).toISOString().slice(0, 10))
       );
+
       let d = new Date();
       d.setHours(0, 0, 0, 0);
       let maxDays = 365;
+
       while (maxDays-- > 0 && reportDays.has(d.toISOString().slice(0, 10))) {
         reportStreak++;
         d.setDate(d.getDate() - 1);
       }
     }
 
-    // Notes
-    const notes = await MemberNote.find({ member: member.id, isArchived: false })
-      .populate("author", "first_name last_name username")
-      .sort({ createdAt: -1 })
-      ;
+    const notes = await MemberNote.findAll({
+      where: { member_id: member.id, isArchived: false },
+      include: [{ model: User, as: "author", attributes: ["first_name", "last_name", "username"], required: false }],
+      order: [["createdAt", "DESC"]],
+    });
 
     return res.status(200).json({
       data: {
@@ -1171,85 +1091,76 @@ export const getMemberOverview = async (req, res, next) => {
   } catch (err) {
     return next(err);
   }
-}
+};
 
-/**
- * @desc    Add an internal note to a member
- * @route   POST /api/members/:id/notes
- * @access  Protected (moderator/admin)
- */
 export const createMemberNote = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+
     const { note, category } = req.body;
     if (!note || !String(note).trim()) {
       return res.status(400).json({ message: "note text is required" });
     }
-    const memberExists = await Member.findOne({ where: { _id: id } });
+
+    const memberExists = await Member.findByPk(Number(id));
     if (!memberExists) return res.status(404).json({ message: "Member not found" });
 
     const created = await MemberNote.create({
-      member: id,
-      author: req.user.id,
+      member_id: Number(id),
+      author_id: req.user.id,
       note: String(note).trim(),
       category: category ? String(category).trim() : "",
     });
 
-    const populated = await MemberNote.findByPk(created.id)
-      .populate("author", "first_name last_name username")
-      ;
+    const populated = await MemberNote.findByPk(created.id, {
+      include: [{ model: User, as: "author", attributes: ["first_name", "last_name", "username"], required: false }],
+    });
 
     return res.status(201).json({ data: populated });
   } catch (err) {
     return next(err);
   }
-}
+};
 
-/**
- * @desc    List notes for a member
- * @route   GET /api/members/:id/notes
- * @access  Protected
- */
 export const getMemberNotes = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid member id" });
-    }
-    const notes = await MemberNote.find({ member: id, isArchived: false })
-      .populate("author", "first_name last_name username")
-      .sort({ createdAt: -1 })
-      ;
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+
+    const notes = await MemberNote.findAll({
+      where: { member_id: Number(id), isArchived: false },
+      include: [{ model: User, as: "author", attributes: ["first_name", "last_name", "username"], required: false }],
+      order: [["createdAt", "DESC"]],
+    });
+
     return res.status(200).json({ data: notes });
   } catch (err) {
     return next(err);
   }
-}
+};
 
-/**
- * @desc    Delete (archive) a note
- * @route   DELETE /api/members/:id/notes/:noteId
- * @access  Protected
- */
 export const deleteMemberNote = async (req, res, next) => {
   try {
     const { id, noteId } = req.params;
-    if (!Number.isInteger(Number(id)) || !Number.isInteger(Number(noteId))) {
+    if (!isValidId(id) || !isValidId(noteId)) {
       return res.status(400).json({ message: "Invalid id" });
     }
-    const note = await MemberNote.findOne({ _id: noteId, member: id });
+
+    const note = await MemberNote.findOne({
+      where: { id: Number(noteId), member_id: Number(id) },
+    });
+
     if (!note) return res.status(404).json({ message: "Note not found" });
 
     note.isArchived = true;
     await note.save();
+
     return res.status(200).json({ message: "Note removed" });
   } catch (err) {
     return next(err);
   }
-}
+};
 
 export default {
   createMember,
@@ -1260,5 +1171,14 @@ export default {
   restoreMember,
   deleteMember,
   getMemberByCode,
-  getMembersList
+  getMembersList,
+  bulkCreateMembers,
+  JoinClub,
+  getJoinClubs,
+  getJoinClubById,
+  updateJoinClubStatus,
+  getMemberOverview,
+  createMemberNote,
+  getMemberNotes,
+  deleteMemberNote,
 };

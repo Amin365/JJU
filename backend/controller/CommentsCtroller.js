@@ -1,38 +1,134 @@
-
 import BlogPost from "../models/BlogPost.js";
-import { Op } from 'sequelize';
-import Comment from "../models/Comments.js";
+import { Op } from "sequelize";
+import Comment, { Reply } from "../models/Comments.js";
+import User from "../models/user.js";
+import Role from "../models/Role.js";
 
 /**
- * Endpoints used by your frontend:
+ * Endpoints:
  * GET  /blogposts/:id/comments
- * POST /blogposts/:id/comments                 (JWT required)
- * POST /blogposts/:id/comments/:commentId/replies (JWT required)
+ * POST /blogposts/:id/comments
+ * POST /blogposts/:id/comments/:commentId/replies
+ * PUT  /blogposts/:id/comments/:commentId/like
  */
+
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
+const normalizeRole = (value) => {
+  const roleName = String(value || "").toLowerCase();
+  return /moderator|admin/.test(roleName) ? "Moderator" : "Member";
+};
+
+const pickAuthorName = (user) => {
+  const fullName = [user?.first_name, user?.last_name].filter(Boolean).join(" ").trim();
+  return fullName || user?.username || user?.email || "Unknown";
+};
+
+const pickDisplayRole = (user, fallback = "Member") => {
+  const roleFromUser = user?.role?.role || user?.role?.plural;
+  if (typeof roleFromUser === "string" && roleFromUser.trim()) return roleFromUser;
+  return fallback || "Member";
+};
 
 // GET COMMENTS (public)
 export const getCommentsByPostId = async (req, res) => {
   try {
-    const { id } = req.params; // blogpost id
+    const { id } = req.params; // blog post id
 
-    if (!mongoose.isValidObjectId(id)) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid blog post id" });
     }
 
-    // ensure post exists (optional but nice)
-    const exists = await BlogPost.findOne({ where: { _id: id } });
+    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
-    // Phase 7: Only show approved comments in public view
-    // Deleted and hidden comments are excluded
-    const comments = await Comment.find({ 
-      postId: id,
-      status: { [Op.in]: ["approved", "pending"] } // Show approved and pending, hide deleted/hidden
-    })
-      .sort({ isPinned: -1, isBestInsight: -1, createdAt: -1 })
-      ;
+    // Public view: approved + pending (hidden/deleted excluded)
+    const comments = await Comment.findAll({
+      where: {
+        post_id: Number(id),
+        status: { [Op.in]: ["approved", "pending"] },
+      },
+      include: [
+        {
+          model: User,
+          as: "authorUser",
+          attributes: ["id", "first_name", "last_name", "username", "email", "profile_picture"],
+          include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+          required: false,
+        },
+        {
+          model: Reply,
+          as: "replies",
+          required: false,
+          where: { status: { [Op.in]: ["approved", "pending"] } },
+          attributes: [
+            "id",
+            "content",
+            "author_user_id",
+            "author_name",
+            "author_avatar",
+            "author_role",
+            "likes",
+            "createdAt",
+            "updatedAt",
+          ],
+          include: [
+            {
+              model: User,
+              as: "authorUser",
+              attributes: ["id", "first_name", "last_name", "username", "email", "profile_picture"],
+              include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+              required: false,
+            },
+          ],
+        },
+      ],
+      order: [
+        ["isPinned", "DESC"],
+        ["isBestInsight", "DESC"],
+        ["createdAt", "DESC"],
+        [{ model: Reply, as: "replies" }, "createdAt", "ASC"],
+      ],
+    });
 
-    return res.status(200).json({ data: comments });
+    const data = comments.map((comment) => {
+      const c = comment.toJSON ? comment.toJSON() : comment;
+      const commentAuthor = c.authorUser || null;
+      const replies = Array.isArray(c.replies) ? c.replies : [];
+
+      return {
+        id: c.id,
+        content: c.content,
+        likes: c.likes || 0,
+        likedBy: Array.isArray(c.likedBy) ? c.likedBy : [],
+        isPinned: !!c.isPinned,
+        isBestInsight: !!c.isBestInsight,
+        status: c.status,
+        createdAt: c.createdAt,
+        updatedAt: c.updatedAt,
+        author: {
+          id: c.author_user_id,
+          name: c.author_name || pickAuthorName(commentAuthor),
+          avatar: c.author_avatar || commentAuthor?.profile_picture || "",
+          role: pickDisplayRole(commentAuthor, c.author_role),
+        },
+        replies: replies.map((reply) => ({
+          id: reply.id,
+          content: reply.content,
+          likes: reply.likes || 0,
+          createdAt: reply.createdAt,
+          updatedAt: reply.updatedAt,
+          author: {
+            id: reply.author_user_id,
+            name: reply.author_name || pickAuthorName(reply.authorUser),
+            avatar: reply.author_avatar || reply.authorUser?.profile_picture || "",
+            role: pickDisplayRole(reply.authorUser, reply.author_role),
+          },
+        })),
+      };
+    });
+
+    return res.status(200).json({ data });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Server error" });
   }
@@ -42,43 +138,56 @@ export const getCommentsByPostId = async (req, res) => {
 export const createCommentForPost = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const userName = req.user?.name || req.user?.username || req.user?.email;
-    const rawRole = req.user?.role;
-    // const userRole =
-    //   (typeof rawRole === "string" && rawRole) ||
-    //   rawRole?.roleName ||
-    //   "Member";
-    const userRole = req.user?.role?.roleName || req.user?.role || "Member";
+    const userName = pickAuthorName(req.user);
+    const userRole = normalizeRole(req.user?.role?.role || req.user?.role?.name || req.user?.role);
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const { id } = req.params; // blogpost id
+    const { id } = req.params; // blog post id
     const { content } = req.body;
 
-    if (!mongoose.isValidObjectId(id)) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid blog post id" });
     }
     if (!content || !content.trim()) {
       return res.status(400).json({ message: "Comment content is required" });
     }
 
-    const exists = await BlogPost.findOne({ where: { _id: id } });
+    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.create({
-      postId: id,
+      post_id: Number(id),
       content: content.trim(),
-      author: {
-        userId,
-        name: userName || "Unknown",
-        avatar: req.user?.avatar || "",
-        role: typeof userRole === "string" ? userRole : "Member",
-      },
+      author_user_id: Number(userId),
+      author_name: userName,
+      author_avatar: req.user?.profile_picture || req.user?.avatar || "",
+      author_role: userRole,
       likes: 0,
-      replies: [],
+      likedBy: [],
+      status: "pending",
     });
 
-    return res.status(201).json({ data: comment });
+    return res.status(201).json({
+      data: {
+        id: comment.id,
+        content: comment.content,
+        likes: comment.likes || 0,
+        likedBy: Array.isArray(comment.likedBy) ? comment.likedBy : [],
+        isPinned: !!comment.isPinned,
+        isBestInsight: !!comment.isBestInsight,
+        status: comment.status,
+        createdAt: comment.createdAt,
+        updatedAt: comment.updatedAt,
+        author: {
+          id: comment.author_user_id,
+          name: comment.author_name,
+          avatar: comment.author_avatar || "",
+          role: comment.author_role || "Member",
+        },
+        replies: [],
+      },
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Server error" });
   }
@@ -88,59 +197,64 @@ export const createCommentForPost = async (req, res) => {
 export const createReplyForComment = async (req, res) => {
   try {
     const userId = req.user?.id;
-    const userName = req.user?.name || req.user?.username || req.user?.email;
-    const rawRole = req.user?.role;
-    // const userRole =
-    //   (typeof rawRole === "string" && rawRole) ||
-    //   rawRole?.roleName ||
-    //   "Member";
-    const userRole = req.user?.role?.roleName || req.user?.role || "Member";
+    const userName = pickAuthorName(req.user);
+    const userRole = normalizeRole(req.user?.role?.role || req.user?.role?.name || req.user?.role);
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const { id, commentId } = req.params; // id = blogpostId (for validation), commentId = comment
+    const { id, commentId } = req.params;
     const { content } = req.body;
 
-    if (!mongoose.isValidObjectId(id)) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid blog post id" });
     }
-    if (!mongoose.isValidObjectId(commentId)) {
+    if (!isValidId(commentId)) {
       return res.status(400).json({ message: "Invalid comment id" });
     }
     if (!content || !content.trim()) {
       return res.status(400).json({ message: "Reply content is required" });
     }
 
-    const exists = await BlogPost.findOne({ where: { _id: id } });
+    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
-    const comment = await Comment.findOne({ _id: commentId, postId: id });
+    const comment = await Comment.findOne({
+      where: { id: Number(commentId), post_id: Number(id) },
+    });
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    comment.replies.push({
+    const newReply = await Reply.create({
+      comment_id: Number(commentId),
       content: content.trim(),
-      author: {
-        userId,
-        name: userName || "Unknown",
-        avatar: req.user?.avatar || "",
-        role: typeof userRole === "string" ? userRole : "Member",
-      },
+      author_user_id: Number(userId),
+      author_name: userName,
+      author_avatar: req.user?.profile_picture || req.user?.avatar || "",
+      author_role: userRole,
       likes: 0,
+      status: "pending",
     });
 
-    await comment.save();
-
-    // return the newly added reply (last element)
-    const newReply = comment.replies[comment.replies.length - 1];
-
-    return res.status(201).json({ data: newReply });
+    return res.status(201).json({
+      data: {
+        id: newReply.id,
+        content: newReply.content,
+        likes: newReply.likes || 0,
+        createdAt: newReply.createdAt,
+        updatedAt: newReply.updatedAt,
+        author: {
+          id: newReply.author_user_id,
+          name: newReply.author_name,
+          avatar: newReply.author_avatar || "",
+          role: newReply.author_role || "Member",
+        },
+      },
+    });
   } catch (err) {
     return res.status(500).json({ message: err.message || "Server error" });
   }
 };
 
-
-
+// TOGGLE COMMENT LIKE (auth required)
 export const toggleCommentLike = async (req, res) => {
   try {
     const userId = req.user?.id;
@@ -148,34 +262,37 @@ export const toggleCommentLike = async (req, res) => {
 
     const { id, commentId } = req.params;
 
-    if (!mongoose.isValidObjectId(id)) {
+    if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid blog post id" });
     }
-    if (!mongoose.isValidObjectId(commentId)) {
+    if (!isValidId(commentId)) {
       return res.status(400).json({ message: "Invalid comment id" });
     }
 
-    // optional: ensure post exists
-    const exists = await BlogPost.findOne({ where: { _id: id } });
+    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
-    const comment = await Comment.findOne({ _id: commentId, postId: id });
+    const comment = await Comment.findOne({
+      where: { id: Number(commentId), post_id: Number(id) },
+    });
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 
-    comment.likedBy = comment.likedBy || [];
+    const likedBy = Array.isArray(comment.likedBy) ? [...comment.likedBy] : [];
+    const alreadyLiked = likedBy.some((u) => String(u) === String(userId));
 
-    const alreadyLiked = comment.likedBy.some((u) => String(u) === String(userId));
+    let nextLikedBy;
+    let nextLikes;
 
     if (alreadyLiked) {
-      // unlike
-      comment.likedBy = comment.likedBy.filter((u) => String(u) !== String(userId));
-      comment.likes = Math.max(0, (comment.likes || 0) - 1);
+      nextLikedBy = likedBy.filter((u) => String(u) !== String(userId));
+      nextLikes = Math.max(0, (comment.likes || 0) - 1);
     } else {
-      // like
-      comment.likedBy.push(userId);
-      comment.likes = (comment.likes || 0) + 1;
+      nextLikedBy = [...likedBy, userId];
+      nextLikes = (comment.likes || 0) + 1;
     }
 
+    comment.likedBy = nextLikedBy;
+    comment.likes = nextLikes;
     await comment.save();
 
     return res.status(200).json({
@@ -188,4 +305,11 @@ export const toggleCommentLike = async (req, res) => {
   } catch (err) {
     return res.status(500).json({ message: err.message || "Server error" });
   }
+};
+
+export default {
+  getCommentsByPostId,
+  createCommentForPost,
+  createReplyForComment,
+  toggleCommentLike,
 };

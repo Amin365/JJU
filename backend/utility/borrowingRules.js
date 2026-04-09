@@ -11,9 +11,11 @@ export async function checkBorrowingRules(memberId, { adminOverride = false } = 
   if (adminOverride) return { allowed: true, reason: null };
 
   // Block if member has overdue items
-  const overdueCount = await Issue.countDocuments({
-    member: memberId,
-    status: "Overdue",
+  const overdueCount = await Issue.count({
+    where: {
+      member_id: memberId,
+      status: "Overdue",
+    },
   });
 
   if (overdueCount > 0) {
@@ -24,9 +26,11 @@ export async function checkBorrowingRules(memberId, { adminOverride = false } = 
   }
 
   // Block if member already has maximum active issues
-  const activeCount = await Issue.countDocuments({
-    member: memberId,
-    status: "Issued",
+  const activeCount = await Issue.count({
+    where: {
+      member_id: memberId,
+      status: "Issued",
+    },
   });
 
   if (activeCount >= MAX_ACTIVE_ISSUES) {

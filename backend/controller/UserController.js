@@ -1,10 +1,17 @@
 import User from "../models/user.js";
-import { Op } from 'sequelize';
-
+import { Op } from "sequelize";
 import Member from "../models/Members.js";
+import Role from "../models/Role.js";
 import bcrypt from "bcryptjs";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
+const escapeLike = (value) =>
+  String(value)
+    .replace(/\\/g, "\\\\")
+    .replace(/%/g, "\\%")
+    .replace(/_/g, "\\_");
 
 export const createUserFromMember = async (req, res, next) => {
   try {
@@ -16,122 +23,120 @@ export const createUserFromMember = async (req, res, next) => {
       return res.status(400).json({ message: "password must be at least 6 characters" });
     }
 
-    if (!Number.isInteger(Number(member))) {
+    if (!isValidId(member)) {
       return res.status(400).json({ message: "Invalid member id" });
     }
 
-    // 1) fetch member (we need name/email/role)
-    const m = await Member.findByPk(member);
+    const m = await Member.findByPk(Number(member));
     if (!m) return res.status(404).json({ message: "Member not found" });
 
     if (!m.email) {
-      return res.status(400).json({ message: "Selected member must have an email to create a user." });
+      return res.status(400).json({
+        message: "Selected member must have an email to create a user.",
+      });
     }
 
-    // 2) block duplicates (member already has user)
-    const existingForMember = await User.findOne({ member: m.id });
+    const existingForMember = await User.findOne({
+      where: { member_id_fk: m.id },
+    });
+
     if (existingForMember) {
       return res.status(409).json({ message: "This member already has a user account" });
     }
 
-    // 3) block duplicate username/email
     const [existingUsername, existingEmail] = await Promise.all([
-      User.findOne({ username }),
-      User.findOne({ email: m.email }),
+      User.findOne({ where: { username } }),
+      User.findOne({ where: { email: m.email } }),
     ]);
 
     if (existingUsername) return res.status(409).json({ message: "Username already exists" });
     if (existingEmail) return res.status(409).json({ message: "Email already exists" });
 
-    // 4) create user (password hashing happens in pre-save)
     const user = await User.create({
       first_name: m.first_name,
       middle_name: m.middle_name || "",
       last_name: m.last_name,
       username,
       email: m.email,
-      password,                 // plaintext ok here -> will be hashed by pre-save
-      member_id: m.code || String(m.id), // optional mapping
-      role: m.role || null,      // ✅ role copied from member
-      status: m.status || 'Active', // ✅ mirror member status
-      member: m.id,             // ✅ relation user -> member
-
-      // optional audit fields (if you have auth middleware)
+      password,
+      member_id: m.code || String(m.id),
+      role_id: m.role_id || null,
+      status: m.status || "Active",
+      member_id_fk: m.id,
       added_by: req.user?.id || null,
       updated_by: req.user?.id || null,
     });
 
-    // 5) return populated
-    const populated = await User.findByPk(user.id)
-      .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
-      
-      ;
+    const populated = await User.findByPk(user.id, {
+      include: [
+        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { association: "role", attributes: ["id", "role", "color", "plural", "system"] },
+      ],
+    });
 
     return res.status(201).json({ data: populated });
   } catch (err) {
-    // handle duplicate key nicely
-    if (err && err.code === 11000) {
-      const dupField = Object.keys(err.keyValue || {}).join(", ") || "unique field";
+    if (err?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
-        message: `Duplicate ${dupField}: already exists.`,
-        details: err.keyValue || null,
+        message: "Duplicate value: already exists.",
       });
     }
     return next(err);
   }
 };
+
 export const getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid user id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
 
-    const user = await User.findByPk(id)
-      .populate("role", "role color plural system")
-      .populate("member",  "first_name middle_name last_name Profile_picture full_name email phone Profile_picture code role")
-      
-      ;
+    const user = await User.findByPk(Number(id), {
+      include: [
+        { association: "role", attributes: ["role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+      ],
+    });
 
     if (!user) return res.status(404).json({ message: "User not found" });
-
     return res.status(200).json({ data: user });
   } catch (err) {
     return next(err);
   }
 };
+
 export const getUsers = async (req, res, next) => {
   try {
     const { page = 1, limit = 10, sort = "-createdAt", q } = req.query;
 
-    const filter = {};
+    const where = {};
     if (q) {
-      const re = new RegExp(String(q).replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [
-        { username: re },
-        { email: re },
-        { first_name: re },
-        { middle_name: re },
-        { last_name: re },
+      const qv = `%${escapeLike(q)}%`;
+      where[Op.or] = [
+        { username: { [Op.like]: qv } },
+        { email: { [Op.like]: qv } },
+        { first_name: { [Op.like]: qv } },
+        { middle_name: { [Op.like]: qv } },
+        { last_name: { [Op.like]: qv } },
       ];
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 10));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
-    const [items, total] = await Promise.all([
-      User.find(filter)
-        .populate("role", "role color plural system")
-        .populate("member", "first_name middle_name Profile_picture last_name full_name email phone code role")
-        .sort(sort)
-        .skip(skip)
-        .limit(perPage)
-        
-        ,
-      User.countDocuments(filter),
-    ]);
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
+
+    const { rows: items, count: total } = await User.findAndCountAll({
+      where,
+      include: [
+        { association: "role", attributes: ["role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "Profile_picture", "last_name", "email", "phone", "code", "role_id"] },
+      ],
+      order: [[sortField || "createdAt", sortDir]],
+      offset,
+      limit: perPage,
+    });
 
     return res.status(200).json({
       data: items,
@@ -145,86 +150,101 @@ export const getUsers = async (req, res, next) => {
   }
 };
 
-// List members that do NOT yet have a user account
 export const getAvailableMembersForUserCreation = async (req, res, next) => {
   try {
     const { q, page = 1, limit = 50, sort = "-createdAt" } = req.query;
 
-    // Collect all member ids that already have users
-    const userMemberDocs = await User.find({}, "member");
-    const usedMemberIds = new Set(
-      userMemberDocs
-        .map((u) => u.member)
-        .filter(Boolean)
-        .map((id) => String(id))
-    );
+    const usedMemberRows = await User.findAll({
+      attributes: ["member_id_fk"],
+      where: { member_id_fk: { [Op.not]: null } },
+      raw: true,
+    });
 
-    const filter = {};
+    const usedMemberIds = usedMemberRows
+      .map((u) => Number(u.member_id_fk))
+      .filter((v) => Number.isFinite(v));
+
+    const where = {};
     if (q) {
-      const re = new RegExp(String(q).replace(/[.*+?^${}()|[\\]\\]/g, "\\$&"), "i");
-      filter.$or = [
-        { first_name: re },
-        { middle_name: re },
-        { last_name: re },
-        { email: re },
-        { phone: re },
-        { code: re },
+      const qv = `%${escapeLike(q)}%`;
+      where[Op.or] = [
+        { first_name: { [Op.like]: qv } },
+        { middle_name: { [Op.like]: qv } },
+        { last_name: { [Op.like]: qv } },
+        { email: { [Op.like]: qv } },
+        { phone: { [Op.like]: qv } },
+        { code: { [Op.like]: qv } },
       ];
+    }
+
+    if (usedMemberIds.length) {
+      where.id = { [Op.notIn]: usedMemberIds };
     }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.max(1, Math.min(200, parseInt(limit, 10) || 50));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
-    // Query members and filter out those with existing users
-    const allMembers = await Member.find(filter)
-      .select("_id first_name middle_name last_name Profile_picture full_name code email createdAt role")
-      .sort(sort)
-      
-      ;
+    const sortField = String(sort).startsWith("-") ? String(sort).slice(1) : String(sort);
+    const sortDir = String(sort).startsWith("-") ? "DESC" : "ASC";
 
-    const available = allMembers.filter((m) => !usedMemberIds.has(String(m.id)));
+    const { rows, count } = await Member.findAndCountAll({
+      where,
+      attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "code", "email", "createdAt", "role_id"],
+      include: [
+        { model: Role, as: "role", attributes: ["id", "role", "plural", "color", "system"], required: false },
+      ],
+      order: [[sortField || "createdAt", sortDir]],
+      offset,
+      limit: perPage,
+    });
 
-    const paged = available.slice(skip, skip + perPage);
+    const data = rows.map((member) => {
+      const item = member.toJSON();
+      item.full_name = [item.first_name, item.middle_name, item.last_name]
+        .filter(Boolean)
+        .join(" ");
+      return item;
+    });
 
     return res.status(200).json({
-      data: paged,
-      total: available.length,
+      data,
+      total: count,
       page: pageNum,
       limit: perPage,
-      totalPages: Math.ceil(available.length / perPage),
+      totalPages: Math.ceil(count / perPage),
     });
   } catch (err) {
     return next(err);
   }
 };
 
-// Update a user's status (Active, Inactive, pending)
 export const updateUserStatus = async (req, res, next) => {
   try {
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!Number.isInteger(Number(id))) {
-      return res.status(400).json({ message: "Invalid user id" });
-    }
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
 
     const allowed = ["Active", "Inactive", "pending"];
     if (!status || !allowed.includes(status)) {
       return res.status(400).json({ message: `status must be one of: ${allowed.join(", ")}` });
     }
 
-    const updated = await User.findByIdAndUpdate(
-      id,
-      { status, updated_by: req.user?.id || null },
-      { new: true }
-    )
-      .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name email phone code role")
-      
-      ;
+    const user = await User.findByPk(Number(id));
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!updated) return res.status(404).json({ message: "User not found" });
+    await user.update({
+      status,
+      updated_by: req.user?.id || null,
+    });
+
+    const updated = await User.findByPk(Number(id), {
+      include: [
+        { association: "role", attributes: ["role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "email", "phone", "code", "role_id"] },
+      ],
+    });
 
     return res.status(200).json({ data: updated });
   } catch (err) {
@@ -232,47 +252,33 @@ export const updateUserStatus = async (req, res, next) => {
   }
 };
 
-
-
-// ... existing controllers ...
-
-
-// Existing controllers...
-
-// Get current user's profile
 export const getProfile = async (req, res, next) => {
   try {
-    const user = await User.findByPk(req.user.id)
-      .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name Profile_picture email student_id department join_date phone code role")
-      
-      ;
+    const user = await User.findByPk(req.user.id, {
+      include: [
+        { association: "role", attributes: ["role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "student_id", "department", "join_date", "phone", "code", "role_id"] },
+      ],
+    });
 
     if (!user) return res.status(404).json({ message: "User not found" });
-
     return res.status(200).json({ data: user });
   } catch (err) {
     return next(err);
   }
 };
 
-// Update current user's profile
 export const updateProfile = async (req, res, next) => {
   try {
- console.log("------------ PROFILE UPDATE REQUEST ------------");
-    console.log("req.headers:", req.headers);
-    console.log("req.file:", req.file);
-    console.log("req.body:", req.body);
-
     const userId = req.user.id;
     const { name, bio, phone } = req.body || {};
-    const profilePicture = req.file ? req.file.path : undefined; // Cloudinary URL
+    const profilePicture = req.file ? req.file.path : undefined;
 
     const updateData = {};
     if (name) {
-      const [firstName, ...lastNameParts] = name.split(' ');
-      updateData.first_name = firstName || '';
-      updateData.last_name = lastNameParts.join(' ') || '';
+      const [firstName, ...lastNameParts] = String(name).split(" ");
+      updateData.first_name = firstName || "";
+      updateData.last_name = lastNameParts.join(" ") || "";
     }
     if (bio !== undefined) updateData.Bio = bio;
     if (phone !== undefined) updateData.phone = phone;
@@ -282,17 +288,17 @@ export const updateProfile = async (req, res, next) => {
       return res.status(400).json({ message: "No fields to update" });
     }
 
-    const updatedUser = await User.findByIdAndUpdate(
-      userId,
-      updateData,
-      { new: true }
-    )
-      .populate("role", "role color plural system")
-      .populate("member", "first_name middle_name last_name full_name Profile_picture email phone code role")
-      
-      ;
+    const user = await User.findByPk(Number(userId));
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    if (!updatedUser) return res.status(404).json({ message: "User not found" });
+    await user.update(updateData);
+
+    const updatedUser = await User.findByPk(Number(userId), {
+      include: [
+        { association: "role", attributes: ["role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+      ],
+    });
 
     return res.status(200).json({ data: updatedUser });
   } catch (err) {
@@ -300,8 +306,6 @@ export const updateProfile = async (req, res, next) => {
   }
 };
 
-// Change current user's password
-// Change current user's password
 export const changePassword = async (req, res, next) => {
   try {
     const userId = req.user.id;
@@ -319,20 +323,22 @@ export const changePassword = async (req, res, next) => {
       return res.status(400).json({ message: "New password must be at least 6 characters" });
     }
 
-    const user = await User.findByPk(userId);
+    const user = await User.findByPk(Number(userId));
     if (!user) return res.status(404).json({ message: "User not found" });
 
-    const isMatch = await user.matchPassword(currentPassword);
+    const isMatch =
+      typeof user.matchPassword === "function"
+        ? await user.matchPassword(currentPassword)
+        : await bcrypt.compare(currentPassword, user.password);
+
     if (!isMatch) {
       return res.status(400).json({ message: "Current password is incorrect" });
     }
 
-    // Hash the new password
     const salt = await bcrypt.genSalt(10);
     const hashedPassword = await bcrypt.hash(newPassword, salt);
 
-    // Update only the password field to avoid full validation
-    await User.findByIdAndUpdate(userId, { password: hashedPassword });
+    await user.update({ password: hashedPassword });
 
     return res.status(200).json({ message: "Password changed successfully" });
   } catch (err) {
@@ -340,13 +346,12 @@ export const changePassword = async (req, res, next) => {
   }
 };
 
-// Delete current user's account
 export const deleteAccount = async (req, res, next) => {
   try {
     const userId = req.user.id;
 
-    const deletedUser = await (User.destroy({ where: { id: userId } }).then(() => User.findByPk(userId_deleted)));
-    if (!deletedUser) return res.status(404).json({ message: "User not found" });
+    const deletedCount = await User.destroy({ where: { id: Number(userId) } });
+    if (!deletedCount) return res.status(404).json({ message: "User not found" });
 
     return res.status(200).json({ message: "Account deleted successfully" });
   } catch (err) {
@@ -354,28 +359,21 @@ export const deleteAccount = async (req, res, next) => {
   }
 };
 
-
-
-
 export const forgotPassword = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    if (!email)
-      return res.status(400).json({ message: "Email is required" });
+    if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Generate 6-digit OTP
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    // Replace old OTP automatically
     user.resetPasswordCode = resetCode;
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 mins
+    user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-    await user.save({ validateBeforeSave: false });
+    await user.save({ validate: false });
 
     await sendMail({
       to: user.email,
@@ -394,11 +392,9 @@ export const forgotPassword = async (req, res, next) => {
       }),
     });
 
-    return res.status(200).json({
-      message: "OTP sent to email",
-    });
+    return res.status(200).json({ message: "OTP sent to email" });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
@@ -406,33 +402,30 @@ export const verifyResetCode = async (req, res, next) => {
   try {
     const { email, code } = req.body;
 
-    if (!email || !code)
+    if (!email || !code) {
       return res.status(400).json({ message: "Email and code are required" });
+    }
 
     const user = await User.findOne({
-      email,
-      resetPasswordCode: code,
-      resetPasswordExpires: { [Op.gt]: Date.now() },
+      where: {
+        email,
+        resetPasswordCode: code,
+        resetPasswordExpires: { [Op.gt]: new Date() },
+      },
     });
 
-    if (!user)
-      return res.status(400).json({
-        message: "Invalid or expired reset code",
-      });
+    if (!user) {
+      return res.status(400).json({ message: "Invalid or expired reset code" });
+    }
 
     return res.status(200).json({
       message: "OTP verified",
-      userId: user.id, // frontend can store this temporarily
+      userId: user.id,
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
-
-
-
-
-
 
 export const resetPassword = async (req, res, next) => {
   try {
@@ -442,61 +435,43 @@ export const resetPassword = async (req, res, next) => {
       return res.status(400).json({ message: "All fields are required" });
     }
 
-    // Strong password check
-    // const strongPasswordRegex =
-    //   /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]{8,}$/;
+    if (!isValidId(userId)) {
+      return res.status(400).json({ message: "Invalid user id" });
+    }
 
-    // if (!strongPasswordRegex.test(newPassword)) {
-    //   return res.status(400).json({
-    //     message:
-    //       "Password must be at least 8 characters long and include uppercase, lowercase, number, and special character",
-    //   });
-    // }
+    const user = await User.findByPk(Number(userId));
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    const user = await User.findByPk(userId);
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
-
-    // ✅ IMPORTANT: assign plain password
     user.password = newPassword;
+    user.resetPasswordCode = null;
+    user.resetPasswordExpires = null;
 
-    user.resetPasswordCode = undefined;
-    user.resetPasswordExpires = undefined;
-
-    // pre('save') will hash it ONCE
-    await user.save({ validateBeforeSave: false });
+    await user.save({ validate: false });
 
     return res.status(200).json({
       message: "Password reset successful",
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
-
-
-
 
 export const resendResetCode = async (req, res, next) => {
   try {
     const { email } = req.body;
 
-    if (!email)
-      return res.status(400).json({ message: "Email is required" });
+    if (!email) return res.status(400).json({ message: "Email is required" });
 
-    const user = await User.findOne({ email });
-    if (!user)
-      return res.status(404).json({ message: "User not found" });
+    const user = await User.findOne({ where: { email } });
+    if (!user) return res.status(404).json({ message: "User not found" });
 
-    // Generate new OTP (old one is overwritten automatically)
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
     user.resetPasswordCode = resetCode;
-    user.resetPasswordExpires = Date.now() + 10 * 60 * 1000; // 10 minutes
+    user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
 
-    await user.save({ validateBeforeSave: false });
+    await user.save({ validate: false });
 
-    // Send OTP email again
     await sendMail({
       to: user.email,
       subject: "Password Reset Code",
@@ -518,14 +493,22 @@ export const resendResetCode = async (req, res, next) => {
       message: "New verification code sent to email",
     });
   } catch (err) {
-    next(err);
+    return next(err);
   }
 };
 
-
-
-
-
-// Existing controllers...
-
-// ... existing controllers ...
+export default {
+  createUserFromMember,
+  getUserById,
+  getUsers,
+  getAvailableMembersForUserCreation,
+  updateUserStatus,
+  getProfile,
+  updateProfile,
+  changePassword,
+  deleteAccount,
+  forgotPassword,
+  verifyResetCode,
+  resetPassword,
+  resendResetCode,
+};

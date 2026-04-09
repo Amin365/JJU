@@ -81,14 +81,14 @@ export default function PermissionMatrix() {
 
   // Get role details when selected
   const { data: roleDetails, isLoading: roleDetailsLoading } = useQuery({
-    queryKey: ["role-details", selectedRole?._id],
+    queryKey: ["role-details", selectedRole?.id],
     queryFn: async () => {
-      const res = await api.get(`/roles/${selectedRole._id}`);
+      const res = await api.get(`/roles/${selectedRole.id}`);
       return res.data?.data;
     },
-    enabled: !!selectedRole?._id,
+    enabled: !!selectedRole?.id,
     onSuccess: (data) => {
-      setPendingPermissions(new Set(data.permissions?.map((p) => p._id) || []));
+      setPendingPermissions(new Set(data.permissions?.map((p) => p.id) || []));
       setHasChanges(false);
     },
   });
@@ -155,7 +155,7 @@ export default function PermissionMatrix() {
     },
     onSuccess: (data) => {
       toast.success(`Permissions updated: ${data.added} added, ${data.removed} removed`);
-      qc.invalidateQueries({ queryKey: ["role-details", selectedRole?._id] });
+      qc.invalidateQueries({ queryKey: ["role-details", selectedRole?.id] });
       qc.invalidateQueries({ queryKey: ["permission-matrix"] });
       setHasChanges(false);
     },
@@ -170,7 +170,7 @@ export default function PermissionMatrix() {
   // Initialize pending permissions when role details load
   React.useEffect(() => {
     if (roleDetails?.permissions) {
-      setPendingPermissions(new Set(roleDetails.permissions.map((p) => p._id)));
+      setPendingPermissions(new Set(roleDetails.permissions.map((p) => p.id)));
       setHasChanges(false);
     }
   }, [roleDetails]);
@@ -187,9 +187,9 @@ export default function PermissionMatrix() {
   };
 
   const handleSavePermissions = () => {
-    if (!selectedRole?._id) return;
+    if (!selectedRole?.id) return;
     updatePermissionsMutation.mutate({
-      roleId: selectedRole._id,
+      roleId: selectedRole.id,
       permissionIds: Array.from(pendingPermissions),
     });
   };
@@ -212,7 +212,7 @@ export default function PermissionMatrix() {
       return;
     }
     if (confirm(`Are you sure you want to delete the "${role.role}" role?`)) {
-      deleteRoleMutation.mutate(role._id);
+      deleteRoleMutation.mutate(role.id);
     }
   };
 
@@ -262,9 +262,9 @@ export default function PermissionMatrix() {
                 <div className="space-y-2">
                   {roles.map((role) => (
                     <div
-                      key={role._id}
+                      key={role.id}
                       className={`p-3 rounded-lg border cursor-pointer transition-all ${
-                        selectedRole?._id === role._id
+                        selectedRole?.id === role.id
                           ? "border-blue-500 bg-blue-50 dark:bg-blue-900/20"
                           : "border-slate-200 dark:border-gray-700 hover:border-slate-300"
                       }`}
@@ -344,10 +344,10 @@ export default function PermissionMatrix() {
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                         {permissions.map((perm) => {
-                          const isChecked = pendingPermissions.has(perm._id);
+                          const isChecked = pendingPermissions.has(perm.id);
                           return (
                             <div
-                              key={perm._id}
+                              key={perm.id}
                               className={`flex items-center space-x-3 p-2 rounded-lg transition-colors ${
                                 isChecked
                                   ? "bg-green-50 dark:bg-green-900/20"
@@ -355,13 +355,13 @@ export default function PermissionMatrix() {
                               }`}
                             >
                               <Checkbox
-                                id={perm._id}
+                                id={perm.id}
                                 checked={isChecked}
-                                onCheckedChange={() => handlePermissionToggle(perm._id)}
+                                onCheckedChange={() => handlePermissionToggle(perm.id)}
                                 disabled={selectedRole?.system && perm.system}
                               />
                               <Label
-                                htmlFor={perm._id}
+                                htmlFor={perm.id}
                                 className="text-sm cursor-pointer flex-1"
                               >
                                 {perm.permission}
@@ -514,7 +514,7 @@ export default function PermissionMatrix() {
             <Button
               onClick={() =>
                 updateRoleMutation.mutate({
-                  id: editingRole._id,
+                  id: editingRole.id,
                   data: {
                     role: editingRole.role,
                     plural: editingRole.plural,

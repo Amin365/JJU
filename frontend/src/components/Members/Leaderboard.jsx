@@ -119,7 +119,7 @@ export default function Leaderboard() {
 
     const map = {};
     reports.forEach(r => {
-      const id = r.createdBy?._id || r.createdBy;
+      const id = r.createdBy?.id || r.createdBy;
       if (!id) return;
       if (!map[id]) map[id] = { user: r.createdBy, dates: [], pagesRead: 0, minutesRead: 0, reportsCount: 0 };
       map[id].dates.push(r.readingDate);

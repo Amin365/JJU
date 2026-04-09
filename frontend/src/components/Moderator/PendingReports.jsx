@@ -137,7 +137,7 @@ export default function PendingReports() {
               </TableHeader>
               <TableBody>
                 {reports.map((report) => (
-                  <TableRow key={report._id}>
+                  <TableRow key={report.id}>
                     <TableCell>{new Date(report.readingDate).toLocaleDateString()}</TableCell>
                     <TableCell>
                       <div className="flex flex-col">
@@ -161,7 +161,7 @@ export default function PendingReports() {
                           size="sm"
                           variant="outline"
                           disabled={reviewMutation.isPending}
-                          onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Approved" })}
+                          onClick={() => reviewMutation.mutate({ reportId: report.id, status: "Approved" })}
                         >
                           <CheckCircle2 className="h-4 w-4 mr-1" />
                           Approve
@@ -170,7 +170,7 @@ export default function PendingReports() {
                           size="sm"
                           variant="outline"
                           disabled={reviewMutation.isPending}
-                          onClick={() => reviewMutation.mutate({ reportId: report._id, status: "Needs Improvement" })}
+                          onClick={() => reviewMutation.mutate({ reportId: report.id, status: "Needs Improvement" })}
                         >
                           <AlertTriangle className="h-4 w-4 mr-1" />
                           Needs work

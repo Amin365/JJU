@@ -42,7 +42,7 @@ const MainHeader = () => {
   });
 
   // Prefer populated role from server response; fallback to stored user role
-  const roleSource = data?.user?.role || user?.role;
+  const roleSource = data?.user?.roleInfo;
   let roleLabel = "";
   if (roleSource && typeof roleSource === "object") {
     roleLabel = roleSource.role || roleSource.name || roleSource.title || "";

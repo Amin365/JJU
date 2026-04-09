@@ -71,7 +71,7 @@ const memberLabel = (m) => {
   const name =
     m.full_name ||
     [m.first_name, m.middle_name, m.last_name].filter(Boolean).join(" ");
-  return m.code ? `${name} (${m.code})` : name || m.email || m._id;
+  return m.code ? `${name} (${m.code})` : name || m.email || m.id;
 };
 
 export default function DailyReportActivityDashboard() {
@@ -98,7 +98,7 @@ export default function DailyReportActivityDashboard() {
 
   // default member selection
   useEffect(() => {
-    if (!memberId && members.length) setMemberId(String(members[0]._id));
+    if (!memberId && members.length) setMemberId(String(members[0].id));
   }, [memberId, members]);
 
   // 2) Fetch scoped reports by member & month range
@@ -248,7 +248,7 @@ export default function DailyReportActivityDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   {members.map((m) => (
-                    <SelectItem key={m._id} value={String(m._id)}>
+                    <SelectItem key={m.id} value={String(m.id)}>
                       {memberLabel(m)}
                     </SelectItem>
                   ))}

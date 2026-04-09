@@ -23,14 +23,14 @@ export default function ModeratorsPage() {
     !!currentUser?.role?.role && String(currentUser.role.role).toLowerCase().includes("super");
 
   const handleViewMembers = (moderator) => {
-    navigate(`/dashboard/moderators/${moderator._id}/members`);
+    navigate(`/dashboard/moderators/${moderator.id}/members`);
   };
 
   if (moderatorsLoading) return <Loader />;
 
   const shown = isSuperAdmin
     ? moderators.filter((m) => !(m.role?.role && String(m.role.role).toLowerCase().includes("super")))
-    : moderators.filter((m) => String(m._id) === String(currentUser?._id));
+    : moderators.filter((m) => String(m.id) === String(currentUser?.id));
 
   return (
     <div className="p-6">
@@ -41,7 +41,7 @@ export default function ModeratorsPage() {
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
         {shown.map((moderator) => (
-          <Card key={moderator._id} className="relative shadow-sm hover:shadow-md transition-all mt-4">
+          <Card key={moderator.id} className="relative shadow-sm hover:shadow-md transition-all mt-4">
             <CardHeader>
               <CardTitle>
                 {moderator.first_name} {moderator.last_name} ({moderator.username})

@@ -119,18 +119,18 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     setCommentLikes((prev) => {
       const next = { ...prev };
       for (const c of comments) {
-        if (next[c._id] === undefined) next[c._id] = c.likes || 0;
+        if (next[c.id] === undefined) next[c.id] = c.likes || 0;
       }
       return next;
     });
-    if (user?.id || user?._id) {
-      const myId = String(user.id || user._id);
+    if (user?.id || user?.id) {
+      const myId = String(user.id || user.id);
       setCommentLikedByMe((prev) => {
         const next = { ...prev };
         for (const c of comments) {
-          if (next[c._id] === undefined) {
+          if (next[c.id] === undefined) {
             const likedBy = Array.isArray(c.likedBy) ? c.likedBy : [];
-            next[c._id] = likedBy.some((u) => String(u) === myId);
+            next[c.id] = likedBy.some((u) => String(u) === myId);
           }
         }
         return next;
@@ -141,7 +141,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
   // Parse post data
   const post = useMemo(() => {
     return {
-      id: postResponse?._id || postId,
+      id: postResponse?.id || postId,
       title: postResponse?.title || "",
       content: postResponse?.content || "",
       coverImage:
@@ -183,12 +183,12 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     const tags = Array.isArray(post.tags) ? post.tags : [];
     if (!tags.length) return [];
     return all
-      .filter((p) => p._id !== post.id)
+      .filter((p) => p.id !== post.id)
       .map((p) => {
         const pTags = Array.isArray(p.tags) ? p.tags : [];
         const matching = pTags.filter((t) => tags.includes(t));
         return {
-          id: p._id,
+          id: p.id,
           title: p.title,
           author: p.author_name || p.author || "Unknown",
           publishDate: p.createdAt,
@@ -208,13 +208,13 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     if (!authorName || authorName === "Unknown") return [];
     const normalizedAuthorName = authorName.trim().toLowerCase();
     const filtered = all.filter((p) => {
-      if (p._id === post.id) return false; // Exclude current post
+      if (p.id === post.id) return false; // Exclude current post
       const pAuthor = (p.author_name || p.author)?.trim().toLowerCase();
       return pAuthor === normalizedAuthorName;
     });
     return filtered
       .map((p) => ({
-        id: p._id,
+        id: p.id,
         title: p.title,
         author: p.author_name || p.author || "Unknown",
         publishDate: p.createdAt,
@@ -355,7 +355,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       toast.error("Please login to like comments");
       return;
     }
-    const commentId = comment._id;
+    const commentId = comment.id;
     const currentlyLiked = !!commentLikedByMe[commentId];
     const currentCount = commentLikes[commentId] ?? (comment.likes || 0);
     setCommentLikedByMe((prev) => ({ ...prev, [commentId]: !currentlyLiked }));
@@ -583,10 +583,10 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                   <div className="text-sm text-gray-500 dark:text-gray-400">No comments yet.</div>
                 ) : (
                   comments.map((comment) => {
-                    const displayLikes = commentLikes[comment._id] ?? (comment.likes || 0);
-                    const isLiked = !!commentLikedByMe[comment._id];
+                    const displayLikes = commentLikes[comment.id] ?? (comment.likes || 0);
+                    const isLiked = !!commentLikedByMe[comment.id];
                     return (
-                      <div key={comment._id}>
+                      <div key={comment.id}>
                         <div className={`${
                           comment.isPinned || comment.isBestInsight
                             ? "bg-gradient-to-r from-orange-50 to-indigo-50 border border-orange-200 p-4 rounded-lg dark:from-orange-950 dark:to-indigo-950 dark:border-orange-900"
@@ -647,7 +647,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                                 </button>
                                 <button
                                   className="text-gray-500 hover:text-orange-600 transition-colors dark:text-gray-400"
-                                  onClick={() => openReply(comment._id)}
+                                  onClick={() => openReply(comment.id)}
                                   disabled={!user}
                                   type="button"
                                 >
@@ -661,22 +661,22 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                                   Report
                                 </button>
                               </div>
-                              {user && activeReplyCommentId === comment._id && (
+                              {user && activeReplyCommentId === comment.id && (
                                 <div className="mt-3 space-y-2">
                                   <Textarea
                                     placeholder="Write a reply..."
                                     rows={2}
-                                    value={replyTextByCommentId[comment._id] || ""}
+                                    value={replyTextByCommentId[comment.id] || ""}
                                     onChange={(e) =>
                                       setReplyTextByCommentId((prev) => ({
                                         ...prev,
-                                        [comment._id]: e.target.value,
+                                        [comment.id]: e.target.value,
                                       }))
                                     }
                                   />
                                   <div className="flex gap-2">
                                     <Button
-                                      onClick={() => submitReply(comment._id)}
+                                      onClick={() => submitReply(comment.id)}
                                       disabled={createReplyMutation.isPending}
                                       className="bg-orange-600 hover:bg-orange-700"
                                     >
@@ -695,7 +695,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                         {Array.isArray(comment.replies) && comment.replies.length > 0 && (
                           <div className="ml-12 mt-4 space-y-4">
                             {comment.replies.map((reply) => (
-                              <div key={reply._id} className="flex gap-3">
+                              <div key={reply.id} className="flex gap-3">
                                 <Avatar className="w-8 h-8">
                                   <AvatarImage src={reply.author?.avatar} />
                                   <AvatarFallback>{reply.author?.name?.[0] || "U"}</AvatarFallback>

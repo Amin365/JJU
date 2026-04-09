@@ -60,7 +60,7 @@ const CreateReservationModal = ({ onClose, onSuccess }) => {
     try {
       const r = await api.get(`/members/by-code/${encodeURIComponent(memberCode.trim())}`);
       const m = r.data?.data ?? r.data;
-      setMemberId(m._id);
+      setMemberId(m.id);
       setMemberInfo(m);
     } catch (err) {
       toast.error(err?.response?.data?.message || "Member not found");
@@ -134,7 +134,7 @@ const CreateReservationModal = ({ onClose, onSuccess }) => {
               </SelectTrigger>
               <SelectContent>
                 {outOfStockBooks.map((b) => (
-                  <SelectItem key={b._id} value={b._id}>
+                  <SelectItem key={b.id} value={b.id}>
                     {b.title} — {b.author || "Unknown"}
                   </SelectItem>
                 ))}
@@ -273,7 +273,7 @@ const ReservationsPage = () => {
                   r.member?.full_name ||
                   [r.member?.first_name, r.member?.last_name].filter(Boolean).join(" ");
                 return (
-                  <tr key={r._id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                  <tr key={r.id} className="group hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
                     <td className="p-4">
                       <div className="font-medium text-slate-800 dark:text-white">{r.book?.title || "—"}</div>
                       <div className="text-xs text-slate-500">{r.book?.isbn || ""}</div>
@@ -298,7 +298,7 @@ const ReservationsPage = () => {
                                 size="sm"
                                 variant="outline"
                                 className="text-emerald-600 hover:text-emerald-700"
-                                onClick={() => fulfillMutation.mutate(r._id)}
+                                onClick={() => fulfillMutation.mutate(r.id)}
                                 disabled={fulfillMutation.isPending}
                               >
                                 <CheckCircle2 size={14} className="mr-1" /> Fulfill
@@ -308,7 +308,7 @@ const ReservationsPage = () => {
                               size="sm"
                               variant="outline"
                               className="text-red-600 hover:text-red-700"
-                              onClick={() => cancelMutation.mutate(r._id)}
+                              onClick={() => cancelMutation.mutate(r.id)}
                               disabled={cancelMutation.isPending}
                             >
                               <XCircle size={14} className="mr-1" /> Cancel

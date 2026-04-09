@@ -212,8 +212,8 @@ export default function MemberDetails() {
 
 
   const handleEdit = () => {
-    if (!member?._id && !member?.id) return;
-    navigate(`/dashboard/members/edit/${member._id ?? member.id}`);
+    if (!member?.id && !member?.id) return;
+    navigate(`/dashboard/members/edit/${member.id ?? member.id}`);
   };
 
   // Clipboard helper
@@ -376,7 +376,7 @@ export default function MemberDetails() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={(e) => { e.stopPropagation(); copyToClipboard(member._id ?? member.id, "Member ID"); }}
+                onClick={(e) => { e.stopPropagation(); copyToClipboard(member.id ?? member.id, "Member ID"); }}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100 dark:bg-gray-700/40 dark:border-gray-600 dark:hover:bg-gray-700/30"
                 title="Copy Member ID"
               >
@@ -668,7 +668,7 @@ export default function MemberDetails() {
                 </div>
                 <div className="space-y-2">
                   {(overviewData.issues?.list ?? []).map((issue) => (
-                    <div key={issue._id} className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                    <div key={issue.id} className="flex items-center justify-between rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
                       <div>
                         <p className="font-medium dark:text-white">{issue.book?.title || "Unknown Book"}</p>
                         <p className="text-xs text-slate-500">{issue.book?.author} · Issued {formatDate(issue.issueDate)}</p>
@@ -711,7 +711,7 @@ export default function MemberDetails() {
                 </div>
                 <div className="space-y-2">
                   {(overviewData.dailyReports?.list ?? []).map((report) => (
-                    <div key={report._id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                    <div key={report.id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
                       <div className="flex items-center justify-between mb-1">
                         <p className="font-medium dark:text-white">{report.book?.title || "Unknown Book"}</p>
                         <span className="text-xs text-slate-500">{formatDate(report.readingDate)}</span>
@@ -764,7 +764,7 @@ export default function MemberDetails() {
             {!overviewLoading && (
               <div className="space-y-2">
                 {(overviewData?.notes ?? []).map((note) => (
-                  <div key={note._id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
+                  <div key={note.id} className="rounded-xl border border-slate-100 dark:border-gray-700 p-3 text-sm">
                     <div className="flex items-start justify-between gap-2">
                       <div className="flex-1">
                         <p className="dark:text-white">{note.note}</p>
@@ -780,7 +780,7 @@ export default function MemberDetails() {
                         </div>
                       </div>
                       <button
-                        onClick={() => deleteNoteMutation.mutate(note._id)}
+                        onClick={() => deleteNoteMutation.mutate(note.id)}
                         disabled={deleteNoteMutation.isPending}
                         className="text-slate-400 hover:text-red-500 transition-colors p-1"
                         title="Remove note"

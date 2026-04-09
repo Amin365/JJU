@@ -70,7 +70,7 @@ const UsersTable = () => {
   const handleToggleStatus = (e, user) => {
     e.stopPropagation();
     const next = user.status === "Active" ? "Inactive" : "Active";
-    updateStatusMutation.mutate({ id: user._id || user.id, status: next });
+    updateStatusMutation.mutate({ id: user.id || user.id, status: next });
   };
 
 
@@ -171,8 +171,8 @@ const UsersTable = () => {
 
                 return (
                   <tr
-                    key={u._id || u.id}
-                    // onClick={() => handleRowClick(u._id || u.id)}
+                    key={u.id || u.id}
+                    // onClick={() => handleRowClick(u.id || u.id)}
                     className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <td className="colSpan={3}  p-4 flex items-center gap-3">

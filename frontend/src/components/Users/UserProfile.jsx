@@ -284,7 +284,7 @@ const handlePhotoChange = (e) => {
             <div className="flex items-center gap-3">
               {!editMode && (
                 <Button
-                  onClick={() => navigate(`/dashboard/id-card/${user?.member?._id}`)}
+                  onClick={() => navigate(`/dashboard/id-card/${user?.member?.id}`)}
                   variant="outline"
                   className="rounded-xl"
                 >

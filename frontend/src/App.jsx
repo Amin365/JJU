@@ -88,8 +88,8 @@ function App() {
        
 
        
-        {/* <Route path="/" element={<Homepage />} /> */}
-        <Route path="/" element={<Maintenance />} />
+        <Route path="/" element={<Homepage />} />
+        {/* <Route path="/" element={<Maintenance />} /> */}
           <Route path="/blogs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogDetails /></Suspense>} />
                <Route path="/blogs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><BlogFeeds /></Suspense>} />
         <Route path="/members/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><MembersFormPublic /></Suspense>} />

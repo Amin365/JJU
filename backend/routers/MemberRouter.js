@@ -1,7 +1,7 @@
 import express from "express"
 import { createMember, getMembers,getMemberById,updateMember,bulkCreateMembers ,deleteMember,archiveMember,restoreMember,getMemberByCode,getMembersList,JoinClub, getJoinClubs, getJoinClubById, updateJoinClubStatus, getMemberOverview, createMemberNote, getMemberNotes, deleteMemberNote} from "../controller/members.js"
 import { sendMemberEmail } from "../controller/EmailController.js"
-import { protect } from "../middleware/auth.js"
+import { optionalProtect, protect } from "../middleware/auth.js"
 import { apiLimiter } from "../utility/rateLimiter.js"
 import multer from "multer";
 import { CloudinaryStorage } from "multer-storage-cloudinary";
@@ -38,7 +38,7 @@ MemberRouter.param("id", (req, res, next, id) => {
 // collection routes
 MemberRouter.route("/members")
   .get(getMembers)
-  .post(upload.single("profile_picture"), createMember)
+  .post(optionalProtect, upload.single("profile_picture"), createMember)
 
 // static/specific routes MUST come before dynamic :id
 // Protect the members list so we can return scoped lists for moderators

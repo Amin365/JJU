@@ -9,7 +9,7 @@ import {
   Loader,
 } from "lucide-react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { useNavigate, useParams } from "react-router";
+import { useLocation, useNavigate, useParams } from "react-router";
 import api from "@/app/api/apislice";
 import { toast } from "sonner";
 
@@ -24,10 +24,14 @@ const Card = ({ children, className = "" }) => (
 
 const MembersForm = () => {
   const navigate = useNavigate();
+  const location = useLocation();
   const { id } = useParams();
 
   const activeId = id ?? null;
   const isEditMode = Boolean(activeId);
+  const isDashboardRoute = location.pathname.startsWith("/dashboard");
+  const canChooseRole = isDashboardRoute;
+  const successRedirectPath = isDashboardRoute ? "/dashboard/members" : "/";
 
   const [step, setStep] = useState(1);
   const qc = useQueryClient();
@@ -60,6 +64,10 @@ const MembersForm = () => {
       label: r.role,
     }));
   }, [rolesData]);
+
+  const membersRoleOption = useMemo(() => {
+    return roleOptions.find((r) => /member/i.test(String(r.label || ""))) || null;
+  }, [roleOptions]);
 
   // create & update mutations (expect FormData)
   const createMutation = useMutation({
@@ -115,6 +123,7 @@ const MembersForm = () => {
     trigger,
     reset,
     watch,
+    setValue,
   } = useForm({
     mode: "onBlur",
     defaultValues: {
@@ -179,12 +188,19 @@ const MembersForm = () => {
     }
   }, [fetchedMemberData, isEditMode, reset]);
 
+  useEffect(() => {
+    if (isEditMode || canChooseRole) return;
+    if (membersRoleOption?.value) {
+      setValue("role", String(membersRoleOption.value));
+    }
+  }, [isEditMode, canChooseRole, membersRoleOption, setValue]);
+
   const resetFormAfterSuccess = () => {
     reset();
     setStep(1);
     setCurrentProfilePicture(null); // Reset the preview state
     setTimeout(() => {
-      navigate("/");
+      navigate(successRedirectPath);
     }, 1000);
   };
 
@@ -230,7 +246,11 @@ const MembersForm = () => {
     appendIfPresent("study_year", data.study_year);
 
     // role
-    appendIfPresent("role", data.role || "");
+    if (canChooseRole || isEditMode) {
+      appendIfPresent("role", data.role || "");
+    } else if (membersRoleOption?.value) {
+      appendIfPresent("role", String(membersRoleOption.value));
+    }
 
     // profile picture (file input)
     // react-hook-form returns FileList for file inputs
@@ -364,7 +384,7 @@ const MembersForm = () => {
   // validate role in step 2 so you can't continue without picking it (optional)
   const stepFields = {
     1: ["first_name", "last_name", "email", "gender"],
-    2: ["join_date", "region", "role"], // <-- role required here if you want
+    2: canChooseRole ? ["join_date", "region", "role"] : ["join_date", "region"],
     3: [],
   };
 
@@ -421,18 +441,34 @@ const MembersForm = () => {
         />
 
         {/* IMPORTANT: Role selection */}
-        <SelectField
-          label="Role"
-          name="role"
-          options={roleOptions}
-          disabled={isLoadingRoles}
-          validation={{ required: "Role is required." }}
-          helperText={
-            isLoadingRoles
-              ? "Loading roles..."
-              : "Choose the member role (linked to Role collection)."
-          }
-        />
+        {canChooseRole ? (
+          <SelectField
+            label="Role"
+            name="role"
+            options={roleOptions}
+            disabled={isLoadingRoles}
+            validation={{ required: "Role is required." }}
+            helperText={
+              isLoadingRoles
+                ? "Loading roles..."
+                : "Choose the member role (linked to Role collection)."
+            }
+          />
+        ) : (
+          <div className="relative w-full mb-6 group">
+            <label className="block text-sm font-semibold tracking-wide mb-1 text-slate-600 dark:text-slate-300">
+              Role
+            </label>
+            <input
+              value={membersRoleOption?.label || "Members"}
+              readOnly
+              className="w-full px-3 py-2.5 rounded-xl text-sm md:text-base border border-slate-200 dark:border-gray-700 bg-slate-50/80 dark:bg-gray-900/70 text-slate-700 dark:text-gray-200"
+            />
+            <p className="mt-1 text-xs text-slate-400 dark:text-slate-500">
+              Public registration is always assigned to Members role.
+            </p>
+          </div>
+        )}
 
         <Field
           label="Department"
@@ -542,7 +578,7 @@ const MembersForm = () => {
 
   <button
     type="button"
-    onClick={() => navigate("/")}
+    onClick={() => navigate(successRedirectPath)}
     className="flex items-center gap-2 px-4 py-2.5 bg-white/80 text-slate-600 
     shadow-lg hover:bg-slate-100 rounded-xl border border-slate-200/70 
     transition-all text-xs md:text-sm font-semibold whitespace-nowrap"

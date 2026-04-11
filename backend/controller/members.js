@@ -81,6 +81,10 @@ export const createMember = async (req, res, next) => {
       Profile_picture,
     } = req.body;
 
+    const roleName = String(req.user?.role?.role || req.user?.role?.name || req.user?.role || "").toLowerCase();
+    const isAdminCreator = roleName.includes("admin");
+    const defaultMemberRole = await findDefaultMemberRole();
+
     if (!first_name || !last_name) {
       return res.status(400).json({ message: "first_name and last_name are required" });
     }
@@ -89,11 +93,16 @@ export const createMember = async (req, res, next) => {
       return res.status(400).json({ message: "email is required to create a user automatically" });
     }
 
-    if (role) {
+    if (role && isAdminCreator) {
       if (!isValidId(role)) return res.status(400).json({ message: "Invalid role id" });
       const roleExists = await Role.findByPk(Number(role));
       if (!roleExists) return res.status(400).json({ message: "Role not found" });
     }
+
+    const resolvedRoleId =
+      role && isAdminCreator
+        ? Number(role)
+        : (defaultMemberRole?.id || null);
 
     const existingUserByEmail = await User.findOne({ where: { email: normalizeEmail(email) } });
     if (existingUserByEmail) {
@@ -114,7 +123,7 @@ export const createMember = async (req, res, next) => {
       student_id: normalize(student_id) || "",
       study_year: normalize(study_year) || "",
       Profile_picture: req.file?.path || Profile_picture || null,
-      role_id: role ? Number(role) : null,
+      role_id: resolvedRoleId,
       status: "Active",
     };
 
@@ -171,16 +180,14 @@ export const createMember = async (req, res, next) => {
           subject: welcomeEmail.subject,
           text: welcomeEmail.text,
           html: welcomeEmail.html,
-        });
+        if (role && isAdminCreator) {
       } catch (emailErr) {
         console.error("Failed to send invite email:", emailErr.message);
       }
 
       await logMemberAction("created", saved, req.user, req, {
         description: `Member "${saved.first_name} ${saved.last_name}" was created`,
-      });
-      await logUserAction("invited", newUser, req.user, req, {
-        description: `User account created with invite for ${saved.email}`,
+          isAdminCreator && role ? Number(role) : (defaultMemberRole?.id || null);
       });
     } catch (userErr) {
       await Member.destroy({ where: { id: saved.id } });
@@ -201,7 +208,7 @@ export const createMember = async (req, res, next) => {
     return next(err);
   }
 };
-
+          role_id: resolvedRoleId,
 export const getMembers = async (req, res, next) => {
   try {
     const {

@@ -190,6 +190,8 @@ const handlePhotoChange = (e) => {
     newPassword: "",
     confirmPassword: "",
   });
+
+  const resolvedMemberId = user?.member?.id || user?.member_id_fk || null;
   const passwordMutation = useMutation({
     mutationFn: async (pwds) => {
       const res = await api.put("/profile/change-password", pwds);
@@ -284,7 +286,13 @@ const handlePhotoChange = (e) => {
             <div className="flex items-center gap-3">
               {!editMode && (
                 <Button
-                  onClick={() => navigate(`/dashboard/id-card/${user?.member?.id}`)}
+                  onClick={() => {
+                    if (!resolvedMemberId) {
+                      toast.error("Member ID not available for this user");
+                      return;
+                    }
+                    navigate(`/dashboard/id-card/${resolvedMemberId}`);
+                  }}
                   variant="outline"
                   className="rounded-xl"
                 >

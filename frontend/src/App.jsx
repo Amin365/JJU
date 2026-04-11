@@ -27,6 +27,7 @@ const DashboardHome = lazy(() => import("./pages/DashboardHome"));
 
 const Users = lazy(() => import("./components/Users/UserTable"));
 const UsersFromMember = lazy(() => import("./components/Users/UserFromMember"));
+const UserDetailsAdmin = lazy(() => import("./components/Users/UserDetailsAdmin"));
 const Report = lazy(() => import("./components/Members/DailyReport"));
 // const Report= lazy(()=>import('./components/Members/DailyReport'))
 const MemberGate=lazy(()=>import( "./components/Issue/IssueMemberGate"));
@@ -133,6 +134,7 @@ function App() {
           <Route path="members/:id" element={<MemberDetails />} />
           <Route path="users" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Users /></Suspense>} />
   <Route path="users/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><UsersFromMember /></Suspense>} />
+          <Route path="users/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><UserDetailsAdmin /></Suspense>} />
   <Route path="report" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Report /></Suspense>} />
   <Route path="issues/request" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><RequestBooksPage /></Suspense>} />
 <Route path="issue/new" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IssueMembersForm /></Suspense>} />

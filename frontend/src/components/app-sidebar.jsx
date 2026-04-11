@@ -237,10 +237,25 @@ if(!token){
   });
 
   const roleName = React.useMemo(() => {
-    const roleSource = profileData?.user?.role || user?.role;
+    const roleSource = profileData?.user?.role || profileData?.user?.roleInfo || user?.role;
     if (!roleSource) return "";
-    if (typeof roleSource === "object") return (roleSource.role || roleSource.name || roleSource.title || "").toLowerCase();
+    if (typeof roleSource === "object") return (roleSource.role || roleSource.name || roleSource.title || roleSource.plural || "").toLowerCase();
     return String(roleSource).toLowerCase();
+  }, [profileData, user]);
+
+  const userPermissions = React.useMemo(() => {
+    const permissionSource = profileData?.user?.permissions || user?.permissions || [];
+    if (!Array.isArray(permissionSource)) return new Set();
+
+    return new Set(
+      permissionSource
+        .map((p) => {
+          if (typeof p === "string") return p.trim().toLowerCase();
+          if (p && typeof p === "object") return String(p.permission || p.name || "").trim().toLowerCase();
+          return "";
+        })
+        .filter(Boolean)
+    );
   }, [profileData, user]);
 
   // Route arrays for role-based filtering
@@ -281,18 +296,51 @@ if(!token){
     "/dashboard/permissions",
   ];
 
+  const routePermissionMap = {
+    "/dashboard/users": ["view users", "add users", "edit users", "delete users"],
+    "/dashboard/permissions": ["view role", "add role", "edit role", "delete role", "preferences"],
+    "/dashboard/books": ["manage books"],
+    "/dashboard/members": ["manage members", "view members"],
+    "/dashboard/issues": ["manage issues"],
+    "/dashboard/issues/request": ["manage issues"],
+    "/dashboard/reservations": ["manage issues"],
+    "/dashboard/moderators": ["view moderator"],
+    "/dashboard/moderator-workspace": ["view moderator"],
+    "/dashboard/pending-reports": ["view moderator"],
+  };
+
+  const isSuperAdmin = roleName.includes("super admin");
+
+  const hasRoutePermission = React.useCallback(
+    (route) => {
+      if (isSuperAdmin) return true;
+
+      const requiredPermissions = routePermissionMap[route];
+      if (!requiredPermissions || requiredPermissions.length === 0) return true;
+
+      return requiredPermissions.some((perm) => userPermissions.has(String(perm).toLowerCase()));
+    },
+    [isSuperAdmin, userPermissions]
+  );
+
   const filteredNav = React.useMemo(() => {
-    if (roleName === "members") {
+    if (roleName === "member" || roleName === "members") {
       const allowed = new Set(memberAllowedRoutes);
-      return data.navMain.filter((item) => allowed.has(item.url));
+      return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
     }
     if (roleName === "moderator") {
       const allowed = new Set(moderatorAllowedRoutes);
-      return data.navMain.filter((item) => allowed.has(item.url));
+      return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
     }
-    // Admin/SuperAdmin gets all routes
-    return data.navMain;
-  }, [roleName]);
+
+    // For admin and other roles, keep admin-only routes hidden when not an admin role,
+    // and hide any route that requires permissions the current user does not have.
+    const isAdminRole = roleName.includes("admin");
+    return data.navMain.filter((item) => {
+      if (!isAdminRole && adminOnlyRoutes.includes(item.url)) return false;
+      return hasRoutePermission(item.url);
+    });
+  }, [roleName, hasRoutePermission]);
 
   return (
     <Sidebar collapsible="icon" {...props}>

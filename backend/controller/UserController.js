@@ -92,8 +92,8 @@ export const getUserById = async (req, res, next) => {
 
     const user = await User.findByPk(Number(id), {
       include: [
-        { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { association: "role", attributes: ["id", "role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
       ],
     });
 
@@ -131,7 +131,7 @@ export const getUsers = async (req, res, next) => {
       where,
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "Profile_picture", "last_name", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "Profile_picture", "last_name", "email", "phone", "code", "role_id"] },
       ],
       order: [[sortField || "createdAt", sortDir]],
       offset,
@@ -252,12 +252,128 @@ export const updateUserStatus = async (req, res, next) => {
   }
 };
 
+export const updateUserById = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+
+    const {
+      first_name,
+      middle_name,
+      last_name,
+      username,
+      email,
+      status,
+      role_id,
+      Bio,
+      mustChangePassword,
+    } = req.body || {};
+
+    const user = await User.findByPk(Number(id));
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    const updateData = {};
+
+    if (first_name !== undefined) updateData.first_name = String(first_name || "").trim();
+    if (middle_name !== undefined) updateData.middle_name = String(middle_name || "").trim();
+    if (last_name !== undefined) updateData.last_name = String(last_name || "").trim();
+    if (username !== undefined) updateData.username = String(username || "").trim();
+    if (email !== undefined) updateData.email = String(email || "").trim().toLowerCase();
+    if (Bio !== undefined) updateData.Bio = Bio;
+    if (mustChangePassword !== undefined) updateData.mustChangePassword = Boolean(mustChangePassword);
+
+    if (status !== undefined) {
+      const allowed = ["Active", "Inactive", "pending"];
+      if (!allowed.includes(status)) {
+        return res.status(400).json({ message: `status must be one of: ${allowed.join(", ")}` });
+      }
+      updateData.status = status;
+    }
+
+    if (role_id !== undefined && role_id !== null && role_id !== "") {
+      if (!isValidId(role_id)) return res.status(400).json({ message: "Invalid role id" });
+      const role = await Role.findByPk(Number(role_id));
+      if (!role) return res.status(400).json({ message: "Role not found" });
+      updateData.role_id = Number(role_id);
+    }
+
+    if (role_id === null || role_id === "") {
+      updateData.role_id = null;
+    }
+
+    if (updateData.username) {
+      const existingUsername = await User.findOne({ where: { username: updateData.username } });
+      if (existingUsername && Number(existingUsername.id) !== Number(user.id)) {
+        return res.status(409).json({ message: "Username already exists" });
+      }
+    }
+
+    if (updateData.email) {
+      const existingEmail = await User.findOne({ where: { email: updateData.email } });
+      if (existingEmail && Number(existingEmail.id) !== Number(user.id)) {
+        return res.status(409).json({ message: "Email already exists" });
+      }
+    }
+
+    if (Object.keys(updateData).length === 0) {
+      return res.status(400).json({ message: "No fields to update" });
+    }
+
+    updateData.updated_by = req.user?.id || null;
+    await user.update(updateData);
+
+    const updated = await User.findByPk(Number(id), {
+      include: [
+        { association: "role", attributes: ["id", "role", "color", "plural", "system"] },
+        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+      ],
+    });
+
+    return res.status(200).json({ data: updated });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+export const adminChangeUserPassword = async (req, res, next) => {
+  try {
+    const { id } = req.params;
+    const { newPassword, confirmPassword, mustChangePassword } = req.body || {};
+
+    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+    if (!newPassword || !confirmPassword) {
+      return res.status(400).json({ message: "newPassword and confirmPassword are required" });
+    }
+
+    if (String(newPassword).length < 6) {
+      return res.status(400).json({ message: "Password must be at least 6 characters" });
+    }
+
+    if (String(newPassword) !== String(confirmPassword)) {
+      return res.status(400).json({ message: "Password confirmation does not match" });
+    }
+
+    const user = await User.findByPk(Number(id));
+    if (!user) return res.status(404).json({ message: "User not found" });
+
+    await user.update({
+      password: String(newPassword),
+      mustChangePassword: mustChangePassword === undefined ? true : Boolean(mustChangePassword),
+      updated_by: req.user?.id || null,
+    });
+
+    return res.status(200).json({ message: "User password updated successfully" });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export const getProfile = async (req, res, next) => {
   try {
     const user = await User.findByPk(req.user.id, {
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "student_id", "department", "join_date", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "student_id", "department", "join_date", "phone", "code", "role_id"] },
       ],
     });
 
@@ -296,7 +412,7 @@ export const updateProfile = async (req, res, next) => {
     const updatedUser = await User.findByPk(Number(userId), {
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
       ],
     });
 

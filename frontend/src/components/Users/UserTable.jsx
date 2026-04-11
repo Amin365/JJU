@@ -100,7 +100,7 @@ const UsersTable = () => {
     });
   }, [users, searchTerm]);
 
-  // const handleRowClick = (id) => navigate(`/dashboard/users/${id}`);
+  const handleRowClick = (id) => navigate(`/dashboard/users/${id}`);
 
   const handlePageChange = (newPage) => {
     if (!isLoading && !isFetching && newPage >= 1 && newPage <= totalPages) {
@@ -171,8 +171,8 @@ const UsersTable = () => {
 
                 return (
                   <tr
-                    key={u.id || u.id}
-                    // onClick={() => handleRowClick(u.id || u.id)}
+                    key={u.id}
+                    onClick={() => handleRowClick(u.id)}
                     className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors"
                   >
                     <td className="colSpan={3}  p-4 flex items-center gap-3">

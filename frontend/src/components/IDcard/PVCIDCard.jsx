@@ -1,4 +1,4 @@
-import React, { useRef, useState } from "react"
+import React, { useEffect, useRef, useState } from "react"
 import domtoimage from 'dom-to-image-more'
 import jsPDF from "jspdf"
 import { Button } from "@/components/ui/button"
@@ -6,7 +6,7 @@ import { IDCardFront } from "./IDCardFront"
 import { IDCardBack } from "./IDCardBack"
 import api from "@/app/api/apislice"
 import { useQuery } from "@tanstack/react-query"
-import { useParams } from "react-router"
+import { useNavigate, useParams } from "react-router"
 
 import {
   Tabs,
@@ -19,20 +19,30 @@ import Loader from "../Loader"
 
 export default function PVCIDCard() {
     const{user}=useSelector((state)=>state.auth)
+  const navigate = useNavigate()
 
   const frontRef = useRef(null)
   const backRef = useRef(null)
   const [activeTab, setActiveTab] = useState("front")
   const { memberId } = useParams()
+  const normalizedMemberId = Number(memberId)
+  const hasValidMemberId = Number.isInteger(normalizedMemberId) && normalizedMemberId > 0
   const { data: member, isLoading, isError } = useQuery({
-    queryKey: ["member", memberId],
+    queryKey: ["member", normalizedMemberId],
     queryFn: async () => {
-      const res = await api.get(`/members/${memberId}`)
+      const res = await api.get(`/members/${normalizedMemberId}`)
       return res.data.data
     },
-    enabled: !!memberId,
+    enabled: hasValidMemberId,
   })
 
+  useEffect(() => {
+    if (!hasValidMemberId) {
+      navigate('/dashboard/profile', { replace: true })
+    }
+  }, [hasValidMemberId, navigate])
+
+  if (!hasValidMemberId) return <Loader />
   if (isLoading) return <Loader />
   if (isError) return <p>Failed to load member</p>
   if (!member) return <p>No member data</p>

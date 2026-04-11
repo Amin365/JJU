@@ -306,11 +306,16 @@ export const GetProfile = async (req, res, next) => {
     }
 
     const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
+    const effectivePermissions = Array.isArray(req.user?.permissions)
+      ? req.user.permissions
+      : [];
 
     return res.json({
       success: true,
       user: {
         ...user.toJSON(),
+        role: roleDoc ? { id: roleDoc.id, role: roleDoc.role } : null,
+        permissions: effectivePermissions,
         roleInfo: roleDoc ? roleDoc.toJSON() : null,
       },
     });

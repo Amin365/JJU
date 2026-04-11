@@ -173,7 +173,7 @@ export default function MemberTable() {
     setFilterModerator("All");
   };
 
-  const handleRowClick = (id) => navigate(`/dashboard/members/${id}`);
+  const handleRowClick = (pathId) => navigate(`/dashboard/members/${pathId}`);
   const handleAddNew = () => navigate("/dashboard/members/new");
 
   const handleExportExcel = () => {
@@ -362,7 +362,7 @@ export default function MemberTable() {
 
             <tbody className="divide-y divide-border">
               {members.map((m) => (
-                <tr key={m.id} onClick={() => handleRowClick(m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
+                <tr key={m.uuid || m.id} onClick={() => handleRowClick(m.uuid || m.id)} className="group cursor-pointer hover:bg-muted/50 transition-colors">
                   <td className="p-4 flex items-center gap-3">
                     {m.Profile_picture ? (
                       <Avatar className="w-10 h-10 rounded-md">

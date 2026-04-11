@@ -25,8 +25,10 @@ export default function PVCIDCard() {
   const backRef = useRef(null)
   const [activeTab, setActiveTab] = useState("front")
   const { memberId } = useParams()
-  const normalizedMemberId = Number(memberId)
-  const hasValidMemberId = Number.isInteger(normalizedMemberId) && normalizedMemberId > 0
+  const normalizedMemberId = String(memberId || "").trim()
+  const hasValidMemberId =
+    /^[0-9]+$/.test(normalizedMemberId)
+    || /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(normalizedMemberId)
   const { data: member, isLoading, isError } = useQuery({
     queryKey: ["member", normalizedMemberId],
     queryFn: async () => {

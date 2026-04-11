@@ -6,6 +6,15 @@ import bcrypt from "bcryptjs";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+const isUuid = (value) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+const findUserByPathId = async (pathId) => {
+  if (isValidId(pathId)) return User.findByPk(Number(pathId));
+  if (isUuid(pathId)) return User.findOne({ where: { uuid: String(pathId).trim() } });
+  return null;
+};
 
 const escapeLike = (value) =>
   String(value)
@@ -88,12 +97,17 @@ export const createUserFromMember = async (req, res, next) => {
 export const getUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+    if (!isValidId(id) && !isUuid(id)) return res.status(400).json({ message: "Invalid user id" });
 
-    const user = await User.findByPk(Number(id), {
+    const where = isValidId(id)
+      ? { id: Number(id) }
+      : { uuid: String(id).trim() };
+
+    const user = await User.findOne({
+      where,
       include: [
         { association: "role", attributes: ["id", "role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
       ],
     });
 
@@ -131,7 +145,7 @@ export const getUsers = async (req, res, next) => {
       where,
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "Profile_picture", "last_name", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "Profile_picture", "last_name", "email", "phone", "code", "role_id"] },
       ],
       order: [[sortField || "createdAt", sortDir]],
       offset,
@@ -224,14 +238,14 @@ export const updateUserStatus = async (req, res, next) => {
     const { id } = req.params;
     const { status } = req.body || {};
 
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+    if (!isValidId(id) && !isUuid(id)) return res.status(400).json({ message: "Invalid user id" });
 
     const allowed = ["Active", "Inactive", "pending"];
     if (!status || !allowed.includes(status)) {
       return res.status(400).json({ message: `status must be one of: ${allowed.join(", ")}` });
     }
 
-    const user = await User.findByPk(Number(id));
+    const user = await findUserByPathId(id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     await user.update({
@@ -239,10 +253,10 @@ export const updateUserStatus = async (req, res, next) => {
       updated_by: req.user?.id || null,
     });
 
-    const updated = await User.findByPk(Number(id), {
+    const updated = await User.findByPk(Number(user.id), {
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "last_name", "email", "phone", "code", "role_id"] },
       ],
     });
 
@@ -255,7 +269,7 @@ export const updateUserStatus = async (req, res, next) => {
 export const updateUserById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+    if (!isValidId(id) && !isUuid(id)) return res.status(400).json({ message: "Invalid user id" });
 
     const {
       first_name,
@@ -269,7 +283,7 @@ export const updateUserById = async (req, res, next) => {
       mustChangePassword,
     } = req.body || {};
 
-    const user = await User.findByPk(Number(id));
+    const user = await findUserByPathId(id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     const updateData = {};
@@ -322,10 +336,10 @@ export const updateUserById = async (req, res, next) => {
     updateData.updated_by = req.user?.id || null;
     await user.update(updateData);
 
-    const updated = await User.findByPk(Number(id), {
+    const updated = await User.findByPk(Number(user.id), {
       include: [
         { association: "role", attributes: ["id", "role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
       ],
     });
 
@@ -340,7 +354,7 @@ export const adminChangeUserPassword = async (req, res, next) => {
     const { id } = req.params;
     const { newPassword, confirmPassword, mustChangePassword } = req.body || {};
 
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid user id" });
+    if (!isValidId(id) && !isUuid(id)) return res.status(400).json({ message: "Invalid user id" });
     if (!newPassword || !confirmPassword) {
       return res.status(400).json({ message: "newPassword and confirmPassword are required" });
     }
@@ -353,7 +367,7 @@ export const adminChangeUserPassword = async (req, res, next) => {
       return res.status(400).json({ message: "Password confirmation does not match" });
     }
 
-    const user = await User.findByPk(Number(id));
+    const user = await findUserByPathId(id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
     await user.update({
@@ -373,7 +387,7 @@ export const getProfile = async (req, res, next) => {
     const user = await User.findByPk(req.user.id, {
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "student_id", "department", "join_date", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "last_name", "Profile_picture", "email", "student_id", "department", "join_date", "phone", "code", "role_id"] },
       ],
     });
 
@@ -412,7 +426,7 @@ export const updateProfile = async (req, res, next) => {
     const updatedUser = await User.findByPk(Number(userId), {
       include: [
         { association: "role", attributes: ["role", "color", "plural", "system"] },
-        { model: Member, as: "member", attributes: ["id", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
+        { model: Member, as: "member", attributes: ["id", "uuid", "first_name", "middle_name", "last_name", "Profile_picture", "email", "phone", "code", "role_id"] },
       ],
     });
 

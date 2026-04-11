@@ -3,6 +3,7 @@ import sequelize from '../config/database.js';
 
 const Member = sequelize.define('Member', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  uuid: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, unique: true, allowNull: true },
   first_name: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },
   middle_name: { type: DataTypes.STRING, defaultValue: '' },
   last_name: { type: DataTypes.STRING, allowNull: false, defaultValue: '' },

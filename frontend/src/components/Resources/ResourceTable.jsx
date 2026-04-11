@@ -101,12 +101,12 @@ const ResourceTable = () => {
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (id) => {
-    navigate(`/dashboard/resources/edit/${id}`);
+  const handleEdit = (pathId) => {
+    navigate(`/dashboard/resources/edit/${pathId}`);
   };
 
-  const handleView = (id) => {
-    navigate(`/resources/${id}`);
+  const handleView = (pathId) => {
+    navigate(`/resources/${pathId}`);
   };
 
   const filtered = useMemo(() => {
@@ -252,14 +252,14 @@ const ResourceTable = () => {
                         <button
                           className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
                           aria-label="View"
-                          onClick={() => handleView(resource.slug || resource._id)}
+                          onClick={() => handleView(resource.uuid || resource.id || resource.slug || resource._id)}
                         >
                           <Eye className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                         </button>
                         <button
                           className="p-2 rounded hover:bg-slate-100 dark:hover:bg-slate-800"
                           aria-label="Edit"
-                          onClick={() => handleEdit(resource._id)}
+                          onClick={() => handleEdit(resource.uuid || resource.id || resource._id)}
                         >
                           <Edit2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />
                         </button>

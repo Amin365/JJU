@@ -103,6 +103,7 @@ export default function MemberDetails() {
   });
 
   const member = data ?? null;
+  const memberPathId = member?.uuid || member?.id || routeId;
 
   
 
@@ -212,8 +213,8 @@ export default function MemberDetails() {
 
 
   const handleEdit = () => {
-    if (!member?.id && !member?.id) return;
-    navigate(`/dashboard/members/edit/${member.id ?? member.id}`);
+    if (!memberPathId) return;
+    navigate(`/dashboard/members/edit/${memberPathId}`);
   };
 
   // Clipboard helper
@@ -376,7 +377,7 @@ export default function MemberDetails() {
 
             <div className="flex items-center gap-2">
               <button
-                onClick={(e) => { e.stopPropagation(); copyToClipboard(member.id ?? member.id, "Member ID"); }}
+                onClick={(e) => { e.stopPropagation(); copyToClipboard(memberPathId, "Member ID"); }}
                 className="inline-flex items-center gap-1 px-2 py-1 text-xs bg-slate-50 border rounded-md hover:bg-slate-100 dark:bg-gray-700/40 dark:border-gray-600 dark:hover:bg-gray-700/30"
                 title="Copy Member ID"
               >

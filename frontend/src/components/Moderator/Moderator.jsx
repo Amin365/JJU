@@ -23,7 +23,7 @@ export default function ModeratorsPage() {
     !!currentUser?.role?.role && String(currentUser.role.role).toLowerCase().includes("super");
 
   const handleViewMembers = (moderator) => {
-    navigate(`/dashboard/moderators/${moderator.id}/members`);
+    navigate(`/dashboard/moderators/${moderator.uuid || moderator.id}/members`);
   };
 
   if (moderatorsLoading) return <Loader />;

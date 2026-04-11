@@ -191,7 +191,7 @@ const handlePhotoChange = (e) => {
     confirmPassword: "",
   });
 
-  const resolvedMemberId = user?.member?.id || user?.member_id_fk || null;
+  const resolvedMemberPathId = user?.member?.uuid || user?.member?.id || user?.member_id_fk || null;
   const passwordMutation = useMutation({
     mutationFn: async (pwds) => {
       const res = await api.put("/profile/change-password", pwds);
@@ -287,11 +287,11 @@ const handlePhotoChange = (e) => {
               {!editMode && (
                 <Button
                   onClick={() => {
-                    if (!resolvedMemberId) {
+                    if (!resolvedMemberPathId) {
                       toast.error("Member ID not available for this user");
                       return;
                     }
-                    navigate(`/dashboard/id-card/${resolvedMemberId}`);
+                    navigate(`/dashboard/id-card/${resolvedMemberPathId}`);
                   }}
                   variant="outline"
                   className="rounded-xl"

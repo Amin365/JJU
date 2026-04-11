@@ -231,7 +231,7 @@ export default function ModeratorWorkspace() {
                         <Button
                           size="sm"
                           variant="ghost"
-                          onClick={() => navigate(`/dashboard/members/${m.id}`)}
+                          onClick={() => navigate(`/dashboard/members/${m.uuid || m.id}`)}
                         >
                           View <ArrowRight size={13} className="ml-1" />
                         </Button>

@@ -67,12 +67,12 @@ const BlogTable = () => {
     setIsDialogOpen(true);
   };
 
-  const handleEdit = (id) => {
-    navigate(`/dashboard/blogs/edit/${id}`);
+  const handleEdit = (pathId) => {
+    navigate(`/dashboard/blogs/edit/${pathId}`);
   };
 
-  const handleView = (id) => {
-    navigate(`/dashboard/blogs/${id}`);
+  const handleView = (pathId) => {
+    navigate(`/dashboard/blogs/${pathId}`);
   };
 
   const filtered = useMemo(() => {
@@ -154,9 +154,9 @@ const BlogTable = () => {
 
               {!isLoading && !error && filtered.map((post) => (
                 <tr
-                  key={post.id}
+                  key={post.uuid || post.id}
                   className="hover:bg-slate-50 dark:hover:bg-slate-800/60 transition-colors cursor-pointer"
-                  onClick={() => handleView(post.id)}
+                  onClick={() => handleView(post.uuid || post.id)}
                 >
                   <td className="p-3">
                     <div className="font-semibold text-slate-900 dark:text-white truncate max-w-[320px]">{post.title}</div>
@@ -179,7 +179,7 @@ const BlogTable = () => {
                         aria-label="Edit"
                         onClick={(e) => {
                           e.stopPropagation();
-                          handleEdit(post.id);
+                          handleEdit(post.uuid || post.id);
                         }}
                       >
                         <Edit2 className="h-4 w-4 text-slate-600 dark:text-slate-300" />

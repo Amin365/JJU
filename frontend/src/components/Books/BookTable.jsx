@@ -83,7 +83,7 @@ const BookTable = () => {
   const bookTypes = useMemo(() => ["All", ...Array.from(new Set(books.map((b) => b.BookType).filter(Boolean)))], [books]);
   const statusTypes = useMemo(() => ["All", ...Array.from(new Set(books.map((b) => b.status).filter(Boolean)))], [books]);
 
-  const handleRowClick = (id) => navigate(`${id}`);
+  const handleRowClick = (pathId) => navigate(`${pathId}`);
 
   const handleExportExcel = async () => {
     const q = searchTerm.trim();
@@ -232,7 +232,7 @@ const BookTable = () => {
 
             <tbody className="divide-y divide-slate-100 dark:divide-gray-700">
               {filteredBooks.map((b) => (
-                <tr key={b.id || b.id} onClick={() => handleRowClick(b.id || b.id)} className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
+                <tr key={b.uuid || b.id} onClick={() => handleRowClick(b.uuid || b.id)} className="group cursor-pointer hover:bg-slate-50 dark:hover:bg-gray-800 transition-colors">
                   <td className="p-4 flex items-center gap-3">
                     <div className={cn("w-10 h-10 rounded-md flex items-center justify-center font-medium text-white shadow-sm", b.book_picture ? "bg-cover bg-center" : "bg-gradient-to-br from-orange-500 to-indigo-600")} style={b.book_picture ? { backgroundImage: `url(${b.book_picture})` } : undefined}>
                       {!b.book_picture && (b.title?.[0] ?? "")}

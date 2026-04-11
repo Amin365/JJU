@@ -4,6 +4,7 @@ import bcrypt from 'bcryptjs';
 
 const User = sequelize.define('User', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  uuid: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, unique: true, allowNull: true },
   first_name: { type: DataTypes.STRING, allowNull: false },
   middle_name: { type: DataTypes.STRING },
   last_name: { type: DataTypes.STRING, allowNull: false },

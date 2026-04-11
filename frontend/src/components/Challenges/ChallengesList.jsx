@@ -503,7 +503,7 @@ export default function ChallengesList() {
               >
                 <Card
                   className="flex h-full cursor-pointer flex-col border border-zinc-800 bg-zinc-900/50 transition-colors hover:border-zinc-600"
-                  onClick={() => navigate(`/dashboard/challenges/${challenge.id}`)}
+                  onClick={() => navigate(`/dashboard/challenges/${challenge.uuid || challenge.id}`)}
                 >
                   <CardHeader className="space-y-3 pb-3">
                     <div className="flex flex-wrap gap-2">
@@ -588,7 +588,7 @@ export default function ChallengesList() {
                         className="flex-1"
                         onClick={(e) => {
                           e.stopPropagation();
-                          navigate(`/dashboard/challenges/${challenge.id}`);
+                          navigate(`/dashboard/challenges/${challenge.uuid || challenge.id}`);
                         }}
                       >
                         View <ChevronRight className="ml-1 h-3.5 w-3.5" />

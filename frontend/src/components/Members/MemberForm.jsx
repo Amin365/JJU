@@ -93,7 +93,8 @@ const MembersForm = () => {
     },
     onSuccess: (data) => {
       qc.invalidateQueries({ queryKey: ["members"] });
-      qc.invalidateQueries({ queryKey: ["member", data.id] });
+      if (data?.id) qc.invalidateQueries({ queryKey: ["member", data.id] });
+      if (data?.uuid) qc.invalidateQueries({ queryKey: ["member", data.uuid] });
       toast.success(`Member updated successfully.`);
       resetFormAfterSuccess();
     },

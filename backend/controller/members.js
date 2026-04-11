@@ -31,6 +31,21 @@ const toDateOrNull = (v) => {
   return d;
 };
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+const isUuid = (value) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+const memberWhereFromPathId = (pathId) => {
+  if (isValidId(pathId)) return { id: Number(pathId) };
+  if (isUuid(pathId)) return { uuid: String(pathId).trim() };
+  return null;
+};
+
+const findMemberByPathId = async (pathId) => {
+  const where = memberWhereFromPathId(pathId);
+  if (!where) return null;
+  return Member.findOne({ where });
+};
 
 async function findDefaultMemberRole() {
   return Role.findOne({
@@ -261,6 +276,7 @@ export const getMembers = async (req, res, next) => {
 
     const selectFields = [
       "id",
+      "uuid",
       "first_name",
       "middle_name",
       "last_name",
@@ -327,7 +343,8 @@ export const getMembers = async (req, res, next) => {
 export const updateMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+    const where = memberWhereFromPathId(id);
+    if (!where) return res.status(400).json({ message: "Invalid member id" });
 
     const update = { ...req.body };
     if (req.file) update.Profile_picture = req.file.path;
@@ -345,7 +362,7 @@ export const updateMember = async (req, res, next) => {
       delete update.role;
     }
 
-    const member = await Member.findByPk(Number(id));
+    const member = await Member.findOne({ where });
     if (!member) return res.status(404).json({ message: "Member not found" });
 
     await member.update(update);
@@ -368,9 +385,11 @@ export const updateMember = async (req, res, next) => {
 export const getMemberById = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+    const where = memberWhereFromPathId(id);
+    if (!where) return res.status(400).json({ message: "Invalid member id" });
 
-    const member = await Member.findByPk(Number(id), {
+    const member = await Member.findOne({
+      where,
       include: [{ model: Role, as: "roleRef", attributes: ["role", "color", "plural", "system"], required: false }],
     });
 
@@ -387,10 +406,11 @@ export const getMemberById = async (req, res, next) => {
 export const archiveMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
-
-    const member = await Member.findByPk(Number(id));
-    if (!member) return res.status(404).json({ message: "Member not found" });
+    const member = await findMemberByPathId(id);
+    if (!member) {
+      if (!memberWhereFromPathId(id)) return res.status(400).json({ message: "Invalid member id" });
+      return res.status(404).json({ message: "Member not found" });
+    }
 
     member.isArchived = true;
     await member.save();
@@ -407,10 +427,11 @@ export const archiveMember = async (req, res, next) => {
 export const restoreMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
-
-    const member = await Member.findByPk(Number(id));
-    if (!member) return res.status(404).json({ message: "Member not found" });
+    const member = await findMemberByPathId(id);
+    if (!member) {
+      if (!memberWhereFromPathId(id)) return res.status(400).json({ message: "Invalid member id" });
+      return res.status(404).json({ message: "Member not found" });
+    }
 
     member.isArchived = false;
     await member.save();
@@ -427,10 +448,11 @@ export const restoreMember = async (req, res, next) => {
 export const deleteMember = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
-
-    const member = await Member.findByPk(Number(id));
-    if (!member) return res.status(404).json({ message: "Member not found" });
+    const member = await findMemberByPathId(id);
+    if (!member) {
+      if (!memberWhereFromPathId(id)) return res.status(400).json({ message: "Invalid member id" });
+      return res.status(404).json({ message: "Member not found" });
+    }
 
     const removedId = member.id;
     await member.destroy();
@@ -1002,9 +1024,11 @@ export const updateJoinClubStatus = async (req, res, next) => {
 export const getMemberOverview = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+    const where = memberWhereFromPathId(id);
+    if (!where) return res.status(400).json({ message: "Invalid member id" });
 
-    const member = await Member.findByPk(Number(id), {
+    const member = await Member.findOne({
+      where,
       include: [{ model: Role, as: "roleRef", attributes: ["role", "plural", "color"], required: false }],
     });
     if (!member) return res.status(404).json({ message: "Member not found" });
@@ -1096,18 +1120,19 @@ export const getMemberOverview = async (req, res, next) => {
 export const createMemberNote = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+    const memberExists = await findMemberByPathId(id);
+    if (!memberExists) {
+      if (!memberWhereFromPathId(id)) return res.status(400).json({ message: "Invalid member id" });
+      return res.status(404).json({ message: "Member not found" });
+    }
 
     const { note, category } = req.body;
     if (!note || !String(note).trim()) {
       return res.status(400).json({ message: "note text is required" });
     }
 
-    const memberExists = await Member.findByPk(Number(id));
-    if (!memberExists) return res.status(404).json({ message: "Member not found" });
-
     const created = await MemberNote.create({
-      member_id: Number(id),
+      member_id: Number(memberExists.id),
       author_id: req.user.id,
       note: String(note).trim(),
       category: category ? String(category).trim() : "",
@@ -1126,10 +1151,14 @@ export const createMemberNote = async (req, res, next) => {
 export const getMemberNotes = async (req, res, next) => {
   try {
     const { id } = req.params;
-    if (!isValidId(id)) return res.status(400).json({ message: "Invalid member id" });
+    const memberExists = await findMemberByPathId(id);
+    if (!memberExists) {
+      if (!memberWhereFromPathId(id)) return res.status(400).json({ message: "Invalid member id" });
+      return res.status(404).json({ message: "Member not found" });
+    }
 
     const notes = await MemberNote.findAll({
-      where: { member_id: Number(id), isArchived: false },
+      where: { member_id: Number(memberExists.id), isArchived: false },
       include: [{ model: User, as: "author", attributes: ["first_name", "last_name", "username"], required: false }],
       order: [["createdAt", "DESC"]],
     });
@@ -1143,12 +1172,13 @@ export const getMemberNotes = async (req, res, next) => {
 export const deleteMemberNote = async (req, res, next) => {
   try {
     const { id, noteId } = req.params;
-    if (!isValidId(id) || !isValidId(noteId)) {
+    const memberExists = await findMemberByPathId(id);
+    if (!memberExists || !isValidId(noteId)) {
       return res.status(400).json({ message: "Invalid id" });
     }
 
     const note = await MemberNote.findOne({
-      where: { id: Number(noteId), member_id: Number(id) },
+      where: { id: Number(noteId), member_id: Number(memberExists.id) },
     });
 
     if (!note) return res.status(404).json({ message: "Note not found" });

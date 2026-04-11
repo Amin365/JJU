@@ -20,7 +20,7 @@ const IssueMemberGate = () => {
     },
     onSuccess: (member) => {
 
-      navigate(`/dashboard/issue/new?member=${member.id}`);
+      navigate(`/dashboard/issue/new?member=${member.uuid || member.id}`);
     },
     onError: (err) => {
       const msg =

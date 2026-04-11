@@ -194,20 +194,30 @@ if (process.env.NODE_ENV === 'production') {
 app.use(NotFound)
 app.use(ErrorHandle);
 
+
+
 const isDev = process.env.NODE_ENV !== 'production';
+
+sequelize.authenticate()
+  .then(() => console.log(" Database connected"))
+  .catch(err => console.error(" DB AUTH ERROR:", err));
 
 sequelize.sync({ alter: isDev, force: false })
   .then(async () => {
-    console.log('✅ Connected to MySQL and tables synced');
+    console.log(' Connected to MySQL and tables synced');
+
     await runMigrations();
-    // start background scheduler for due/overdue notifications
+
     startIssueDueScheduler();
     startDailyReportMissingScheduler();
     startScheduledReporting();
     startScheduledPublishing();
-    // Start server
+
     app.listen(PORT, () => {
-      console.log(`🚀 Server running on port ${PORT}`);
+      console.log(` Server running on port ${PORT}`);
     });
   })
-  .catch((error) => console.log('❌ MySQL Connection Error:', error));
+  .catch((error) => {
+    console.error(" MySQL FULL ERROR:");
+    console.error(error);
+  });

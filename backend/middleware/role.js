@@ -1,8 +1,25 @@
 
+const normalizeRole = (value) => String(value || "").trim().toLowerCase();
+
+const getUserRoleName = (user) => {
+  const raw = user?.role?.role || user?.role;
+  return normalizeRole(raw);
+};
+
+const hasPermissions = (userPermissions = [], requiredPermissions = [], requireAll = false) => {
+  const normalizedUserPerms = new Set((userPermissions || []).map((p) => String(p).toLowerCase()));
+  const normalizedRequired = (requiredPermissions || []).map((p) => String(p).toLowerCase());
+
+  if (requireAll) {
+    return normalizedRequired.every((p) => normalizedUserPerms.has(p));
+  }
+  return normalizedRequired.some((p) => normalizedUserPerms.has(p));
+};
 
 export const requireRole = (roles = []) => (req, res, next) => {
-  const roleName = req.user?.role?.role || req.user?.role;
-  if (!req.user || !roles.includes(roleName)) {
+  const roleName = getUserRoleName(req.user);
+  const allowed = roles.map(normalizeRole);
+  if (!req.user || !allowed.includes(roleName)) {
     return res.status(403).json({ message: "Access denied" });
   }
   return next();
@@ -27,19 +44,7 @@ export const requirePermission = (permissions, options = {}) => async (req, res,
     const userPermissions = req.user.permissions || [];
     const permArray = Array.isArray(permissions) ? permissions : [permissions];
 
-    // Normalize permissions to lowercase for comparison
-    const normalizedUserPerms = new Set(userPermissions.map((p) => String(p).toLowerCase()));
-    const normalizedRequired = permArray.map((p) => String(p).toLowerCase());
-
-    let hasAccess = false;
-
-    if (requireAll) {
-      // User must have all required permissions
-      hasAccess = normalizedRequired.every((p) => normalizedUserPerms.has(p));
-    } else {
-      // User must have at least one required permission
-      hasAccess = normalizedRequired.some((p) => normalizedUserPerms.has(p));
-    }
+    const hasAccess = hasPermissions(userPermissions, permArray, requireAll);
 
     if (!hasAccess) {
       return res.status(403).json({ 
@@ -65,16 +70,15 @@ export const requireRoleOrPermission = (roles = [], permissions = []) => async (
       return res.status(401).json({ message: "Unauthorized" });
     }
 
-    const roleName = req.user?.role?.role || req.user?.role;
-    const hasRole = roles.includes(roleName);
+    const roleName = getUserRoleName(req.user);
+    const hasRole = roles.map(normalizeRole).includes(roleName);
 
     if (hasRole) {
       return next();
     }
 
     const userPermissions = req.user.permissions || [];
-    const normalizedUserPerms = new Set(userPermissions.map((p) => String(p).toLowerCase()));
-    const hasPermission = permissions.some((p) => normalizedUserPerms.has(String(p).toLowerCase()));
+    const hasPermission = hasPermissions(userPermissions, permissions, false);
 
     if (hasPermission) {
       return next();
@@ -83,6 +87,46 @@ export const requireRoleOrPermission = (roles = [], permissions = []) => async (
     return res.status(403).json({ message: "Access denied" });
   } catch (error) {
     console.error("Role/permission check error:", error);
+    return res.status(500).json({ message: "Access check failed" });
+  }
+};
+
+/**
+ * Owner-or-permission access control.
+ * Allows access when user has required permission(s) OR owns the target resource.
+ *
+ * @param {Object} config
+ * @param {string|string[]} config.permissions Required permission(s)
+ * @param {(req:any)=>Promise<number|string|null>} config.resolveOwnerId Async resolver returning owner user id for target resource
+ * @param {boolean} [config.requireAll=false] Require all permissions instead of any
+ */
+export const requireOwnerOrPermission = ({ permissions, resolveOwnerId, requireAll = false }) => async (req, res, next) => {
+  try {
+    if (!req.user) {
+      return res.status(401).json({ message: "Unauthorized" });
+    }
+
+    const userPermissions = req.user.permissions || [];
+    const permArray = Array.isArray(permissions) ? permissions : [permissions];
+    const hasPermission = hasPermissions(userPermissions, permArray, requireAll);
+
+    if (hasPermission) {
+      return next();
+    }
+
+    if (typeof resolveOwnerId !== "function") {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
+    const ownerId = await resolveOwnerId(req);
+    const currentUserId = Number(req.user?.id);
+    if (ownerId && Number(ownerId) === currentUserId) {
+      return next();
+    }
+
+    return res.status(403).json({ message: "Access denied" });
+  } catch (error) {
+    console.error("Owner/permission check error:", error);
     return res.status(500).json({ message: "Access check failed" });
   }
 };

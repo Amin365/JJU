@@ -2,6 +2,7 @@
 import express from 'express'
 import { loginLimiter, loginUser,refreshToken,logout, registerUser,GetProfile, validateInviteToken, setupPasswordFromInvite, resendInvite } from '../controller/Authcontroller.js'
 import { protect } from '../middleware/auth.js'
+import { requirePermission } from '../middleware/role.js'
 import { createUserFromMember, getUserById, getUsers, getAvailableMembersForUserCreation } from '../controller/UserController.js'
 import { apiLimiter } from '../utility/rateLimiter.js'
 const AuthRouter=express.Router()
@@ -22,10 +23,10 @@ AuthRouter.post("/auth/resend-invite", apiLimiter, resendInvite);
 
 AuthRouter.get("/auth/me", protect, GetProfile);
 
-AuthRouter.post('/users',createUserFromMember)
-AuthRouter.get("/users/:id", getUserById);
-AuthRouter.get("/users", getUsers);
-AuthRouter.get("/users/available-members", protect, getAvailableMembersForUserCreation);
+AuthRouter.post('/users', protect, requirePermission(["Add Users", "Manage Members"]), createUserFromMember)
+AuthRouter.get("/users/:id", protect, requirePermission(["View Users", "View Detail", "Manage Members"]), getUserById);
+AuthRouter.get("/users", protect, requirePermission(["View Users", "View Detail", "Manage Members"]), getUsers);
+AuthRouter.get("/users/available-members", protect, requirePermission(["Add Users", "Manage Members"]), getAvailableMembersForUserCreation);
 
 
 export default AuthRouter;

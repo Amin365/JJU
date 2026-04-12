@@ -59,6 +59,33 @@ export default function PermissionMatrix() {
   const [newRoleColor, setNewRoleColor] = useState("#3b82f6");
   const [pendingPermissions, setPendingPermissions] = useState(new Set());
   const [hasChanges, setHasChanges] = useState(false);
+  const [showAssignedOnly, setShowAssignedOnly] = useState(false);
+  const permissionKey = (id) => String(id);
+
+  const toRgba = (color, alpha = 0.2) => {
+    if (typeof color !== "string") return `rgba(59,130,246,${alpha})`;
+    const c = color.trim();
+    const shortHex = /^#([\da-fA-F]{3})$/;
+    const longHex = /^#([\da-fA-F]{6})$/;
+
+    if (shortHex.test(c)) {
+      const [, h] = c.match(shortHex);
+      const r = parseInt(h[0] + h[0], 16);
+      const g = parseInt(h[1] + h[1], 16);
+      const b = parseInt(h[2] + h[2], 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    if (longHex.test(c)) {
+      const [, h] = c.match(longHex);
+      const r = parseInt(h.slice(0, 2), 16);
+      const g = parseInt(h.slice(2, 4), 16);
+      const b = parseInt(h.slice(4, 6), 16);
+      return `rgba(${r},${g},${b},${alpha})`;
+    }
+
+    return `rgba(59,130,246,${alpha})`;
+  };
 
   // Fetch permission matrix data
   const { data: matrixData, isLoading: matrixLoading, refetch } = useQuery({
@@ -88,7 +115,7 @@ export default function PermissionMatrix() {
     },
     enabled: !!selectedRole?.id,
     onSuccess: (data) => {
-      setPendingPermissions(new Set(data.permissions?.map((p) => p.id) || []));
+      setPendingPermissions(new Set(data.permissions?.map((p) => permissionKey(p.id ?? p._id)) || []));
       setHasChanges(false);
     },
   });
@@ -166,21 +193,25 @@ export default function PermissionMatrix() {
 
   const roles = rolesData || matrixData?.roles || [];
   const groupedPermissions = matrixData?.groupedPermissions || {};
+  const selectedRoleColor = selectedRole?.color || "#3b82f6";
+  const selectedRoleTint = toRgba(selectedRoleColor, 0.22);
+  const selectedRoleBorderTint = toRgba(selectedRoleColor, 0.45);
 
   // Initialize pending permissions when role details load
   React.useEffect(() => {
     if (roleDetails?.permissions) {
-      setPendingPermissions(new Set(roleDetails.permissions.map((p) => p.id)));
+      setPendingPermissions(new Set(roleDetails.permissions.map((p) => permissionKey(p.id ?? p._id))));
       setHasChanges(false);
     }
   }, [roleDetails]);
 
   const handlePermissionToggle = (permissionId) => {
+    const key = permissionKey(permissionId);
     const newPending = new Set(pendingPermissions);
-    if (newPending.has(permissionId)) {
-      newPending.delete(permissionId);
+    if (newPending.has(key)) {
+      newPending.delete(key);
     } else {
-      newPending.add(permissionId);
+      newPending.add(key);
     }
     setPendingPermissions(newPending);
     setHasChanges(true);
@@ -190,7 +221,9 @@ export default function PermissionMatrix() {
     if (!selectedRole?.id) return;
     updatePermissionsMutation.mutate({
       roleId: selectedRole.id,
-      permissionIds: Array.from(pendingPermissions),
+      permissionIds: Array.from(pendingPermissions)
+        .map((id) => Number(id))
+        .filter((id) => Number.isFinite(id)),
     });
   };
 
@@ -315,12 +348,23 @@ export default function PermissionMatrix() {
                     </CardDescription>
                   )}
                 </div>
-                {selectedRole && hasChanges && (
-                  <Button onClick={handleSavePermissions} disabled={updatePermissionsMutation.isLoading}>
-                    <Save className="h-4 w-4 mr-2" />
-                    Save Changes
-                  </Button>
-                )}
+                <div className="flex items-center gap-3">
+                  {selectedRole && (
+                    <Label className="text-xs text-slate-600 dark:text-gray-300 flex items-center gap-2">
+                      <Checkbox
+                        checked={showAssignedOnly}
+                        onCheckedChange={(v) => setShowAssignedOnly(Boolean(v))}
+                      />
+                      Show assigned only
+                    </Label>
+                  )}
+                  {selectedRole && hasChanges && (
+                    <Button onClick={handleSavePermissions} disabled={updatePermissionsMutation.isLoading}>
+                      <Save className="h-4 w-4 mr-2" />
+                      Save Changes
+                    </Button>
+                  )}
+                </div>
               </div>
             </CardHeader>
             <CardContent>
@@ -337,35 +381,77 @@ export default function PermissionMatrix() {
                 </div>
               ) : (
                 <div className="space-y-6 max-h-[600px] overflow-y-auto pr-2">
-                  {Object.entries(groupedPermissions).map(([category, permissions]) => (
+                  {Object.entries(groupedPermissions).map(([category, permissions]) => {
+                    const visiblePermissions = permissions.filter(
+                      (perm) => !showAssignedOnly || pendingPermissions.has(permissionKey(perm.id))
+                    );
+
+                    if (visiblePermissions.length === 0) return null;
+
+                    return (
                     <div key={category} className="space-y-3">
                       <h4 className="font-semibold text-slate-800 dark:text-white border-b pb-2">
                         {category}
                       </h4>
                       <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                        {permissions.map((perm) => {
-                          const isChecked = pendingPermissions.has(perm.id);
+                        {visiblePermissions.map((perm) => {
+                          const isChecked = pendingPermissions.has(permissionKey(perm.id));
                           return (
                             <div
                               key={perm.id}
-                              className={`flex items-center space-x-3 p-2 rounded-lg transition-colors ${
+                              className={`flex items-center space-x-3 p-2 rounded-lg transition-colors border-l-4 bg-slate-50/70 dark:bg-gray-900/30 ${
                                 isChecked
-                                  ? "bg-green-50 dark:bg-green-900/20"
-                                  : "hover:bg-slate-50 dark:hover:bg-gray-800"
+                                  ? ""
+                                  : "border-l-transparent hover:bg-slate-100 dark:hover:bg-gray-800"
                               }`}
+                              style={
+                                isChecked
+                                  ? {
+                                      backgroundColor: selectedRoleTint,
+                                      border: `1px solid ${selectedRoleBorderTint}`,
+                                      borderLeftColor: selectedRoleColor,
+                                    }
+                                  : undefined
+                              }
                             >
                               <Checkbox
                                 id={perm.id}
                                 checked={isChecked}
                                 onCheckedChange={() => handlePermissionToggle(perm.id)}
                                 disabled={selectedRole?.system && perm.system}
+                                className={isChecked ? "text-white" : ""}
+                                style={
+                                  isChecked
+                                    ? {
+                                        backgroundColor: selectedRoleColor,
+                                        borderColor: selectedRoleColor,
+                                      }
+                                    : undefined
+                                }
                               />
                               <Label
                                 htmlFor={perm.id}
                                 className="text-sm cursor-pointer flex-1"
+                                style={isChecked ? { color: selectedRoleColor, fontWeight: 600 } : undefined}
                               >
                                 {perm.permission}
                               </Label>
+                              {isChecked && (
+                                <span
+                                  className="inline-block w-2.5 h-2.5 rounded-full"
+                                  style={{ backgroundColor: selectedRoleColor }}
+                                  aria-hidden="true"
+                                />
+                              )}
+                              {isChecked && (
+                                <Badge
+                                  variant="outline"
+                                  className="text-[10px] px-1.5 py-0 h-5"
+                                  style={{ borderColor: selectedRoleColor, color: selectedRoleColor }}
+                                >
+                                  Assigned
+                                </Badge>
+                              )}
                               {perm.system && (
                                 <Lock className="h-3 w-3 text-slate-400" />
                               )}
@@ -374,7 +460,8 @@ export default function PermissionMatrix() {
                         })}
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </CardContent>

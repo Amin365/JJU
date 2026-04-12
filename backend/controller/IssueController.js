@@ -25,8 +25,19 @@ const roleNameOf = (user) =>
 const isSuperAdmin = (user) => /super\s*admin/i.test(roleNameOf(user));
 const isModerator = (user) => /moderator/i.test(roleNameOf(user));
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canManageIssues = (req) => hasAnyPermission(req, ["Manage Issues"]);
+
 export const IssueCreate = async (req, res, next) => {
   try {
+    if (!req.user?.id || !canManageIssues(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { book, member, issueDate, returnDate } = req.body;
 
     if (!book || !member || !issueDate || !returnDate) {
@@ -130,6 +141,13 @@ export const IssueCreate = async (req, res, next) => {
 
 export const getIssues = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
+    const canViewScoped = hasAnyPermission(req, ["View Members", "Manage Issues"]);
+    if (!canViewScoped) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { page = 1, limit = 20, q, status } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -285,6 +303,10 @@ export const getIssues = async (req, res, next) => {
 
 export const markIssueReturned = async (req, res, next) => {
   try {
+    if (!req.user?.id || !canManageIssues(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     if (!isValidId(id)) return res.status(400).json({ message: "Invalid issue id" });
 
@@ -388,6 +410,10 @@ export const getMyIssues = async (req, res, next) => {
 // POST /issues/:id/reminder
 export const ReminderEmail = async (req, res) => {
   try {
+    if (!req.user?.id || !canManageIssues(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     if (!isValidId(id)) return res.status(400).json({ message: "Invalid issue id" });
 

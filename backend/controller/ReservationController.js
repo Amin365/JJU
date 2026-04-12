@@ -7,12 +7,27 @@ import Notification from "../models/Notification.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canManageReservations = (req) => hasAnyPermission(req, ["Manage Issues"]);
+
+const isReservationOwner = async (req, reservation) => {
+  if (!req.user?.id || !reservation?.member_id) return false;
+  const memberUser = await User.findOne({ where: { member_id_fk: reservation.member_id }, attributes: ["id"], raw: true });
+  return Number(memberUser?.id) === Number(req.user.id);
+};
+
 /**
  * POST /reservations
  * Create a reservation for a book (only allowed when availableCopies == 0).
  */
 export const createReservation = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
     const { book, member } = req.body;
 
     if (!book || !member) {
@@ -28,6 +43,13 @@ export const createReservation = async (req, res, next) => {
 
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
     if (!memberDoc) return res.status(404).json({ message: "Member not found" });
+
+    if (!canManageReservations(req)) {
+      const selfUser = await User.findByPk(req.user.id, { attributes: ["member_id_fk"] });
+      if (!selfUser?.member_id_fk || Number(selfUser.member_id_fk) !== Number(memberDoc.id)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
 
     if ((bookDoc.availableCopies || 0) > 0) {
       return res.status(409).json({
@@ -102,6 +124,8 @@ export const createReservation = async (req, res, next) => {
  */
 export const getReservations = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
     const { book, member, status, page = 1, limit = 20 } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
@@ -112,6 +136,12 @@ export const getReservations = async (req, res, next) => {
     if (book && isValidId(book)) where.book_id = Number(book);
     if (member && isValidId(member)) where.member_id = Number(member);
     if (status) where.status = String(status);
+
+    if (!canManageReservations(req)) {
+      const selfUser = await User.findByPk(req.user.id, { attributes: ["member_id_fk"] });
+      if (!selfUser?.member_id_fk) return res.status(200).json({ data: [], total: 0, page: pageNum, totalPages: 0, limit: perPage });
+      where.member_id = Number(selfUser.member_id_fk);
+    }
 
     const { rows: items, count: total } = await Reservation.findAndCountAll({
       where,
@@ -143,6 +173,10 @@ export const getReservations = async (req, res, next) => {
  */
 export const getBookQueue = async (req, res, next) => {
   try {
+    if (!req.user?.id || !canManageReservations(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { bookId } = req.params;
     if (!isValidId(bookId)) {
       return res.status(400).json({ message: "Invalid book id" });
@@ -175,6 +209,8 @@ export const getBookQueue = async (req, res, next) => {
  */
 export const cancelReservation = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid reservation id" });
@@ -182,6 +218,13 @@ export const cancelReservation = async (req, res, next) => {
 
     const reservation = await Reservation.findByPk(Number(id));
     if (!reservation) return res.status(404).json({ message: "Reservation not found" });
+
+    if (!canManageReservations(req)) {
+      const owner = await isReservationOwner(req, reservation);
+      if (!owner) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
 
     if (reservation.status !== "Active") {
       return res.status(409).json({ message: `Reservation is already ${reservation.status}` });
@@ -201,6 +244,10 @@ export const cancelReservation = async (req, res, next) => {
  */
 export const fulfillReservation = async (req, res, next) => {
   try {
+    if (!req.user?.id || !canManageReservations(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid reservation id" });

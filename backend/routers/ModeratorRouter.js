@@ -14,7 +14,7 @@ import { apiLimiter } from "../utility/rateLimiter.js"
 const ModeratorRouter = express.Router();
 
 // Fetch all moderators (users with moderator role)
-ModeratorRouter.get("/moderators",  getModerators);
+ModeratorRouter.get("/moderators", protect, getModerators);
 
 // Moderator workspace
 ModeratorRouter.get("/moderators/:moderatorId/workspace", protect, apiLimiter, getModeratorWorkspace);

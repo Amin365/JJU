@@ -36,6 +36,13 @@ const getRoleName = (user) =>
 const isSuperAdminUser = (user) => /super\s*admin/i.test(getRoleName(user));
 const isModeratorUser = (user) => /moderator/i.test(getRoleName(user));
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canReviewReports = (req) => hasAnyPermission(req, ["Manage Members", "Manage Issues", "View Members"]);
+
 async function getScopedReportUserIds(currentUser) {
   if (!currentUser?.id) return [];
 
@@ -277,6 +284,10 @@ export const updateDailyReportStatus = async (req, res, next) => {
     const currentUser = req.user;
     if (!currentUser?.id) return res.status(401).json({ message: "Unauthorized" });
 
+    if (!canReviewReports(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     if (!isSuperAdminUser(currentUser) && !isModeratorUser(currentUser)) {
       return res.status(403).json({ message: "Only moderators or super admins can review reports" });
     }
@@ -347,6 +358,10 @@ export const updateDailyReportStatus = async (req, res, next) => {
 // GET /daily-reports/admin
 export const getDailyReportsByMember = async (req, res, next) => {
   try {
+    if (!req.user?.id || !canReviewReports(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { memberId, from, to, book, limit = 5000 } = req.query;
     if (!memberId) return res.status(400).json({ message: "memberId is required" });
 
@@ -415,6 +430,10 @@ export const getDailyReportsScope = async (req, res, next) => {
   try {
     const { memberId, from, to, limit = 5000 } = req.query;
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
+    if (!canReviewReports(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     const currentUser = await User.findByPk(req.user.id, {
       include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],

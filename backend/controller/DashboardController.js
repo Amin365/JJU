@@ -7,12 +7,35 @@ import BlogPost from "../models/BlogPost.js";
 import Clubreq from "../models/Clubreq.js";
 import User from "../models/user.js";
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canViewDashboard = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  if (/super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName)) {
+    return true;
+  }
+
+  return hasAnyPermission(req, [
+    "View Members",
+    "Manage Members",
+    "Manage Books",
+    "Manage Issues",
+    "View Users",
+  ]);
+};
+
 /**
  * GET /api/dashboard/stats
  * Summary KPI counts for the dashboard home page.
  */
 export const getDashboardStats = async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
+
     const [
       totalBooks,
       availableBooks,
@@ -54,6 +77,9 @@ export const getDashboardStats = async (req, res) => {
  */
 export const getRecentActivity = async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
+
     const [
       recentMembers,
       recentBooks,
@@ -247,6 +273,9 @@ export const getRecentActivity = async (req, res) => {
  */
 export const getTopReaders = async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
+
     const reports = await DailyReport.findAll({
       attributes: ["created_by", "createdAt", "pagesFrom", "pagesTo"],
       raw: true,
@@ -334,6 +363,9 @@ export const getTopReaders = async (req, res) => {
  */
 export const getPopularBooks = async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
+
     const issues = await Issue.findAll({ attributes: ["book_id"], raw: true });
 
     const countMap = new Map();
@@ -385,6 +417,9 @@ export const getPopularBooks = async (req, res) => {
  */
 export const getPendingApprovals = async (req, res) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
+
     const todayStart = new Date();
     todayStart.setUTCHours(0, 0, 0, 0);
     const todayEnd = new Date();

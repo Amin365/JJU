@@ -16,6 +16,7 @@ import {
   joinRejectionTemplate,
   welcomeEmailTemplate,
 } from "../utility/emailTemplates.js";
+import { hashToken } from "../utility/tokenUtils.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -45,6 +46,20 @@ const findMemberByPathId = async (pathId) => {
   const where = memberWhereFromPathId(pathId);
   if (!where) return null;
   return Member.findOne({ where });
+};
+
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canManageMembers = (req) => hasAnyPermission(req, ["Manage Members"]);
+const canViewMembers = (req) => hasAnyPermission(req, ["View Members", "Manage Members"]);
+
+const isMemberOwner = async (req, memberId) => {
+  if (!req.user?.id || !memberId) return false;
+  const ownerUser = await User.findOne({ where: { member_id_fk: Number(memberId) }, attributes: ["id"], raw: true });
+  return Number(ownerUser?.id) === Number(req.user.id);
 };
 
 async function findDefaultMemberRole() {
@@ -143,7 +158,7 @@ export const createMember = async (req, res, next) => {
     const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
     try {
-      const newUser = await User.create({
+      await User.create({
         first_name: saved.first_name,
         middle_name: saved.middle_name || "",
         last_name: saved.last_name,
@@ -157,7 +172,7 @@ export const createMember = async (req, res, next) => {
         added_by: req.user?.id || null,
         updated_by: req.user?.id || null,
         mustChangePassword: true,
-        inviteToken,
+        inviteToken: hashToken(inviteToken),
         inviteTokenExpires,
         invitedBy: req.user?.id || null,
         invitedAt: new Date(),
@@ -180,14 +195,13 @@ export const createMember = async (req, res, next) => {
           subject: welcomeEmail.subject,
           text: welcomeEmail.text,
           html: welcomeEmail.html,
-        if (role && isAdminCreator) {
+        });
       } catch (emailErr) {
         console.error("Failed to send invite email:", emailErr.message);
       }
 
       await logMemberAction("created", saved, req.user, req, {
         description: `Member "${saved.first_name} ${saved.last_name}" was created`,
-          isAdminCreator && role ? Number(role) : (defaultMemberRole?.id || null);
       });
     } catch (userErr) {
       await Member.destroy({ where: { id: saved.id } });
@@ -208,7 +222,7 @@ export const createMember = async (req, res, next) => {
     return next(err);
   }
 };
-          role_id: resolvedRoleId,
+
 export const getMembers = async (req, res, next) => {
   try {
     const {
@@ -349,6 +363,10 @@ export const getMembers = async (req, res, next) => {
 
 export const updateMember = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const where = memberWhereFromPathId(id);
     if (!where) return res.status(400).json({ message: "Invalid member id" });
@@ -401,6 +419,10 @@ export const getMemberById = async (req, res, next) => {
     });
 
     if (!member) return res.status(404).json({ message: "Member not found" });
+    const owner = await isMemberOwner(req, member.id);
+    if (!canViewMembers(req) && !owner) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     return res.status(200).json({ data: member });
   } catch (err) {
     return next(err);
@@ -412,6 +434,10 @@ export const getMemberById = async (req, res, next) => {
  */
 export const archiveMember = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const member = await findMemberByPathId(id);
     if (!member) {
@@ -433,6 +459,10 @@ export const archiveMember = async (req, res, next) => {
  */
 export const restoreMember = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const member = await findMemberByPathId(id);
     if (!member) {
@@ -454,6 +484,10 @@ export const restoreMember = async (req, res, next) => {
  */
 export const deleteMember = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const member = await findMemberByPathId(id);
     if (!member) {
@@ -1039,6 +1073,10 @@ export const getMemberOverview = async (req, res, next) => {
       include: [{ model: Role, as: "roleRef", attributes: ["role", "plural", "color"], required: false }],
     });
     if (!member) return res.status(404).json({ message: "Member not found" });
+    const owner = await isMemberOwner(req, member.id);
+    if (!canViewMembers(req) && !owner) {
+      return res.status(403).json({ message: "Access denied" });
+    }
 
     const user = await User.findOne({
       where: { member_id_fk: member.id },
@@ -1126,6 +1164,10 @@ export const getMemberOverview = async (req, res, next) => {
 
 export const createMemberNote = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const memberExists = await findMemberByPathId(id);
     if (!memberExists) {
@@ -1164,6 +1206,11 @@ export const getMemberNotes = async (req, res, next) => {
       return res.status(404).json({ message: "Member not found" });
     }
 
+    const owner = await isMemberOwner(req, memberExists.id);
+    if (!canViewMembers(req) && !owner) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const notes = await MemberNote.findAll({
       where: { member_id: Number(memberExists.id), isArchived: false },
       include: [{ model: User, as: "author", attributes: ["first_name", "last_name", "username"], required: false }],
@@ -1178,6 +1225,10 @@ export const getMemberNotes = async (req, res, next) => {
 
 export const deleteMemberNote = async (req, res, next) => {
   try {
+    if (!canManageMembers(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id, noteId } = req.params;
     const memberExists = await findMemberByPathId(id);
     if (!memberExists || !isValidId(noteId)) {

@@ -5,6 +5,15 @@ import PermissionCategory from '../models/PermissionCategory.js';
 import Role from '../models/Role.js';
 import User from '../models/user.js';
 
+const resolveSeederUser = async () => {
+  const superAdminRole = await Role.findOne({ where: { role: "Super Admin" } });
+  if (superAdminRole) {
+    const roleUser = await User.findOne({ where: { role_id: superAdminRole.id } });
+    if (roleUser) return roleUser;
+  }
+  return User.findOne({ order: [["id", "ASC"]] });
+};
+
 export const mainPermissions = async () => {
   try {
     // 
@@ -75,11 +84,7 @@ export const mainPermissions = async () => {
     const roles = {};
     rolesData.forEach(r => { roles[r.role] = r; });
 
-    // Prefer the canonical superadmin; fallback to any user if needed
-    let SUPER_ADMIN_USER = await User.findOne({ where: { username: "aminbashir07" } });
-    if (!SUPER_ADMIN_USER) {
-      SUPER_ADMIN_USER = await User.findOne();
-    }
+    const SUPER_ADMIN_USER = await resolveSeederUser();
 
     // Assign all permissions to Super Admin
     if (roles["Super Admin"] && SUPER_ADMIN_USER) {

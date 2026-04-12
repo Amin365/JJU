@@ -2,6 +2,21 @@
 import Role from "../models/Role.js";
 import User from "../models/user.js";
 
+const resolveSeederUser = async (superAdminRoleId) => {
+  if (superAdminRoleId) {
+    const roleUser = await User.findOne({ where: { role_id: superAdminRoleId } });
+    if (roleUser) return roleUser;
+  }
+
+  const superAdminRole = await Role.findOne({ where: { role: "Super Admin" } });
+  if (superAdminRole) {
+    const roleUser = await User.findOne({ where: { role_id: superAdminRole.id } });
+    if (roleUser) return roleUser;
+  }
+
+  return User.findOne({ order: [["id", "ASC"]] });
+};
+
 export const systemRoles = async () => {
   try {
     // Define the roles
@@ -25,12 +40,10 @@ export const systemRoles = async () => {
     }
 
     // Assign Super Admin role to first user
-    const user = await User.findOne({ where: { username: "superadmin" } }); // or some criteria
-    if (user) {
-      const superAdminRole = createdRoles.find(r => r.role === "Super Admin");
-      if (superAdminRole) {
+    const superAdminRole = createdRoles.find((r) => r.role === "Super Admin");
+    const user = await resolveSeederUser(superAdminRole?.id);
+    if (user && superAdminRole) {
         await user.update({ role_id: superAdminRole.id });
-      }
     }
 
     console.log("System roles initialized ✅");

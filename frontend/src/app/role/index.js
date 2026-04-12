@@ -1,28 +1,14 @@
-const roles = {};
+const modules = import.meta.glob('./*.js', { eager: true });
 
-const mergeNestedObjects = (obj) => {
-  const merged = {};
-  Object.values(obj).forEach((subObj) => {
-    Object.assign(merged, subObj);
-  });
-  return merged;
-};
+const mergedRoles = Object.entries(modules)
+  .filter(([modulePath]) => modulePath !== './index.js')
+  .reduce((acc, [, moduleExports]) => {
+    Object.values(moduleExports).forEach((value) => {
+      if (value && typeof value === 'object') {
+        Object.assign(acc, value);
+      }
+    });
+    return acc;
+  }, {});
 
-const importAllRoles = async () => {
-  const modules = import.meta.glob('./*.js', { eager: true });
-
-  for (const path in modules) {
-    if (path !== './index.js') {
-      Object.assign(roles, modules[path]);
-    }
-  }
-};
-
-importAllRoles();
-
-let tempRoles = {}
-Object.values(roles).map((value)=>{
-  tempRoles = {...tempRoles, ...value}
-})
-const mergedRoles = mergeNestedObjects(roles);
 export default mergedRoles;

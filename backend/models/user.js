@@ -28,6 +28,10 @@ const User = sequelize.define('User', {
   invitedAt: { type: DataTypes.DATE },
   lastPasswordChange: { type: DataTypes.DATE },
   passwordChangedCount: { type: DataTypes.INTEGER, defaultValue: 0 },
+  failedLoginAttempts: { type: DataTypes.INTEGER, defaultValue: 0 },
+  lockUntil: { type: DataTypes.DATE, allowNull: true },
+  lastLoginIp: { type: DataTypes.STRING, allowNull: true },
+  lastLoginUserAgent: { type: DataTypes.STRING, allowNull: true },
 }, { tableName: 'users', timestamps: true });
 
 User.addHook('beforeSave', async (user) => {

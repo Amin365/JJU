@@ -1,6 +1,8 @@
 import express from "express";
+import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/auth.js";
-import Role from "../models/Role.js";
+import { requireOwnerOrPermission, requirePermission } from "../middleware/role.js";
+import User from "../models/user.js";
 import {
   getUsers,
   getUserById,
@@ -49,26 +51,37 @@ const upload = multer({ storage ,
 
 const router = express.Router();
 
-// Simple admin guard: allow only Super Admin role
-const requireSuperAdmin = async (req, res, next) => {
-  try {
-    const roleNameFromAuth = typeof req.user?.role === "object" ? req.user.role?.role : req.user?.role;
-    let roleName = roleNameFromAuth ? String(roleNameFromAuth).toLowerCase() : "";
+const passwordRecoveryLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 5,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many password recovery attempts. Try again later." },
+});
 
-    if (!roleName) {
-      const roleId = req.user?.role_id;
-      const roleDoc = roleId ? await Role.findByPk(roleId) : null;
-      roleName = roleDoc?.role ? String(roleDoc.role).toLowerCase() : "";
-    }
+const verifyCodeLimiter = rateLimit({
+  windowMs: 10 * 60 * 1000,
+  max: 10,
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: { message: "Too many verification attempts. Try again later." },
+});
+const isUuid = (value) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
 
-    const isSuperAdmin = /super\s*admin/.test(roleName);
-    if (!isSuperAdmin) {
-      return res.status(403).json({ message: "Forbidden: Admins only" });
-    }
-    next();
-  } catch (err) {
-    next(err);
+const resolveUserOwnerId = async (req) => {
+  const { id } = req.params;
+  if (!id) return null;
+
+  let targetUser = null;
+  if (Number.isInteger(Number(id)) && Number(id) > 0) {
+    targetUser = await User.findByPk(Number(id), { attributes: ["id"] });
+  } else if (isUuid(id)) {
+    targetUser = await User.findOne({ where: { uuid: String(id).trim() }, attributes: ["id"] });
   }
+
+  return targetUser?.id || null;
 };
 
 // Profile routes (for current user, no admin guard)
@@ -80,7 +93,7 @@ router.put(
   (req, res, next) => {
     upload.single("profile")(req, res, (err) => {
       if (err) {
-        console.error("🔥 MULTER ERROR:", err);
+        console.error(" MULTER ERROR:", err);
         return res.status(400).json({
           message: err.message || "File upload error",
         });
@@ -94,18 +107,26 @@ router.put(
 router.put("/profile/change-password", protect, changePassword); // Change password
 router.delete("/profile/delete", protect, deleteAccount); // Delete account
 
-// Users management routes (admin only)
-router.get('/available_members', protect, getAvailableMembersForUserCreation);
-router.get("/users", protect, requireSuperAdmin, getUsers);
-router.get("/users/:id", protect, requireSuperAdmin, getUserById);
-router.post("/users/from-member", protect, requireSuperAdmin, createUserFromMember);
-router.patch("/users/:id/status", protect, requireSuperAdmin, updateUserStatus);
-router.patch("/users/:id", protect, requireSuperAdmin, updateUserById);
-router.put("/users/:id/password", protect, requireSuperAdmin, adminChangeUserPassword);
+// Users management routes (permission-based)
+router.get('/available_members', protect, requirePermission(["Add Users", "Manage Members"]), getAvailableMembersForUserCreation);
+router.get("/users", protect, requirePermission(["View Users", "View Detail", "Manage Members"]), getUsers);
+router.get(
+  "/users/:id",
+  protect,
+  requireOwnerOrPermission({
+    permissions: ["View Users", "View Detail", "Manage Members"],
+    resolveOwnerId: resolveUserOwnerId,
+  }),
+  getUserById
+);
+router.post("/users/from-member", protect, requirePermission(["Add Users", "Manage Members"]), createUserFromMember);
+router.patch("/users/:id/status", protect, requirePermission(["Edit Users", "Manage Members"]), updateUserStatus);
+router.patch("/users/:id", protect, requirePermission(["Edit Users", "Manage Members"]), updateUserById);
+router.put("/users/:id/password", protect, requirePermission(["Edit Users", "Manage Members"]), adminChangeUserPassword);
 router.get("/profile", protect, getProfile);
-router.post("/forgot-password", forgotPassword);
-router.post("/reset-password", resetPassword);
-router.post("/resend-reset-code", resendResetCode);
-router.post("/verify-reset-code", verifyResetCode);
+router.post("/forgot-password", passwordRecoveryLimiter, forgotPassword);
+router.post("/reset-password", passwordRecoveryLimiter, resetPassword);
+router.post("/resend-reset-code", passwordRecoveryLimiter, resendResetCode);
+router.post("/verify-reset-code", verifyCodeLimiter, verifyResetCode);
 
 export default router;

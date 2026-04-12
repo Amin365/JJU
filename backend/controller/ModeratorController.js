@@ -14,9 +14,37 @@ const roleNameFrom = (role) =>
 const isSuperAdminRole = (role) => /super\s*admin/i.test(roleNameFrom(role));
 const isModeratorRole = (role) => /moderator/i.test(roleNameFrom(role));
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const getActor = async (req) => {
+  if (!req.user?.id) return null;
+  return User.findByPk(Number(req.user.id), {
+    attributes: ["id", "role_id", "member_id_fk"],
+    include: [{ model: Role, as: "role", attributes: ["id", "role", "plural"], required: false }],
+  });
+};
+
+const canAdminModeratorAssignments = (req, actor) =>
+  isSuperAdminRole(actor?.role) || hasAnyPermission(req, ["Manage Members"]);
+
+const canViewModeratorScope = (req, actor, moderatorId) => {
+  if (canAdminModeratorAssignments(req, actor)) return true;
+  if (isModeratorRole(actor?.role) && Number(actor?.id) === Number(moderatorId)) return true;
+  return false;
+};
+
 // Get list of moderators (users with Moderator or Super Admin role)
 export const getModerators = async (req, res, next) => {
   try {
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAdminModeratorAssignments(req, actor) && !isModeratorRole(actor.role)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const roles = await Role.findAll({
       where: {
         [Op.or]: [
@@ -50,6 +78,12 @@ export const getModerators = async (req, res, next) => {
 export const getAssignedMembers = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewModeratorScope(req, actor, moderatorId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     if (!isValidId(moderatorId)) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }
@@ -90,6 +124,12 @@ export const getAssignedMembers = async (req, res, next) => {
 // Get unassigned members for assignment
 export const getMembersForAssignment = async (req, res, next) => {
   try {
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAdminModeratorAssignments(req, actor)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const assignedRows = await ModeratorMember.findAll({
       attributes: ["member_id"],
       raw: true,
@@ -115,6 +155,12 @@ export const getMembersForAssignment = async (req, res, next) => {
 // Assign a member to a moderator
 export const assignMemberToModerator = async (req, res, next) => {
   try {
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAdminModeratorAssignments(req, actor)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { moderatorId } = req.params;
     const { memberId } = req.body;
 
@@ -158,6 +204,12 @@ export const assignMemberToModerator = async (req, res, next) => {
 // Unassign a member from a moderator
 export const unassignMemberFromModerator = async (req, res, next) => {
   try {
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAdminModeratorAssignments(req, actor)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { moderatorId, memberId } = req.params;
 
     if (!isValidId(moderatorId) || !isValidId(memberId)) {
@@ -191,6 +243,12 @@ export const unassignMemberFromModerator = async (req, res, next) => {
 export const getModeratorWorkspace = async (req, res, next) => {
   try {
     const { moderatorId } = req.params;
+    const actor = await getActor(req);
+    if (!actor) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewModeratorScope(req, actor, moderatorId)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     if (!isValidId(moderatorId)) {
       return res.status(400).json({ message: "Invalid moderator ID" });
     }

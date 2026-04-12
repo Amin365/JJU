@@ -15,6 +15,19 @@ import {
 const APP_NAME = process.env.APP_NAME || "JJU Reading Club";
 const VALID_AUDIENCES = ["all", "members", "moderators", "inactive", "overdue"];
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const hasAnnouncementAccess = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  if (/super\s*admin/i.test(roleName) || /admin/i.test(roleName) || /moderator/i.test(roleName)) {
+    return true;
+  }
+  return hasAnyPermission(req, ["Manage Members", "Manage Issues", "Edit Role"]);
+};
+
 // Helper to determine if user is admin/superadmin
 async function isAdmin(userId) {
   const user = await User.findByPk(userId, {
@@ -139,7 +152,7 @@ export const createAnnouncement = async (req, res, next) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!(await isAdmin(userId))) {
+    if (!hasAnnouncementAccess(req) && !(await isAdmin(userId))) {
       return res.status(403).json({ message: "Only admins can create announcements" });
     }
 
@@ -255,7 +268,7 @@ export const getAnnouncementHistory = async (req, res, next) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!(await isAdmin(userId))) {
+    if (!hasAnnouncementAccess(req) && !(await isAdmin(userId))) {
       return res.status(403).json({ message: "Only admins can view announcement history" });
     }
 
@@ -315,7 +328,7 @@ export const getAudiencePreview = async (req, res, next) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    if (!(await isAdmin(userId))) {
+    if (!hasAnnouncementAccess(req) && !(await isAdmin(userId))) {
       return res.status(403).json({ message: "Only admins can preview audiences" });
     }
 

@@ -3,8 +3,6 @@ import { Op, literal } from "sequelize";
 import cleanTitle from "../utility/cleanHtml.js";
 import cleanQuillHtml from "../utility/cleanQuillHtml.js";
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
-import User from "../models/user.js";
-import Role from "../models/Role.js";
 import sanitizeHtml from "sanitize-html";
 
 /*
@@ -49,23 +47,27 @@ const getUploadedImage = (file) => file?.path || file?.secure_url || file?.url |
 
 const isValidNumericId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
-/**
- * Helper: Check if user is admin/moderator
- */
-const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findByPk(userId, {
-    include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
-  });
-  if (!user) return false;
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
 
-  const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
+const hasModerationRole = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
   return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
 };
+
+const canManageBlogs = (req) =>
+  hasModerationRole(req) ||
+  hasAnyPermission(req, ["Manage Members", "Manage Books", "Manage Issues", "Add Role", "Edit Role"]);
 
 export const createBlogPost = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBlogs(req)) {
+      return res.status(403).json({ message: "Permission denied" });
+    }
 
     const {
       title,
@@ -314,7 +316,7 @@ export const updateBlogPost = async (req, res) => {
     const post = await BlogPost.findByPk(Number(id));
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
-    if (String(post.created_by) !== String(userId)) {
+    if (String(post.created_by) !== String(userId) && !canManageBlogs(req)) {
       return res.status(403).json({ message: "Permission denied" });
     }
 
@@ -462,7 +464,7 @@ export const deleteBlogPost = async (req, res) => {
     const post = await BlogPost.findByPk(Number(id));
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
-    if (String(post.created_by) !== String(userId)) {
+    if (String(post.created_by) !== String(userId) && !canManageBlogs(req)) {
       return res.status(403).json({ message: "Permission denied" });
     }
 
@@ -635,9 +637,7 @@ export const toggleFeature = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
     if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
@@ -665,9 +665,7 @@ export const togglePin = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
     if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
@@ -695,9 +693,7 @@ export const toggleEditorsPick = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
     if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
@@ -725,9 +721,7 @@ export const updateDisplayOrder = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
     const { displayOrder } = req.body;
@@ -757,9 +751,7 @@ export const updateRelatedPosts = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
     const { relatedPosts } = req.body;
@@ -793,9 +785,7 @@ export const getScheduledPosts = async (req, res) => {
   try {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
-
-    const canModerate = await isModeratorOrAdmin(userId);
-    if (!canModerate) return res.status(403).json({ message: "Permission denied" });
+    if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { page = 1, limit = 20 } = req.query;
     const pageNum = Math.max(1, Number(page));

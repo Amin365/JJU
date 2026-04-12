@@ -27,6 +27,29 @@ const getRoleName = (user) =>
 const isSuperAdminUser = (user) => /super\s*admin/i.test(getRoleName(user));
 const isModeratorUser = (user) => /moderator/i.test(getRoleName(user));
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const hasReportingAccess = async (req) => {
+  if (!req.user?.id) return false;
+
+  const currentUser = await User.findByPk(req.user.id, {
+    include: [{ model: Role, as: "roleInfo", attributes: ["id", "role", "plural"] }],
+  });
+
+  if (!currentUser) return false;
+  if (isSuperAdminUser(currentUser) || isModeratorUser(currentUser)) return true;
+
+  return hasAnyPermission(req, [
+    "Manage Members",
+    "Manage Issues",
+    "View Members",
+    "View Users",
+  ]);
+};
+
 const intersectIds = (left = [], right = []) => {
   const rightSet = new Set(right.map((id) => Number(id)));
   return left.filter((id) => rightSet.has(Number(id)));
@@ -128,6 +151,10 @@ const aggregateReports = (reports = []) => {
  */
 export const getAdminReports = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const {
       from,
       to,
@@ -294,6 +321,10 @@ export const getAdminReports = async (req, res, next) => {
  */
 export const getTopReadersReport = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { from, to, limit = 20, department, study_year } = req.query;
 
     const where = { status: "Approved" };
@@ -359,6 +390,10 @@ export const getTopReadersReport = async (req, res, next) => {
  */
 export const getWeakestParticipation = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { from, to, limit = 20, department, study_year } = req.query;
 
     const members = await Member.findAll({
@@ -441,6 +476,10 @@ export const getWeakestParticipation = async (req, res, next) => {
  */
 export const getReadingHealth = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { daysInactive = 7, department, study_year } = req.query;
 
     const members = await Member.findAll({
@@ -589,6 +628,10 @@ export const getReadingHealth = async (req, res, next) => {
  */
 export const getMonthlyComparison = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { department, study_year } = req.query;
     const now = new Date();
     const currentMonth = now.getUTCMonth();
@@ -721,6 +764,10 @@ export const getMonthlyComparison = async (req, res, next) => {
  */
 export const getDepartmentComparison = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { from, to } = req.query;
 
     const departmentRows = await Member.findAll({
@@ -822,6 +869,10 @@ export const getDepartmentComparison = async (req, res, next) => {
  */
 export const getReportQuality = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { from, to, department, study_year } = req.query;
 
     const where = { status: "Approved" };
@@ -894,6 +945,10 @@ export const getReportQuality = async (req, res, next) => {
  */
 export const exportReportsCSV = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { from, to, status, department, study_year, type = "reports" } = req.query;
 
     let csvContent = "";
@@ -1012,6 +1067,10 @@ export const exportReportsCSV = async (req, res, next) => {
  */
 export const getReportingSummary = async (req, res, next) => {
   try {
+    if (!(await hasReportingAccess(req))) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { period = "weekly" } = req.query;
 
     const now = new Date();

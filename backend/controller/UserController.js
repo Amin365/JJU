@@ -3,6 +3,7 @@ import { Op } from "sequelize";
 import Member from "../models/Members.js";
 import Role from "../models/Role.js";
 import bcrypt from "bcryptjs";
+import crypto from "crypto";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
@@ -21,6 +22,22 @@ const escapeLike = (value) =>
     .replace(/\\/g, "\\\\")
     .replace(/%/g, "\\%")
     .replace(/_/g, "\\_");
+
+const hashResetCode = (code) =>
+  crypto.createHash("sha256").update(String(code || "").trim()).digest("hex");
+
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canViewUserRecord = (req, user) => {
+  if (!req.user || !user) return false;
+  if (Number(req.user.id) === Number(user.id)) return true;
+  return hasAnyPermission(req, ["View Users", "View Detail", "Manage Members"]);
+};
+
+const canManageUserRecord = (req) => hasAnyPermission(req, ["Edit Users", "Manage Members"]);
 
 export const createUserFromMember = async (req, res, next) => {
   try {
@@ -112,6 +129,9 @@ export const getUserById = async (req, res, next) => {
     });
 
     if (!user) return res.status(404).json({ message: "User not found" });
+    if (!canViewUserRecord(req, user)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
     return res.status(200).json({ data: user });
   } catch (err) {
     return next(err);
@@ -120,6 +140,10 @@ export const getUserById = async (req, res, next) => {
 
 export const getUsers = async (req, res, next) => {
   try {
+    if (!hasAnyPermission(req, ["View Users", "View Detail", "Manage Members"])) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { page = 1, limit = 10, sort = "-createdAt", q } = req.query;
 
     const where = {};
@@ -166,6 +190,10 @@ export const getUsers = async (req, res, next) => {
 
 export const getAvailableMembersForUserCreation = async (req, res, next) => {
   try {
+    if (!hasAnyPermission(req, ["Add Users", "Manage Members"])) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { q, page = 1, limit = 50, sort = "-createdAt" } = req.query;
 
     const usedMemberRows = await User.findAll({
@@ -235,6 +263,10 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
 
 export const updateUserStatus = async (req, res, next) => {
   try {
+    if (!canManageUserRecord(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const { status } = req.body || {};
 
@@ -286,6 +318,12 @@ export const updateUserById = async (req, res, next) => {
     const user = await findUserByPathId(id);
     if (!user) return res.status(404).json({ message: "User not found" });
 
+    const isSelf = Number(req.user?.id) === Number(user.id);
+    const canManage = canManageUserRecord(req);
+    if (!isSelf && !canManage) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const updateData = {};
 
     if (first_name !== undefined) updateData.first_name = String(first_name || "").trim();
@@ -297,6 +335,9 @@ export const updateUserById = async (req, res, next) => {
     if (mustChangePassword !== undefined) updateData.mustChangePassword = Boolean(mustChangePassword);
 
     if (status !== undefined) {
+      if (!canManage) {
+        return res.status(403).json({ message: "Insufficient permission to update status" });
+      }
       const allowed = ["Active", "Inactive", "pending"];
       if (!allowed.includes(status)) {
         return res.status(400).json({ message: `status must be one of: ${allowed.join(", ")}` });
@@ -305,6 +346,9 @@ export const updateUserById = async (req, res, next) => {
     }
 
     if (role_id !== undefined && role_id !== null && role_id !== "") {
+      if (!canManage) {
+        return res.status(403).json({ message: "Insufficient permission to update role" });
+      }
       if (!isValidId(role_id)) return res.status(400).json({ message: "Invalid role id" });
       const role = await Role.findByPk(Number(role_id));
       if (!role) return res.status(400).json({ message: "Role not found" });
@@ -312,6 +356,9 @@ export const updateUserById = async (req, res, next) => {
     }
 
     if (role_id === null || role_id === "") {
+      if (!canManage) {
+        return res.status(403).json({ message: "Insufficient permission to update role" });
+      }
       updateData.role_id = null;
     }
 
@@ -351,6 +398,10 @@ export const updateUserById = async (req, res, next) => {
 
 export const adminChangeUserPassword = async (req, res, next) => {
   try {
+    if (!canManageUserRecord(req)) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const { id } = req.params;
     const { newPassword, confirmPassword, mustChangePassword } = req.body || {};
 
@@ -500,7 +551,7 @@ export const forgotPassword = async (req, res, next) => {
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    user.resetPasswordCode = resetCode;
+    user.resetPasswordCode = hashResetCode(resetCode);
     user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     await user.save({ validate: false });
@@ -539,7 +590,7 @@ export const verifyResetCode = async (req, res, next) => {
     const user = await User.findOne({
       where: {
         email,
-        resetPasswordCode: code,
+        resetPasswordCode: hashResetCode(code),
         resetPasswordExpires: { [Op.gt]: new Date() },
       },
     });
@@ -559,17 +610,23 @@ export const verifyResetCode = async (req, res, next) => {
 
 export const resetPassword = async (req, res, next) => {
   try {
-    const { userId, newPassword } = req.body;
+    const { userId, code, newPassword } = req.body;
 
-    if (!userId || !newPassword) {
-      return res.status(400).json({ message: "All fields are required" });
+    if (!userId || !code || !newPassword) {
+      return res.status(400).json({ message: "userId, code and newPassword are required" });
     }
 
     if (!isValidId(userId)) {
       return res.status(400).json({ message: "Invalid user id" });
     }
 
-    const user = await User.findByPk(Number(userId));
+    const user = await User.findOne({
+      where: {
+        id: Number(userId),
+        resetPasswordCode: hashResetCode(code),
+        resetPasswordExpires: { [Op.gt]: new Date() },
+      },
+    });
     if (!user) return res.status(404).json({ message: "User not found" });
 
     user.password = newPassword;
@@ -597,7 +654,7 @@ export const resendResetCode = async (req, res, next) => {
 
     const resetCode = Math.floor(100000 + Math.random() * 900000).toString();
 
-    user.resetPasswordCode = resetCode;
+    user.resetPasswordCode = hashResetCode(resetCode);
     user.resetPasswordExpires = new Date(Date.now() + 10 * 60 * 1000);
 
     await user.save({ validate: false });

@@ -120,6 +120,13 @@ export const loginUser = async (req, res) => {
       });
     }
 
+    if (user.lockUntil && new Date(user.lockUntil).getTime() > Date.now()) {
+      const retrySeconds = Math.ceil((new Date(user.lockUntil).getTime() - Date.now()) / 1000);
+      return res.status(423).json({
+        message: `Account temporarily locked due to failed attempts. Try again in ${retrySeconds}s.`,
+      });
+    }
+
     if (user.status && user.status !== "Active") {
       return res
         .status(403)
@@ -128,6 +135,13 @@ export const loginUser = async (req, res) => {
 
     const isMatch = await bcrypt.compare(normalizedPassword, user.password);
     if (!isMatch) {
+      const failed = Number(user.failedLoginAttempts || 0) + 1;
+      const nextUpdate = { failedLoginAttempts: failed };
+      if (failed >= 5) {
+        nextUpdate.lockUntil = new Date(Date.now() + 15 * 60 * 1000);
+      }
+      await user.update(nextUpdate);
+
       return res.status(401).json({
         message:
           "Incorrect Credentials." +
@@ -135,6 +149,10 @@ export const loginUser = async (req, res) => {
             ? ` ( ${rateLimitRemaining} attempts left )`
             : ""),
       });
+    }
+
+    if (user.failedLoginAttempts || user.lockUntil) {
+      await user.update({ failedLoginAttempts: 0, lockUntil: null });
     }
 
     const roleDoc = user.role_id ? await Role.findByPk(user.role_id) : null;
@@ -174,6 +192,24 @@ export const loginUser = async (req, res) => {
 
     const payload = { id: user.id, role: user.role_id || null };
 
+    const currentUserAgent = req.get("User-Agent") || "unknown";
+    const knownSession = await RefreshToken.findOne({
+      where: {
+        user_id: user.id,
+        revoked: false,
+        ip: req.ip,
+        userAgent: currentUserAgent,
+      },
+    });
+    const hasPriorSession = await RefreshToken.findOne({ where: { user_id: user.id } });
+    if (!knownSession && hasPriorSession) {
+      await logAuthAction("login_anomaly", user, req, {
+        description: `New login fingerprint detected for user "${user.email}"`,
+        ip: req.ip,
+        userAgent: currentUserAgent,
+      });
+    }
+
     const accessToken = signAccessToken(payload);
     const refreshToken = signRefreshToken(payload);
 
@@ -187,6 +223,11 @@ export const loginUser = async (req, res) => {
       expiresAt,
       ip: req.ip,
       userAgent: req.get("User-Agent"),
+    });
+
+    await user.update({
+      lastLoginIp: req.ip,
+      lastLoginUserAgent: req.get("User-Agent") || null,
     });
 
     res.cookie("refreshToken", refreshToken, {
@@ -236,8 +277,21 @@ export const refreshToken = async (req, res) => {
     const tokenHash = hashToken(token);
     const stored = await RefreshToken.findOne({ where: { tokenHash } });
 
-    if (!stored || stored.revoked) {
+    if (!stored) {
       return res.status(401).json({ message: "Refresh token revoked or not found" });
+    }
+
+    if (stored.revoked) {
+      await RefreshToken.update({ revoked: true }, { where: { user_id: payload.id, revoked: false } });
+
+      const user = await User.findByPk(payload.id);
+      if (user) {
+        await logAuthAction("refresh_reuse_detected", user, req, {
+          description: `Refresh token reuse detected for user \"${user.email}\". All sessions revoked.`,
+        });
+      }
+
+      return res.status(401).json({ message: "Refresh token reuse detected; sessions revoked" });
     }
 
     if (stored.expiresAt.getTime() < Date.now()) {
@@ -332,9 +386,10 @@ export const validateInviteToken = async (req, res, next) => {
       return res.status(400).json({ message: "Token is required" });
     }
 
+    const tokenHash = hashToken(token);
     const user = await User.findOne({
       where: {
-        inviteToken: token,
+        inviteToken: tokenHash,
         inviteTokenExpires: { [Op.gt]: new Date() },
       },
       attributes: ["first_name", "last_name", "email", "inviteTokenExpires"],
@@ -370,9 +425,10 @@ export const setupPasswordFromInvite = async (req, res, next) => {
       return res.status(400).json({ message: "Password must be at least 8 characters" });
     }
 
+    const tokenHash = hashToken(token);
     const user = await User.findOne({
       where: {
-        inviteToken: token,
+        inviteToken: tokenHash,
         inviteTokenExpires: { [Op.gt]: new Date() },
       },
     });
@@ -417,7 +473,7 @@ export const resendInvite = async (req, res, next) => {
     const inviteToken = crypto.randomBytes(32).toString("hex");
     const inviteTokenExpires = new Date(Date.now() + 72 * 60 * 60 * 1000);
 
-    user.inviteToken = inviteToken;
+    user.inviteToken = hashToken(inviteToken);
     user.inviteTokenExpires = inviteTokenExpires;
     await user.save();
 

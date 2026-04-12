@@ -5,7 +5,7 @@ import PermissionCategory from "../models/PermissionCategory.js";
 import RolePermission from "../models/RolePermission.js";
 import { logRoleAction, logAudit, buildChanges } from "../utility/auditLog.js";
 
-/* -------------------------------- Helpers -------------------------------- */
+/* - Helpers - */
 
 const isValidId = (value) => Number.isInteger(Number(value)) && Number(value) > 0;
 
@@ -14,7 +14,7 @@ const sanitizeString = (value) => {
   return value.trim();
 };
 
-/* ------------------------------- Role APIs ------------------------------- */
+/*  Role APIs  */
 
 /**
  * Create a new role
@@ -126,6 +126,7 @@ export async function getRoleById(req, res) {
     const permissions = rolePermissions
       .filter((rp) => rp.permission)
       .map((rp) => ({
+        id: rp.permission.id,
         _id: rp.permission.id,
         permission: rp.permission.permission,
         category: rp.permission.category?.name || null,

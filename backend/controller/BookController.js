@@ -16,11 +16,28 @@ const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
 const allowedStatus = new Set(["available", "borrowed", "lost", "damaged", "archived"]);
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const hasPrivilegedRole = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+};
+
+const canManageBooks = (req) => hasPrivilegedRole(req) || hasAnyPermission(req, ["Manage Books"]);
+const canViewBookHistory = (req) =>
+  hasPrivilegedRole(req) || hasAnyPermission(req, ["Manage Books", "Manage Issues", "View Members"]);
+
 /**
  * Create a new book
  */
 export const createBook = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBooks(req)) return res.status(403).json({ message: "Access denied" });
+
     const { title, author, BookType, isbn, status, totalPages, totalCopies, availableCopies } = req.body;
 
     if (!title || !BookType) {
@@ -188,6 +205,9 @@ export const getBookById = async (req, res, next) => {
  */
 export const updateBook = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBooks(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
@@ -235,6 +255,9 @@ export const updateBook = async (req, res, next) => {
  */
 export const deleteBook = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBooks(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
@@ -259,6 +282,9 @@ export const deleteBook = async (req, res, next) => {
  */
 export const bulkCreateBooks = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBooks(req)) return res.status(403).json({ message: "Access denied" });
+
     const { books } = req.body;
 
     if (!Array.isArray(books) || books.length === 0) {
@@ -395,6 +421,9 @@ export const bulkCreateBooks = async (req, res, next) => {
  */
 export const updateBookCondition = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canManageBooks(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });
@@ -431,6 +460,9 @@ export const updateBookCondition = async (req, res, next) => {
  */
 export const getBookHistory = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canViewBookHistory(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     if (!isValidId(id)) {
       return res.status(400).json({ message: "Invalid book id" });

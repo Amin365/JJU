@@ -1,20 +1,22 @@
 import Resource from "../models/Resource.js";
 import { Op } from 'sequelize';
-import User from "../models/user.js";
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
 import cleanTitle from "../utility/cleanHtml.js";
 import cleanQuillHtml from "../utility/cleanQuillHtml.js";
 
-/**
- * Helper: Check if user is admin/moderator
- */
-const isModeratorOrAdmin = async (userId) => {
-  const user = await User.findByPk(userId).populate("role", "role plural");
-  if (!user) return false;
-
-  const roleName = (user.role?.role || user.role?.plural || "").toLowerCase();
-  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName);
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
 };
+
+const hasModerationRole = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+};
+
+const canManageResources = (req) =>
+  hasModerationRole(req) ||
+  hasAnyPermission(req, ["Manage Members", "Manage Books", "Manage Issues", "Add Role", "Edit Role"]);
 
 /**
  * Helper: Normalize tags
@@ -68,8 +70,7 @@ export const createResource = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canCreate = await isModeratorOrAdmin(userId);
-    if (!canCreate) {
+    if (!canManageResources(req)) {
       return res.status(403).json({ message: "Permission denied" });
     }
 
@@ -294,8 +295,7 @@ export const updateResource = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canUpdate = await isModeratorOrAdmin(userId);
-    if (!canUpdate) {
+    if (!canManageResources(req)) {
       return res.status(403).json({ message: "Permission denied" });
     }
 
@@ -444,8 +444,7 @@ export const deleteResource = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canDelete = await isModeratorOrAdmin(userId);
-    if (!canDelete) {
+    if (!canManageResources(req)) {
       return res.status(403).json({ message: "Permission denied" });
     }
 

@@ -22,6 +22,7 @@ import helmet from "helmet";
 import {xss} from "express-xss-sanitizer";
 import hpp from 'hpp'
 import cookieParser from "cookie-parser";
+import { denyByDefaultApi } from "./middleware/securityPolicy.js";
 
 import path from 'path'
 import { fileURLToPath } from "url";  
@@ -42,10 +43,12 @@ import SystemHealthRouter from './routers/SystemHealthRouter.js';
 import sequelize from "./config/database.js";
 import { runMigrations } from "./migrations/index.js";
 import "./models/index.js";
+import { validateSecurityConfig } from "./utility/validateSecurityConfig.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 dotenv.config({ path: path.join(__dirname, ".env") });
+validateSecurityConfig();
 const app = express()
 const PORT = process.env.PORT || 5000
 app.set("trust proxy", 1);
@@ -95,6 +98,9 @@ app.use((req, res, next) => {
   return xss()(req, res, next);
 });
 app.use(hpp());
+
+// Deny-by-default API policy: only allow explicit public endpoints without auth.
+app.use('/api', denyByDefaultApi());
 
 
 

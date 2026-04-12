@@ -17,6 +17,25 @@ const roleNameOf = (user) =>
 const isSuperAdmin = (user) => /super\s*admin/i.test(roleNameOf(user));
 const isModerator = (user) => /moderator/i.test(roleNameOf(user));
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const hasPrivilegedRole = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+};
+
+const canReviewIssueRequests = (req) =>
+  hasPrivilegedRole(req) || hasAnyPermission(req, ["Manage Issues", "Manage Members"]);
+
+const getLinkedMemberId = async (userId) => {
+  if (!userId) return null;
+  const user = await User.findByPk(Number(userId), { attributes: ["id", "member_id", "member_id_fk"], raw: true });
+  return user?.member_id_fk || user?.member_id || null;
+};
+
 const withIncludes = (extra = {}) => ({
   ...extra,
   include: [
@@ -53,6 +72,8 @@ const withIncludes = (extra = {}) => ({
  */
 export const createIssueRequest = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
     const { book, member, requestedDays = 7, note } = req.body;
 
     if (!book || !member) {
@@ -70,6 +91,13 @@ export const createIssueRequest = async (req, res, next) => {
 
     if (!bookDoc) return res.status(404).json({ message: "Book not found" });
     if (!memberDoc) return res.status(404).json({ message: "Member not found" });
+
+    if (!canReviewIssueRequests(req)) {
+      const linkedMemberId = await getLinkedMemberId(req.user.id);
+      if (!linkedMemberId || Number(linkedMemberId) !== Number(memberDoc.id)) {
+        return res.status(403).json({ message: "Access denied" });
+      }
+    }
 
     const { allowed, reason } = await checkBorrowingRules(memberDoc.id);
     if (!allowed) return res.status(409).json({ message: reason });
@@ -229,6 +257,9 @@ export const getIssueRequests = async (req, res, next) => {
  */
 export const approveIssueRequest = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canReviewIssueRequests(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     const { reviewNote } = req.body;
 
@@ -278,6 +309,9 @@ export const approveIssueRequest = async (req, res, next) => {
  */
 export const rejectIssueRequest = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canReviewIssueRequests(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     const { reviewNote } = req.body;
 
@@ -327,6 +361,8 @@ export const rejectIssueRequest = async (req, res, next) => {
  */
 export const cancelIssueRequest = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+
     const { id } = req.params;
     if (!isValidId(id)) return res.status(400).json({ message: "Invalid request id" });
 
@@ -335,6 +371,15 @@ export const cancelIssueRequest = async (req, res, next) => {
 
     if (!["Requested", "Approved"].includes(request.status)) {
       return res.status(409).json({ message: `Cannot cancel a request with status: ${request.status}` });
+    }
+
+    if (!canReviewIssueRequests(req)) {
+      const linkedMemberId = await getLinkedMemberId(req.user.id);
+      const isOwnerByMember = linkedMemberId && Number(linkedMemberId) === Number(request.member_id || request.member?.id);
+      const isRequester = req.user.id && Number(req.user.id) === Number(request.requested_by);
+      if (!isOwnerByMember && !isRequester) {
+        return res.status(403).json({ message: "Access denied" });
+      }
     }
 
     request.status = "Cancelled";
@@ -353,6 +398,9 @@ export const cancelIssueRequest = async (req, res, next) => {
  */
 export const convertToIssue = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canReviewIssueRequests(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     const { issueDate, returnDate } = req.body;
 

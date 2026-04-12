@@ -38,6 +38,17 @@ const jobStatus = {
   },
 };
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canAccessSystemHealth = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  if (/super\s*admin/i.test(roleName) || /admin/i.test(roleName)) return true;
+  return hasAnyPermission(req, ["View Role", "Edit Role", "Delete Role"]);
+};
+
 /**
  * Update job status (called from scheduler modules)
  * @param {string} jobName - Name of the job
@@ -69,6 +80,9 @@ export function updateJobStatus(jobName, status, error = null) {
  */
 export const getSystemHealth = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     const health = {
       status: "healthy",
       timestamp: new Date(),
@@ -158,6 +172,9 @@ export const getSystemHealth = async (req, res, next) => {
  */
 export const getNotificationHealth = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     const { days = 7 } = req.query;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days, 10));
@@ -217,6 +234,9 @@ export const getNotificationHealth = async (req, res, next) => {
  */
 export const getJobStatus = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     return res.status(200).json({
       data: {
         jobs: Object.entries(jobStatus).map(([key, value]) => ({
@@ -235,6 +255,9 @@ export const getJobStatus = async (req, res, next) => {
  */
 export const getDatabaseStats = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     const modelEntries = Object.entries(sequelize.models);
 
     const stats = await Promise.all(
@@ -282,6 +305,9 @@ export const getDatabaseStats = async (req, res, next) => {
  */
 export const getRecentErrors = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     const { days = 7 } = req.query;
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - parseInt(days, 10));
@@ -323,6 +349,9 @@ export const getRecentErrors = async (req, res, next) => {
  */
 export const getSystemSummary = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
     const today = new Date();
     today.setHours(0, 0, 0, 0);
 

@@ -2,6 +2,8 @@ import express from "express";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/auth.js";
 import { requireOwnerOrPermission, requirePermission } from "../middleware/role.js";
+import { validateSchema } from "../middleware/validateSchema.js";
+import { userSchemas } from "../schemas/securitySchemas.js";
 import User from "../models/user.js";
 import {
   getUsers,
@@ -113,6 +115,7 @@ router.get("/users", protect, requirePermission(["View Users", "View Detail", "M
 router.get(
   "/users/:id",
   protect,
+  validateSchema({ params: userSchemas.userIdParams }),
   requireOwnerOrPermission({
     permissions: ["View Users", "View Detail", "Manage Members"],
     resolveOwnerId: resolveUserOwnerId,
@@ -120,13 +123,13 @@ router.get(
   getUserById
 );
 router.post("/users/from-member", protect, requirePermission(["Add Users", "Manage Members"]), createUserFromMember);
-router.patch("/users/:id/status", protect, requirePermission(["Edit Users", "Manage Members"]), updateUserStatus);
-router.patch("/users/:id", protect, requirePermission(["Edit Users", "Manage Members"]), updateUserById);
-router.put("/users/:id/password", protect, requirePermission(["Edit Users", "Manage Members"]), adminChangeUserPassword);
+router.patch("/users/:id/status", protect, validateSchema({ params: userSchemas.userIdParams }), requirePermission(["Edit Users", "Manage Members"]), updateUserStatus);
+router.patch("/users/:id", protect, validateSchema({ params: userSchemas.userIdParams }), requirePermission(["Edit Users", "Manage Members"]), updateUserById);
+router.put("/users/:id/password", protect, validateSchema({ params: userSchemas.userIdParams }), requirePermission(["Edit Users", "Manage Members"]), adminChangeUserPassword);
 router.get("/profile", protect, getProfile);
-router.post("/forgot-password", passwordRecoveryLimiter, forgotPassword);
-router.post("/reset-password", passwordRecoveryLimiter, resetPassword);
-router.post("/resend-reset-code", passwordRecoveryLimiter, resendResetCode);
-router.post("/verify-reset-code", verifyCodeLimiter, verifyResetCode);
+router.post("/forgot-password", passwordRecoveryLimiter, validateSchema({ body: userSchemas.forgotPassword }), forgotPassword);
+router.post("/reset-password", passwordRecoveryLimiter, validateSchema({ body: userSchemas.resetPassword }), resetPassword);
+router.post("/resend-reset-code", passwordRecoveryLimiter, validateSchema({ body: userSchemas.resendResetCode }), resendResetCode);
+router.post("/verify-reset-code", verifyCodeLimiter, validateSchema({ body: userSchemas.verifyResetCode }), verifyResetCode);
 
 export default router;

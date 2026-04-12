@@ -13,12 +13,26 @@ const toValidDate = (value) => {
   return Number.isNaN(d.getTime()) ? null : d;
 };
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const canAccessAuditLogs = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  if (/super\s*admin/i.test(roleName) || /admin/i.test(roleName)) return true;
+  return hasAnyPermission(req, ["View Role", "Edit Role", "Delete Role"]);
+};
+
 /**
  * Get audit logs with filtering and pagination
  * GET /audit-logs
  */
 export const getAuditLogs = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const {
       page = 1,
       limit = 50,
@@ -93,6 +107,9 @@ export const getAuditLogs = async (req, res, next) => {
  */
 export const getAuditLogById = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const { id } = req.params;
     const log = await AuditLog.findByPk(id);
 
@@ -112,6 +129,9 @@ export const getAuditLogById = async (req, res, next) => {
  */
 export const getAuditLogStats = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const days = toPositiveInt(req.query.days, 30, 1, 3650);
     const startDate = new Date();
     startDate.setDate(startDate.getDate() - days);
@@ -198,6 +218,9 @@ export const getAuditLogStats = async (req, res, next) => {
  */
 export const getEntityAuditLogs = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const { entityType, entityId } = req.params;
     const pageNum = toPositiveInt(req.query.page, 1, 1);
     const perPage = toPositiveInt(req.query.limit, 20, 1, 100);
@@ -228,6 +251,9 @@ export const getEntityAuditLogs = async (req, res, next) => {
  */
 export const getActionTypes = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const rows = await AuditLog.findAll({
       attributes: [[fn("DISTINCT", col("action")), "action"]],
       raw: true,
@@ -247,6 +273,9 @@ export const getActionTypes = async (req, res, next) => {
  */
 export const getEntityTypes = async (req, res, next) => {
   try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
     const rows = await AuditLog.findAll({
       attributes: [[fn("DISTINCT", col("entityType")), "entityType"]],
       raw: true,

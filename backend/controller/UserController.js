@@ -5,6 +5,7 @@ import Role from "../models/Role.js";
 import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
+import { sanitizeOutput } from "../utility/responseSanitizers.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 const isUuid = (value) =>
@@ -100,7 +101,7 @@ export const createUserFromMember = async (req, res, next) => {
       ],
     });
 
-    return res.status(201).json({ data: populated });
+    return res.status(201).json({ data: sanitizeOutput(populated) });
   } catch (err) {
     if (err?.name === "SequelizeUniqueConstraintError") {
       return res.status(409).json({
@@ -132,7 +133,7 @@ export const getUserById = async (req, res, next) => {
     if (!canViewUserRecord(req, user)) {
       return res.status(403).json({ message: "Access denied" });
     }
-    return res.status(200).json({ data: user });
+    return res.status(200).json({ data: sanitizeOutput(user) });
   } catch (err) {
     return next(err);
   }
@@ -177,7 +178,7 @@ export const getUsers = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      data: items,
+      data: sanitizeOutput(items),
       total,
       page: pageNum,
       limit: perPage,
@@ -250,7 +251,7 @@ export const getAvailableMembersForUserCreation = async (req, res, next) => {
     });
 
     return res.status(200).json({
-      data,
+      data: sanitizeOutput(data),
       total: count,
       page: pageNum,
       limit: perPage,
@@ -292,7 +293,7 @@ export const updateUserStatus = async (req, res, next) => {
       ],
     });
 
-    return res.status(200).json({ data: updated });
+    return res.status(200).json({ data: sanitizeOutput(updated) });
   } catch (err) {
     return next(err);
   }
@@ -390,7 +391,7 @@ export const updateUserById = async (req, res, next) => {
       ],
     });
 
-    return res.status(200).json({ data: updated });
+    return res.status(200).json({ data: sanitizeOutput(updated) });
   } catch (err) {
     return next(err);
   }
@@ -443,7 +444,7 @@ export const getProfile = async (req, res, next) => {
     });
 
     if (!user) return res.status(404).json({ message: "User not found" });
-    return res.status(200).json({ data: user });
+    return res.status(200).json({ data: sanitizeOutput(user) });
   } catch (err) {
     return next(err);
   }
@@ -481,7 +482,7 @@ export const updateProfile = async (req, res, next) => {
       ],
     });
 
-    return res.status(200).json({ data: updatedUser });
+    return res.status(200).json({ data: sanitizeOutput(updatedUser) });
   } catch (err) {
     return next(err);
   }
@@ -542,7 +543,7 @@ export const deleteAccount = async (req, res, next) => {
 
 export const forgotPassword = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body?.email || "").trim().toLowerCase();
 
     if (!email) return res.status(400).json({ message: "Email is required" });
 
@@ -581,7 +582,8 @@ export const forgotPassword = async (req, res, next) => {
 
 export const verifyResetCode = async (req, res, next) => {
   try {
-    const { email, code } = req.body;
+    const email = String(req.body?.email || "").trim().toLowerCase();
+    const code = String(req.body?.code || "").trim();
 
     if (!email || !code) {
       return res.status(400).json({ message: "Email and code are required" });
@@ -610,7 +612,9 @@ export const verifyResetCode = async (req, res, next) => {
 
 export const resetPassword = async (req, res, next) => {
   try {
-    const { userId, code, newPassword } = req.body;
+    const userId = req.body?.userId;
+    const code = String(req.body?.code || "").trim();
+    const newPassword = req.body?.newPassword;
 
     if (!userId || !code || !newPassword) {
       return res.status(400).json({ message: "userId, code and newPassword are required" });
@@ -645,7 +649,7 @@ export const resetPassword = async (req, res, next) => {
 
 export const resendResetCode = async (req, res, next) => {
   try {
-    const { email } = req.body;
+    const email = String(req.body?.email || "").trim().toLowerCase();
 
     if (!email) return res.status(400).json({ message: "Email is required" });
 

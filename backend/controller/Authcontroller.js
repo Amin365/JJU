@@ -21,6 +21,8 @@ import {
 } from "../utility/tokenUtils.js";
 import { logAuthAction } from "../utility/auditLog.js";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
+import { sanitizeOutput } from "../utility/responseSanitizers.js";
+import { encryptSensitive } from "../utility/dataProtection.js";
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -226,8 +228,8 @@ export const loginUser = async (req, res) => {
     });
 
     await user.update({
-      lastLoginIp: req.ip,
-      lastLoginUserAgent: req.get("User-Agent") || null,
+      lastLoginIp: encryptSensitive(req.ip),
+      lastLoginUserAgent: encryptSensitive(req.get("User-Agent") || null),
     });
 
     res.cookie("refreshToken", refreshToken, {
@@ -366,12 +368,12 @@ export const GetProfile = async (req, res, next) => {
 
     return res.json({
       success: true,
-      user: {
+      user: sanitizeOutput({
         ...user.toJSON(),
         role: roleDoc ? { id: roleDoc.id, role: roleDoc.role } : null,
         permissions: effectivePermissions,
         roleInfo: roleDoc ? roleDoc.toJSON() : null,
-      },
+      }),
     });
   } catch (err) {
     return next(err);

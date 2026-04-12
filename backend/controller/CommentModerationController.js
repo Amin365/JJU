@@ -2,7 +2,6 @@ import Comment from "../models/Comments.js";
 import { Op, literal } from "sequelize";
 import BlogPost from "../models/BlogPost.js";
 import User from "../models/user.js";
-import Role from "../models/Role.js";
 
 /**
  * Helper: Check if user is admin/moderator
@@ -19,6 +18,22 @@ const isModeratorOrAdmin = async (userId) => {
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
+const hasAnyPermission = (req, perms = []) => {
+  const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
+  return perms.some((p) => userPerms.has(String(p).toLowerCase()));
+};
+
+const hasPrivilegedRole = (req) => {
+  const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+};
+
+const canModerateComments = async (req) => {
+  if (hasPrivilegedRole(req)) return true;
+  if (hasAnyPermission(req, ["Manage Members", "Manage Issues", "View Members"])) return true;
+  return isModeratorOrAdmin(req.user?.id);
+};
+
 /**
  * GET /comments/moderation/queue
  * Get comments in moderation queue (pending, reported, or hidden)
@@ -28,7 +43,7 @@ export const getModerationQueue = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { status, hasReports, page = 1, limit = 20 } = req.query;
@@ -82,7 +97,7 @@ export const getModerationStats = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const [pending, hidden, reported, total] = await Promise.all([
@@ -121,7 +136,7 @@ export const moderateComment = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
@@ -221,7 +236,7 @@ export const clearReports = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
@@ -254,7 +269,7 @@ export const togglePinComment = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;
@@ -285,7 +300,7 @@ export const toggleBestInsight = async (req, res) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const canModerate = await isModeratorOrAdmin(userId);
+    const canModerate = await canModerateComments(req);
     if (!canModerate) return res.status(403).json({ message: "Permission denied" });
 
     const { commentId } = req.params;

@@ -40,7 +40,7 @@ export function NavUser({
   const { isMobile } = useSidebar()
 
   const{user}= useSelector((state)=>state.auth)
-  console.log("users",user)
+  
   const dispatch=useDispatch()
   const navigate =useNavigate()
 const handleLogout=()=>{

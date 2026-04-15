@@ -122,7 +122,7 @@ export const mainPermissions = async () => {
     }
 
     const rolePermissionMap = {
-      Moderator: ["View Moderator", "View Users"],
+      Moderator: ["View Moderator", "View Users", "View Members","Manage Members","Manage Issues"],
       Members: ["View Members"],
     };
 

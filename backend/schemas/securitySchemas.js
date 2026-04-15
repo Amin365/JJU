@@ -1,7 +1,14 @@
 import { z } from "zod";
 
-const idParam = z.object({
-  id: z.string().regex(/^\d+$/, "id must be a positive integer"),
+const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+const userIdParam = z.object({
+  id: z
+    .string()
+    .trim()
+    .refine((value) => /^\d+$/.test(value) || uuidRegex.test(value), {
+      message: "id must be a positive integer or UUID",
+    }),
 });
 
 const issueRequestIdParam = z.object({
@@ -53,7 +60,7 @@ export const userSchemas = {
     code: z.string().trim().regex(/^\d{6}$/, "code must be 6 digits"),
     newPassword: z.string().min(8).max(128),
   }),
-  userIdParams: idParam,
+  userIdParams: userIdParam,
 };
 
 export const issueRequestSchemas = {

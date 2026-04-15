@@ -19,12 +19,14 @@ export const subscribePush = async (req, res) => {
       return res.status(400).json({ message: "Invalid subscription endpoint" });
     }
 
-    // Prevent duplicate subscriptions (Sequelize way)
-    const existing = await PushSubscription.findOne({
-      where: {
-        user_id: Number(userId),
-        endpoint,
-      },
+    // Table stores subscription as JSON, so dedupe by endpoint from payload.
+    const existingSubs = await PushSubscription.findAll({
+      where: { user_id: Number(userId) },
+    });
+
+    const existing = existingSubs.find((sub) => {
+      const storedEndpoint = String(sub?.subscription?.endpoint || "").trim();
+      return storedEndpoint === endpoint;
     });
 
     if (existing) {
@@ -34,7 +36,6 @@ export const subscribePush = async (req, res) => {
     } else {
       await PushSubscription.create({
         user_id: Number(userId),
-        endpoint,
         subscription,
       });
     }

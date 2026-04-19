@@ -187,7 +187,7 @@ export const getIssueRequests = async (req, res, next) => {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     const currentUser = await User.findByPk(req.user.id, {
-      attributes: ["id", "member_id", "role_id"],
+      attributes: ["id", "member_id", "member_id_fk", "role_id"],
       include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
     });
 
@@ -219,7 +219,8 @@ export const getIssueRequests = async (req, res, next) => {
 
       where.member_id = { [Op.in]: memberIds };
     } else {
-      if (!isValidId(currentUser.member_id)) {
+      const linkedMemberId = Number(currentUser.member_id_fk || currentUser.member_id || 0);
+      if (!isValidId(linkedMemberId)) {
         return res.status(200).json({
           data: [],
           total: 0,
@@ -228,7 +229,7 @@ export const getIssueRequests = async (req, res, next) => {
           limit: perPage,
         });
       }
-      where.member_id = currentUser.member_id;
+      where.member_id = linkedMemberId;
     }
 
     const { rows: items, count: total } = await IssueRequest.findAndCountAll(

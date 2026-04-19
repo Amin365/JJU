@@ -142,7 +142,9 @@ export default function GoalsPage() {
           </p>
         </div>
         {!showForm && (
-          <Button size="sm" onClick={() => { setEditingGoal(null); setFormData(EMPTY_FORM); setShowForm(true); }}>
+          <Button size="sm"
+          className="dark:bg-orange-500"
+           onClick={() => { setEditingGoal(null); setFormData(EMPTY_FORM); setShowForm(true); }}>
             <Plus className="h-4 w-4 mr-1" /> New Goal
           </Button>
         )}
@@ -212,7 +214,9 @@ export default function GoalsPage() {
                     <Button type="button" variant="ghost" size="sm" onClick={handleCancel}>
                       <X className="h-4 w-4 mr-1" /> Cancel
                     </Button>
-                    <Button type="submit" size="sm" disabled={isSaving}>
+                    <Button type="submit" 
+                    className="dark:bg-orange-500"
+                    size="sm" disabled={isSaving}>
                       {isSaving && <Loader2 className="h-4 w-4 animate-spin mr-1" />}
                       <Check className="h-4 w-4 mr-1" />
                       {editingGoal ? 'Update' : 'Create'}

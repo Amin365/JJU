@@ -33,9 +33,8 @@ const Member = sequelize.define('Member', {
 
 Member.addHook('beforeCreate', (member) => {
   if (!member.code) {
-    const t = Date.now().toString();
-    const rnd = Math.random().toString(36).slice(2, 4).toUpperCase();
-    member.code = `MBR${t.slice(-6)}${rnd}`;
+    const rnd = Math.random().toString(36).slice(2, 6).toUpperCase();
+    member.code = `MBR-${rnd}`;
   }
 });
 

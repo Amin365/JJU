@@ -185,6 +185,7 @@ export default function Leaderboard() {
           {PERIODS.map((p) => (
             <Button
               key={p.value}
+              className="dark:bg-orange-500/80"
               size="sm"
               variant={period === p.value ? 'default' : 'outline'}
               onClick={() => setPeriod(p.value)}

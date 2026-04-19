@@ -81,7 +81,12 @@ export default function Footer({clubLogoSrc}) {
           <p className="text-muted-foreground mt-6 text-sm">
             © {new Date().getFullYear()} Naadiga Akhriska iyo Qoralka  Jaamacada Jigjiga . All rights reserved.
           </p>
+          <p className="text-muted-foreground text-sm">
+            Developed By Amin Bashir Husein
+          </p>
+
         </AnimatedContainer>
+        
 
         <div className="mt-10 grid grid-cols-2 gap-8 md:grid-cols-4 xl:col-span-2 xl:mt-0">
           {footerLinks.map((section, index) => (

@@ -8,6 +8,7 @@ import Clubreq from "../models/Clubreq.js";
 import Notification from "../models/Notification.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
+import Book from "../models/Books.js";
 import MemberNote from "../models/MemberNote.js";
 import { logMemberAction, logUserAction } from "../utility/auditLog.js";
 import { sendMail } from "./EmailController.js";
@@ -423,7 +424,22 @@ export const getMemberById = async (req, res, next) => {
     if (!canViewMembers(req) && !owner) {
       return res.status(403).json({ message: "Access denied" });
     }
-    return res.status(200).json({ data: member });
+
+    const linkedUser = await User.findOne({
+      where: { member_id_fk: member.id },
+      attributes: ["id", "role_id"],
+      include: [{ model: Role, as: "role", attributes: ["id", "role", "plural", "color", "system"], required: false }],
+    });
+
+    const memberJson = member.toJSON();
+    const resolvedRole = memberJson.roleRef || linkedUser?.role || null;
+
+    return res.status(200).json({
+      data: {
+        ...memberJson,
+        role: resolvedRole,
+      },
+    });
   } catch (err) {
     return next(err);
   }
@@ -1111,8 +1127,8 @@ export const getMemberOverview = async (req, res, next) => {
 
     if (user) {
       dailyReports = await DailyReport.findAll({
-        where: { createdBy: user.id },
-        include: [{ model: Book, as: "bookRef", attributes: ["title", "author"], required: false }],
+        where: { created_by: user.id },
+        include: [{ model: Book, as: "book", attributes: ["title", "author"], required: false }],
         order: [["readingDate", "DESC"]],
         limit: 50,
       });

@@ -4,7 +4,7 @@ const ENCRYPTION_ALGO = "aes-256-gcm";
 
 const getKey = () => {
   const base =
-    process.env.DATA_PROTECTION_KEY || "local-dev-fallback-key";
+    process.env.DATA_PROTECTION_KEY || "kjkiuiuhgvbvfgrtygvcsesxcxer45r";
   return crypto.createHash("sha256").update(String(base)).digest();
 };
 

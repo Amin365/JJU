@@ -265,8 +265,8 @@ async function getChallengeAccessContext(userId) {
 function buildChallengeAccessFilter(accessContext, extraFilter = {}) {
   if (!accessContext) return { ...extraFilter, id: null };
   if (accessContext.isSuperAdmin) return { ...extraFilter };
-  if (accessContext.isModerator) return { ...extraFilter, createdBy: accessContext.currentUser.id };
-  if (accessContext.assignedModeratorId) return { ...extraFilter, createdBy: accessContext.assignedModeratorId };
+  if (accessContext.isModerator) return { ...extraFilter, created_by: accessContext.currentUser.id };
+  if (accessContext.assignedModeratorId) return { ...extraFilter, created_by: accessContext.assignedModeratorId };
   return { ...extraFilter, id: null };
 }
 
@@ -337,7 +337,7 @@ export const createChallenge = async (req, res, next) => {
       rules: normalizedRules,
       status: status || "Active",
       book_id: selectedBook?.id || null,
-      createdBy: currentUser.id,
+      created_by: currentUser.id,
     });
 
     const createdChallenge = await ReadingChallenge.findByPk(challenge.id, {

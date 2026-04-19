@@ -123,7 +123,7 @@ export const mainPermissions = async () => {
 
     const rolePermissionMap = {
       Moderator: ["View Moderator", "View Users", "View Members","Manage Members","Manage Issues"],
-      Members: ["View Members"],
+      Members: ["View Members","Manage Issues"],
     };
 
 for (const [roleName, permNames] of Object.entries(rolePermissionMap)) {

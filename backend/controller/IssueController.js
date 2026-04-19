@@ -383,13 +383,15 @@ export const getMyIssues = async (req, res, next) => {
     const userId = req.user?.id;
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const user = await User.findByPk(userId, { attributes: ["member_id"] });
-    if (!user?.member_id) {
+    const user = await User.findByPk(userId, { attributes: ["member_id", "member_id_fk"] });
+    const linkedMemberId = Number(user?.member_id_fk || user?.member_id || 0);
+
+    if (!Number.isInteger(linkedMemberId) || linkedMemberId <= 0) {
       return res.status(400).json({ message: "User is not linked to a member" });
     }
 
     const issues = await Issue.findAll({
-      where: { member_id: user.member_id },
+      where: { member_id: linkedMemberId },
       include: [
         {
           model: Book,

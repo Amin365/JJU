@@ -12,6 +12,17 @@ if (!RESEND_API_KEY) {
 
 const resend = new Resend(RESEND_API_KEY);
 
+const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+const isUuid = (value) =>
+  typeof value === "string" &&
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(value.trim());
+
+const memberWhereFromPathId = (pathId) => {
+  if (isValidId(pathId)) return { id: Number(pathId) };
+  if (isUuid(pathId)) return { uuid: String(pathId).trim() };
+  return null;
+};
+
 export const buildEmailHtml = ({
   title,
   preheader,
@@ -124,11 +135,12 @@ export const sendMemberEmail = async (req, res) => {
       return res.status(400).json({ message: "Missing member id" });
     }
 
-    if (!Number.isInteger(Number(id))) {
+    const where = memberWhereFromPathId(id);
+    if (!where) {
       return res.status(400).json({ message: "Invalid member id" });
     }
 
-    const member = await Member.findByPk(Number(id));
+    const member = await Member.findOne({ where });
     if (!member) {
       return res.status(404).json({ message: "Member not found" });
     }

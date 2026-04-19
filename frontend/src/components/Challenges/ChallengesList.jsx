@@ -312,7 +312,9 @@ function ChallengeCreateDialog({
           <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
             Cancel
           </Button>
-          <Button type="submit" form="challenge-create-form" disabled={isSaving}>
+          <Button type="submit" 
+          className="dark:bg-orange-500"
+          form="challenge-create-form" disabled={isSaving}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
             Create Challenge
           </Button>
@@ -457,7 +459,8 @@ export default function ChallengesList() {
         </div>
 
         {canCreateChallenges && (
-          <Button size="sm" onClick={() => setIsCreateOpen(true)}>
+          <Button size="sm" className="dark:bg-orange-500/80"
+           onClick={() => setIsCreateOpen(true)}>
             <Plus className="mr-1 h-4 w-4" /> New Challenge
           </Button>
         )}

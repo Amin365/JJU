@@ -106,7 +106,7 @@ export const createDailyReport = async (req, res, next) => {
     }
 
     const last = await DailyReport.findOne({
-      where: { createdBy: Number(createdBy), book: Number(book) },
+      where: { created_by: Number(createdBy), book_id: Number(book) },
       order: [["readingDate", "DESC"], ["createdAt", "DESC"]],
       attributes: ["pagesTo"],
     });
@@ -127,8 +127,8 @@ export const createDailyReport = async (req, res, next) => {
     const rd = toDateOnlyUTC(readingDate);
 
     const report = await DailyReport.create({
-      createdBy: Number(createdBy),
-      book: Number(book),
+      created_by: Number(createdBy),
+      book_id: Number(book),
       readingDate: rd,
       pagesFrom: pf,
       pagesTo: pt,
@@ -142,13 +142,13 @@ export const createDailyReport = async (req, res, next) => {
       include: [
         {
           model: User,
-          as: "creator",
+          as: "createdBy",
           attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"],
           required: false,
         },
         {
           model: Book,
-          as: "bookRef",
+          as: "book",
           attributes: ["id", "title", "author", "isbn", "status"],
           required: false,
         },
@@ -240,9 +240,9 @@ export const getDailyReports = async (req, res, next) => {
     const { page = 1, limit = 20, sort = "-readingDate", book, createdBy, q } = req.query;
 
     const where = {};
-    if (req.user?.id && !createdBy) where.createdBy = req.user.id;
-    if (createdBy) where.createdBy = Number(createdBy);
-    if (book) where.book = Number(book);
+    if (req.user?.id && !createdBy) where.created_by = req.user.id;
+    if (createdBy) where.created_by = Number(createdBy);
+    if (book) where.book_id = Number(book);
 
     if (q) {
       where.summary = { [Op.like]: `%${escapeLike(q)}%` };
@@ -258,8 +258,8 @@ export const getDailyReports = async (req, res, next) => {
     const { rows: items, count: total } = await DailyReport.findAndCountAll({
       where,
       include: [
-        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
       order: [[sortField || "readingDate", sortDir]],
       offset,
@@ -304,8 +304,8 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     const report = await DailyReport.findByPk(Number(id), {
       include: [
-        { model: User, as: "creator", attributes: ["id", "first_name", "last_name", "username", "member_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "first_name", "last_name", "username", "member_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn"], required: false },
       ],
     });
 
@@ -313,7 +313,7 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     if (isModeratorUser(currentUser) && !isSuperAdminUser(currentUser)) {
       const assignment = await ModeratorMember.findOne({
-        where: { moderator_id: currentUser.id, member_id: report.creator?.member_id },
+        where: { moderator_id: currentUser.id, member_id: report.createdBy?.member_id },
         attributes: ["id"],
       });
 
@@ -327,14 +327,14 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     try {
       await Notification.create({
-        user_id: report.creator?.id,
-        title: `Report ${status.toLowerCase()}: ${report.bookRef?.title || "Book"}`,
+        user_id: report.createdBy?.id,
+        title: `Report ${status.toLowerCase()}: ${report.book?.title || "Book"}`,
         message:
           status === "Approved"
-            ? `Your reading report for "${report.bookRef?.title || "this book"}" was approved.`
+            ? `Your reading report for "${report.book?.title || "this book"}" was approved.`
             : status === "Needs Improvement"
-            ? `Your reading report for "${report.bookRef?.title || "this book"}" needs improvement.`
-            : `Your reading report for "${report.bookRef?.title || "this book"}" was moved back to pending review.`,
+            ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
+            : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
         type: status === "Approved" ? "success" : status === "Needs Improvement" ? "warning" : "info",
         meta: { report: report.id, kind: "report-status-updated", status },
       });
@@ -344,8 +344,8 @@ export const updateDailyReportStatus = async (req, res, next) => {
 
     const populated = await DailyReport.findByPk(report.id, {
       include: [
-        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
     });
 
@@ -374,8 +374,8 @@ export const getDailyReportsByMember = async (req, res, next) => {
 
     if (!userIds.length) return res.status(200).json({ data: [] });
 
-    const where = { createdBy: { [Op.in]: userIds } };
-    if (book) where.book = Number(book);
+    const where = { created_by: { [Op.in]: userIds } };
+    if (book) where.book_id = Number(book);
 
     if (from || to) {
       where.readingDate = {};
@@ -386,8 +386,8 @@ export const getDailyReportsByMember = async (req, res, next) => {
     const reports = await DailyReport.findAll({
       where,
       include: [
-        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
       order: [["readingDate", "DESC"]],
       limit: Math.min(Number(limit) || 5000, 5000),
@@ -408,14 +408,14 @@ export const getDailyReportById = async (req, res, next) => {
 
     const report = await DailyReport.findByPk(Number(id), {
       include: [
-        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name", "email", "role_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
     });
 
     if (!report) return res.status(404).json({ message: "Report not found" });
 
-    if (req.user?.id && String(report.creator?.id || report.createdBy) !== String(req.user.id)) {
+    if (req.user?.id && String(report.createdBy?.id || report.created_by) !== String(req.user.id)) {
       return res.status(403).json({ message: "Forbidden" });
     }
 
@@ -464,7 +464,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         });
         const ids = users.map((u) => u.id);
         if (!ids.length) return res.status(200).json({ data: [] });
-        where.createdBy = { [Op.in]: ids };
+        where.created_by = { [Op.in]: ids };
       }
     } else if (isModerator) {
       if (memberId) {
@@ -488,7 +488,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         });
         const ids = users.map((u) => u.id);
         if (!ids.length) return res.status(200).json({ data: [] });
-        where.createdBy = { [Op.in]: ids };
+        where.created_by = { [Op.in]: ids };
       } else {
         const assigned = await ModeratorMember.findAll({
           where: { moderator_id: req.user.id },
@@ -507,17 +507,17 @@ export const getDailyReportsScope = async (req, res, next) => {
 
         const ids = users.map((u) => u.id);
         if (!ids.length) return res.status(200).json({ data: [] });
-        where.createdBy = { [Op.in]: ids };
+        where.created_by = { [Op.in]: ids };
       }
     } else {
-      where.createdBy = req.user.id;
+      where.created_by = req.user.id;
     }
 
     const items = await DailyReport.findAll({
       where,
       include: [
-        { model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
-        { model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "status"], required: false },
+        { model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name", "email", "role_id", "member_id"], required: false },
+        { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
       order: [["readingDate", "DESC"]],
       limit: Math.min(Number(limit) || 5000, 5000),
@@ -614,8 +614,8 @@ export const getDailyReportsPublic = async (req, res, next) => {
 
     const items = await DailyReport.findAll({
       where,
-      attributes: ["id", "createdBy", "readingDate"],
-      include: [{ model: User, as: "creator", attributes: ["id", "username", "first_name", "last_name"], required: false }],
+      attributes: ["id", "created_by", "readingDate"],
+      include: [{ model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name"], required: false }],
       order: [["readingDate", "DESC"]],
       limit: Math.min(Number(limit) || 5000, 5000),
     });
@@ -645,7 +645,7 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
 
     const reports = await DailyReport.findAll({
       where,
-      attributes: ["createdBy", "pagesFrom", "pagesTo", "timeSpent", "readingDate"],
+      attributes: ["created_by", "pagesFrom", "pagesTo", "timeSpent", "readingDate"],
       raw: true,
     });
 
@@ -654,10 +654,10 @@ export const getLeaderboardEnhanced = async (req, res, next) => {
     const grouped = new Map();
 
     for (const r of reports) {
-      const uid = String(r.createdBy);
+      const uid = String(r.created_by);
       if (!grouped.has(uid)) {
         grouped.set(uid, {
-          userId: r.createdBy,
+          userId: r.created_by,
           reportsCount: 0,
           pagesRead: 0,
           minutesRead: 0,

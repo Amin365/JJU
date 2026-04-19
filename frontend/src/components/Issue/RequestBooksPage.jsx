@@ -123,7 +123,9 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
                   onChange={(e) => setMemberCode(e.target.value)}
                   onKeyDown={(e) => e.key === "Enter" && lookupMember()}
                 />
-                <Button onClick={lookupMember} disabled={lookingUp || !memberCode.trim()}>
+                <Button
+                className="dark:bg-orange-600"
+                 onClick={lookupMember} disabled={lookingUp || !memberCode.trim()}>
                   {lookingUp ? <Loader2 size={16} className="animate-spin" /> : <Search size={16} />}
                 </Button>
               </div>

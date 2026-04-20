@@ -89,6 +89,7 @@ export default function UserDetailsAdmin() {
   });
 
   const roles = useMemo(() => (Array.isArray(rolesData) ? rolesData : []), [rolesData]);
+  const targetUserId = userData?.id || id;
 
   const fullName = useMemo(
     () => [form.first_name, form.middle_name, form.last_name].filter(Boolean).join(" ").trim(),
@@ -116,7 +117,7 @@ export default function UserDetailsAdmin() {
 
   const updateMutation = useMutation({
     mutationFn: async (payload) => {
-      const res = await api.patch(`/users/${id}`, payload);
+      const res = await api.patch(`/users/${targetUserId}`, payload);
       return res.data?.data || res.data;
     },
     onSuccess: () => {
@@ -131,7 +132,7 @@ export default function UserDetailsAdmin() {
 
   const passwordMutation = useMutation({
     mutationFn: async (payload) => {
-      const res = await api.put(`/users/${id}/password`, payload);
+      const res = await api.put(`/users/${targetUserId}/password`, payload);
       return res.data;
     },
     onSuccess: () => {

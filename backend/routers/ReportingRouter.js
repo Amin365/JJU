@@ -6,6 +6,7 @@
 import express from "express";
 import rateLimit from "express-rate-limit";
 import { protect } from "../middleware/auth.js";
+import { responseCache } from "../middleware/responseCache.js";
 import {
   getAdminReports,
   getTopReadersReport,
@@ -30,31 +31,33 @@ const reportingLimiter = rateLimit({
     res.status(429).json({ message: "Too many requests. Please slow down." }),
 });
 
+const reportingCache = responseCache(Number.parseInt(process.env.REPORTING_CACHE_TTL_MS || "45000", 10));
+
 // Admin reports with filters
-ReportingRouter.get("/reporting/admin-reports", reportingLimiter, protect, getAdminReports);
+ReportingRouter.get("/reporting/admin-reports", reportingLimiter, protect, reportingCache, getAdminReports);
 
 // Top readers report
-ReportingRouter.get("/reporting/top-readers", reportingLimiter, protect, getTopReadersReport);
+ReportingRouter.get("/reporting/top-readers", reportingLimiter, protect, reportingCache, getTopReadersReport);
 
 // Weakest participation report
-ReportingRouter.get("/reporting/weakest-participation", reportingLimiter, protect, getWeakestParticipation);
+ReportingRouter.get("/reporting/weakest-participation", reportingLimiter, protect, reportingCache, getWeakestParticipation);
 
 // Reading health indicators
-ReportingRouter.get("/reporting/reading-health", reportingLimiter, protect, getReadingHealth);
+ReportingRouter.get("/reporting/reading-health", reportingLimiter, protect, reportingCache, getReadingHealth);
 
 // Monthly comparison (current vs previous)
-ReportingRouter.get("/reporting/monthly-comparison", reportingLimiter, protect, getMonthlyComparison);
+ReportingRouter.get("/reporting/monthly-comparison", reportingLimiter, protect, reportingCache, getMonthlyComparison);
 
 // Department comparison
-ReportingRouter.get("/reporting/department-comparison", reportingLimiter, protect, getDepartmentComparison);
+ReportingRouter.get("/reporting/department-comparison", reportingLimiter, protect, reportingCache, getDepartmentComparison);
 
 // Report quality summary
-ReportingRouter.get("/reporting/report-quality", reportingLimiter, protect, getReportQuality);
+ReportingRouter.get("/reporting/report-quality", reportingLimiter, protect, reportingCache, getReportQuality);
 
 // Export endpoints
 ReportingRouter.get("/reporting/export/csv", reportingLimiter, protect, exportReportsCSV);
 
 // Summary for scheduled reports
-ReportingRouter.get("/reporting/summary", reportingLimiter, protect, getReportingSummary);
+ReportingRouter.get("/reporting/summary", reportingLimiter, protect, reportingCache, getReportingSummary);
 
 export default ReportingRouter;

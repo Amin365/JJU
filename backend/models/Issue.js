@@ -9,6 +9,13 @@ const Issue = sequelize.define('Issue', {
   returnDate: { type: DataTypes.DATE, allowNull: false },
   status: { type: DataTypes.ENUM('Issued', 'Returned', 'Overdue'), defaultValue: 'Issued' },
   returnedAt: { type: DataTypes.DATE, allowNull: true },
-}, { tableName: 'issues', timestamps: true });
+}, {
+  tableName: 'issues',
+  timestamps: true,
+  indexes: [
+    { fields: ['member_id', 'status', 'returnDate'] },
+    { fields: ['book_id', 'status', 'issueDate'] },
+  ],
+});
 
 export default Issue;

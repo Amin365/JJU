@@ -8,6 +8,7 @@ const Api_URL = process.env.NODE_ENV === "production"
 
 const api = axios.create({
   baseURL: Api_URL,
+  timeout: 15000,
   headers: {
     "Content-Type": "application/json",
   },

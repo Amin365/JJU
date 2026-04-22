@@ -257,8 +257,8 @@ export default function BlogFeed({ onPostClick }) {
     return pages;
   }
 
-  const handlePostClick = (id) => {
-    onPostClick ? onPostClick(id) : navigate(`/blogs/${id}`);
+  const handlePostClick = (pathId) => {
+    onPostClick ? onPostClick(pathId) : navigate(`/blogs/${pathId}`);
   };
 
   /* -------- UI -------- */
@@ -310,7 +310,7 @@ export default function BlogFeed({ onPostClick }) {
                 {featuredPosts.slice(0, 2).map((post) => (
                   <Card
                     key={post.id}
-                    onClick={() => handlePostClick(post.id)}
+                    onClick={() => handlePostClick(post.uuid || post.slug || post.id)}
                     className="cursor-pointer hover:shadow-xl transition-all transform hover:-translate-y-1 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950 dark:to-yellow-950 border-orange-200 dark:border-orange-800"
                   >
                     <div className="flex flex-col md:flex-row">
@@ -398,7 +398,7 @@ export default function BlogFeed({ onPostClick }) {
               return (
                 <Card
                   key={post.id}
-                  onClick={() => handlePostClick(post.id)}
+                  onClick={() => handlePostClick(post.uuid || post.slug || post.id)}
                   className="cursor-pointer hover:shadow-xl transition-transform transform hover:-translate-y-1 rounded-2xl overflow-hidden relative bg-white dark:bg-gray-800"
                 >
                   <div className="relative">

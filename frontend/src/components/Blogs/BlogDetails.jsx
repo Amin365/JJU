@@ -140,8 +140,10 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
 
   // Parse post data
   const post = useMemo(() => {
+    const pathId = postResponse?.uuid || postResponse?.slug || postResponse?.id || postId;
     return {
       id: postResponse?.id || postId,
+      pathId,
       title: postResponse?.title || "",
       content: postResponse?.content || "",
       coverImage:
@@ -187,8 +189,10 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       .map((p) => {
         const pTags = Array.isArray(p.tags) ? p.tags : [];
         const matching = pTags.filter((t) => tags.includes(t));
+        const pathId = p.uuid || p.slug || p.id;
         return {
           id: p.id,
+          pathId,
           title: p.title,
           author: p.author_name || p.author || "Unknown",
           publishDate: p.createdAt,
@@ -215,6 +219,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     return filtered
       .map((p) => ({
         id: p.id,
+        pathId: p.uuid || p.slug || p.id,
         title: p.title,
         author: p.author_name || p.author || "Unknown",
         publishDate: p.createdAt,
@@ -322,7 +327,8 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
 
   const handleShare = async () => {
     try {
-      const shareUrl = `https://jjureadingclub.com/api/share/blog/${postId}`;
+      const shareIdentifier = post.pathId || postId;
+      const shareUrl = `https://jjureadingclub.com/api/share/blog/${shareIdentifier}`;
       await navigator.clipboard.writeText(shareUrl);
       toast.success("Share link copied!");
     } catch (err) {
@@ -380,7 +386,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     </div>
   );
 
-  const handleRelated = (id) => onRelatedPostClick?.(id);
+  const handleRelated = (pathId) => onRelatedPostClick?.(pathId);
 
   if (isLoading) return <Loader />;
 
@@ -746,7 +752,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                     key={relatedPost.id}
                     whileHover={{ scale: 1.01 }}
                     className="group cursor-pointer"
-                    onClick={() => handleRelated(relatedPost.id)}
+                    onClick={() => handleRelated(relatedPost.pathId || relatedPost.id)}
                   >
                     <div className="flex gap-3">
                       <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">
@@ -800,7 +806,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
                     key={authorPost.id}
                     whileHover={{ scale: 1.01 }}
                     className="group cursor-pointer"
-                    onClick={() => handleRelated(authorPost.id)}
+                    onClick={() => handleRelated(authorPost.pathId || authorPost.id)}
                   >
                     <div className="flex gap-3">
                       <div className="w-24 h-20 rounded-lg overflow-hidden flex-shrink-0">

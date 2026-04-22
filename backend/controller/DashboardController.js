@@ -1,5 +1,5 @@
 import Book from "../models/Books.js";
-import { Op } from "sequelize";
+import { Op, fn, col, literal } from "sequelize";
 import Member from "../models/Members.js";
 import Issue from "../models/Issue.js";
 import DailyReport from "../models/DailyReport.js";
@@ -276,38 +276,32 @@ export const getTopReaders = async (req, res) => {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
     if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
 
-    const reports = await DailyReport.findAll({
-      attributes: ["created_by", "createdAt", "pagesFrom", "pagesTo"],
+    const topReaderRows = await DailyReport.findAll({
+      where: { created_by: { [Op.ne]: null } },
+      attributes: [
+        "created_by",
+        [fn("COUNT", col("id")), "reportCount"],
+        [fn("MAX", col("createdAt")), "lastReport"],
+        [
+          fn(
+            "SUM",
+            literal("GREATEST(COALESCE(`pagesTo`, 0) - COALESCE(`pagesFrom`, 0), 0)")
+          ),
+          "totalPages",
+        ],
+      ],
+      group: ["created_by"],
+      order: [[literal("reportCount"), "DESC"]],
+      limit: 10,
       raw: true,
     });
 
-    const groupedMap = new Map();
-
-    for (const report of reports) {
-      const userId = report.created_by;
-      if (!userId) continue;
-
-      const existing = groupedMap.get(userId) || {
-        userId,
-        reportCount: 0,
-        lastReport: null,
-        totalPages: 0,
-      };
-
-      existing.reportCount += 1;
-      const pages = Math.max(0, Number(report.pagesTo || 0) - Number(report.pagesFrom || 0));
-      existing.totalPages += pages;
-
-      if (!existing.lastReport || new Date(report.createdAt) > new Date(existing.lastReport)) {
-        existing.lastReport = report.createdAt;
-      }
-
-      groupedMap.set(userId, existing);
-    }
-
-    const grouped = Array.from(groupedMap.values())
-      .sort((a, b) => b.reportCount - a.reportCount)
-      .slice(0, 10);
+    const grouped = topReaderRows.map((row) => ({
+      userId: Number(row.created_by),
+      reportCount: Number(row.reportCount || 0),
+      lastReport: row.lastReport || null,
+      totalPages: Number(row.totalPages || 0),
+    }));
 
     const userIds = grouped.map((g) => g.userId);
 
@@ -366,18 +360,19 @@ export const getPopularBooks = async (req, res) => {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
     if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
 
-    const issues = await Issue.findAll({ attributes: ["book_id"], raw: true });
-
-    const countMap = new Map();
-    for (const issue of issues) {
-      if (!issue.book_id) continue;
-      countMap.set(issue.book_id, (countMap.get(issue.book_id) || 0) + 1);
-    }
-
-    const grouped = Array.from(countMap.entries())
-      .map(([bookId, issueCount]) => ({ bookId, issueCount }))
-      .sort((a, b) => b.issueCount - a.issueCount)
-      .slice(0, 10);
+    const grouped = (
+      await Issue.findAll({
+        where: { book_id: { [Op.ne]: null } },
+        attributes: ["book_id", [fn("COUNT", col("id")), "issueCount"]],
+        group: ["book_id"],
+        order: [[literal("issueCount"), "DESC"]],
+        limit: 10,
+        raw: true,
+      })
+    ).map((row) => ({
+      bookId: Number(row.book_id),
+      issueCount: Number(row.issueCount || 0),
+    }));
 
     const bookIds = grouped.map((g) => g.bookId);
 

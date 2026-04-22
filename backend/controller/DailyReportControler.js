@@ -362,7 +362,7 @@ export const getDailyReportsByMember = async (req, res, next) => {
       return res.status(403).json({ message: "Access denied" });
     }
 
-    const { memberId, from, to, book, limit = 5000 } = req.query;
+    const { memberId, from, to, book, limit = 200 } = req.query;
     if (!memberId) return res.status(400).json({ message: "memberId is required" });
 
     const users = await User.findAll({
@@ -390,7 +390,7 @@ export const getDailyReportsByMember = async (req, res, next) => {
         { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
       order: [["readingDate", "DESC"]],
-      limit: Math.min(Number(limit) || 5000, 5000),
+      limit: Math.min(Number(limit) || 200, 200),
     });
 
     return res.status(200).json({ data: reports });
@@ -428,7 +428,7 @@ export const getDailyReportById = async (req, res, next) => {
 // GET /daily-reports/scope
 export const getDailyReportsScope = async (req, res, next) => {
   try {
-    const { memberId, from, to, limit = 5000 } = req.query;
+    const { memberId, from, to, limit = 200 } = req.query;
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     if (!canReviewReports(req)) {
@@ -520,7 +520,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         { model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "status"], required: false },
       ],
       order: [["readingDate", "DESC"]],
-      limit: Math.min(Number(limit) || 5000, 5000),
+      limit: Math.min(Number(limit) || 200, 200),
     });
 
     return res.status(200).json({ data: items });
@@ -603,7 +603,7 @@ export const restoreStreak = async (req, res, next) => {
 // GET /daily-reports/public
 export const getDailyReportsPublic = async (req, res, next) => {
   try {
-    const { from, to, limit = 5000 } = req.query;
+    const { from, to, limit = 200 } = req.query;
 
     const where = {};
     if (from || to) {
@@ -617,7 +617,7 @@ export const getDailyReportsPublic = async (req, res, next) => {
       attributes: ["id", "created_by", "readingDate"],
       include: [{ model: User, as: "createdBy", attributes: ["id", "username", "first_name", "last_name"], required: false }],
       order: [["readingDate", "DESC"]],
-      limit: Math.min(Number(limit) || 5000, 5000),
+      limit: Math.min(Number(limit) || 200, 200),
     });
 
     return res.status(200).json({ data: items });

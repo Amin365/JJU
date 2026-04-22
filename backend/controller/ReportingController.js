@@ -4,7 +4,7 @@
  */
 
 import DailyReport from "../models/DailyReport.js";
-import { Op } from "sequelize";
+import { Op, fn, col, literal } from "sequelize";
 import Member from "../models/Members.js";
 import User from "../models/user.js";
 import Issue from "../models/Issue.js";
@@ -144,6 +144,34 @@ const aggregateReports = (reports = []) => {
   }
 
   return grouped;
+};
+
+const getUserAggregateRows = async (where = {}, limit = 20) => {
+  const safeLimit = Math.max(1, Math.min(Number(limit) || 20, 500));
+  return DailyReport.findAll({
+    where: {
+      ...where,
+      created_by: { [Op.ne]: null },
+    },
+    attributes: [
+      "created_by",
+      [fn("COUNT", col("id")), "reportsCount"],
+      [
+        fn(
+          "SUM",
+          literal("GREATEST(COALESCE(`pagesTo`, 0) - COALESCE(`pagesFrom`, 0), 0)")
+        ),
+        "pagesRead",
+      ],
+      [fn("SUM", fn("COALESCE", col("timeSpent"), 0)), "minutesRead"],
+      [fn("SUM", fn("COALESCE", col("rating"), 0)), "totalRating"],
+      [fn("COUNT", col("rating")), "ratingCount"],
+    ],
+    group: ["created_by"],
+    order: [[literal("reportsCount"), "DESC"]],
+    limit: safeLimit,
+    raw: true,
+  });
 };
 
 /**
@@ -331,11 +359,37 @@ export const getTopReadersReport = async (req, res, next) => {
     const readingDate = parseDateFilter(from, to);
     if (readingDate) where.readingDate = readingDate;
 
-    const reports = await DailyReport.findAll({ where });
-    const grouped = aggregateReports(reports);
+    const cappedLimit = Math.min(parseInt(limit, 10) || 20, 100);
+    const aggregateRows = await getUserAggregateRows(where, cappedLimit);
 
-    const userIds = Array.from(grouped.keys());
+    const userIds = aggregateRows.map((row) => Number(row.created_by)).filter(Boolean);
     if (!userIds.length) return res.status(200).json({ data: [] });
+
+    const topUsersReportRows = await DailyReport.findAll({
+      where: {
+        ...where,
+        created_by: { [Op.in]: userIds },
+      },
+      attributes: ["created_by", "readingDate", "book_id"],
+      raw: true,
+    });
+
+    const streakDataByUser = new Map();
+    for (const row of topUsersReportRows) {
+      const uid = Number(row.created_by);
+      if (!Number.isFinite(uid)) continue;
+
+      if (!streakDataByUser.has(uid)) {
+        streakDataByUser.set(uid, {
+          readingDates: new Set(),
+          booksRead: new Set(),
+        });
+      }
+
+      const item = streakDataByUser.get(uid);
+      if (row.readingDate) item.readingDates.add(new Date(row.readingDate).toISOString());
+      if (row.book_id) item.booksRead.add(Number(row.book_id));
+    }
 
     const users = await User.findAll({
       where: { id: { [Op.in]: userIds } },
@@ -344,17 +398,25 @@ export const getTopReadersReport = async (req, res, next) => {
     });
     const userMap = new Map(users.map((u) => [Number(u.id), toPlain(u)]));
 
-    const entries = Array.from(grouped.values())
+    const entries = aggregateRows
       .map((a) => {
-        const user = userMap.get(Number(a.userId));
+        const userId = Number(a.created_by);
+        const user = userMap.get(userId);
         if (!user) return null;
 
         const memberData = user.member || {};
         if (department && memberData.department !== department) return null;
         if (study_year && String(memberData.study_year) !== String(study_year)) return null;
 
-        const streak = calcLongestStreak(Array.from(a.readingDates));
-        const avgRating = a.ratingCount > 0 ? a.totalRating / a.ratingCount : 0;
+        const streakData = streakDataByUser.get(userId) || {
+          readingDates: new Set(),
+          booksRead: new Set(),
+        };
+
+        const streak = calcLongestStreak(Array.from(streakData.readingDates));
+        const totalRating = Number(a.totalRating || 0);
+        const ratingCount = Number(a.ratingCount || 0);
+        const avgRating = ratingCount > 0 ? totalRating / ratingCount : 0;
 
         return {
           user: {
@@ -367,17 +429,17 @@ export const getTopReadersReport = async (req, res, next) => {
             department: memberData.department || null,
             study_year: memberData.study_year || null,
           },
-          reportsCount: a.reportsCount,
-          pagesRead: a.pagesRead,
-          minutesRead: a.minutesRead,
+          reportsCount: Number(a.reportsCount || 0),
+          pagesRead: Number(a.pagesRead || 0),
+          minutesRead: Number(a.minutesRead || 0),
           avgRating: Math.round((avgRating || 0) * 10) / 10,
           streak,
-          booksCount: a.booksRead.size,
+          booksCount: streakData.booksRead.size,
         };
       })
       .filter(Boolean)
       .sort((a, b) => b.reportsCount - a.reportsCount)
-      .slice(0, Math.min(parseInt(limit, 10) || 20, 100));
+      .slice(0, cappedLimit);
 
     return res.status(200).json({ data: entries });
   } catch (err) {
@@ -950,6 +1012,7 @@ export const exportReportsCSV = async (req, res, next) => {
     }
 
     const { from, to, status, department, study_year, type = "reports" } = req.query;
+    const exportLimit = Math.min(Number.parseInt(process.env.REPORT_EXPORT_MAX_ROWS || "2000", 10) || 2000, 5000);
 
     let csvContent = "";
     let filename = "";
@@ -988,7 +1051,7 @@ export const exportReportsCSV = async (req, res, next) => {
           { model: Book, as: "book", attributes: ["title", "author"] },
         ],
         order: [["readingDate", "DESC"]],
-        limit: 5000,
+        limit: exportLimit,
       });
 
       csvContent =
@@ -1017,12 +1080,14 @@ export const exportReportsCSV = async (req, res, next) => {
       const readingDate = parseDateFilter(from, to);
       if (readingDate) where.readingDate = readingDate;
 
-      const reports = await DailyReport.findAll({ where });
-      const grouped = aggregateReports(reports);
-
-      const top = Array.from(grouped.values())
-        .sort((a, b) => b.reportsCount - a.reportsCount)
-        .slice(0, 200);
+      const top = (await getUserAggregateRows(where, 200)).map((a) => ({
+        userId: Number(a.created_by),
+        reportsCount: Number(a.reportsCount || 0),
+        pagesRead: Number(a.pagesRead || 0),
+        minutesRead: Number(a.minutesRead || 0),
+        totalRating: Number(a.totalRating || 0),
+        ratingCount: Number(a.ratingCount || 0),
+      }));
 
       const userIds = top.map((t) => t.userId);
       const users = userIds.length

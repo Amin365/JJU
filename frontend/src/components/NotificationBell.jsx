@@ -38,12 +38,11 @@ export default function NotificationBell() {
       const res = await api.get("/notifications", { params: { limit: 10 } });
       return res.data;
     },
-    // Always consider stale so focus/open will refetch
-    staleTime: 0,
-    // Light polling to show new notifications without refresh
-    refetchInterval: 5000,
+    // Keep header notifications reasonably fresh without constant refetch churn.
+    staleTime: 15000,
+    refetchInterval: 15000,
     refetchIntervalInBackground: true,
-    refetchOnWindowFocus: true,
+    refetchOnWindowFocus: false,
   });
 
   const notifications = Array.isArray(data?.data) ? data.data : Array.isArray(data) ? data : [];

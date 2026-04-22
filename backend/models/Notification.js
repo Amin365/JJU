@@ -11,6 +11,14 @@ const Notification = sequelize.define('Notification', {
   read: { type: DataTypes.BOOLEAN, defaultValue: false },
   meta: { type: DataTypes.JSON, defaultValue: {} },
   expiresAt: { type: DataTypes.DATE },
-}, { tableName: 'notifications', timestamps: true });
+}, {
+  tableName: 'notifications',
+  timestamps: true,
+  indexes: [
+    { fields: ['user_id', 'read', 'createdAt'] },
+    { fields: ['user_id', 'createdAt'] },
+    { fields: ['expiresAt'] },
+  ],
+});
 
 export default Notification;

@@ -9,6 +9,7 @@ import { Provider } from 'react-redux'
 import store, { persister } from './app/store.js'
 import { Toaster } from "@/components/ui/sonner"
 import { ThemeProvider } from './components/ThemeProvider.jsx'
+import {toast} from "sonner";
 // import { HelmetProvider } from "react-helmet-async";
 
 /* =========================
@@ -33,6 +34,14 @@ if ('serviceWorker' in navigator) {
             ) {
               console.log('New version available');
               // Here you can show a toast: "New update available"
+              toast("New version available. Please refresh.", {
+                action: {
+                  label: "Refresh",
+                  onClick: () => {
+                    window.location.reload();
+                  }
+                }
+              });
             }
           };
         };
@@ -48,6 +57,9 @@ const queryClient = new QueryClient({
   defaultOptions: {
     queries: {
       staleTime: 60 * 1000,
+      gcTime: 10 * 60 * 1000,
+      refetchOnWindowFocus: false,
+      retry: 1,
     },
   },
 });

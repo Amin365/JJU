@@ -6,6 +6,7 @@ import { NotFound } from "./middleware/NotFound.js"
 import seedAllModules from "./seeds/index.js"
 import AuthRouter from "./routers/AuthRouter.js"
 import cors from 'cors'
+import compression from "compression";
 import RoleRouter from "./routers/RoleRouter.js"
 import MemberRouter from "./routers/MemberRouter.js"
 import DailyReportRouter from "./routers/DailyReportRouter.js"
@@ -44,6 +45,7 @@ import sequelize from "./config/database.js";
 import { runMigrations } from "./migrations/index.js";
 import "./models/index.js";
 import { validateSecurityConfig } from "./utility/validateSecurityConfig.js";
+import { apiPerformanceMonitor } from "./utility/performanceMetrics.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -51,10 +53,12 @@ dotenv.config({ path: path.join(__dirname, ".env") });
 validateSecurityConfig();
 const app = express()
 const PORT = process.env.PORT || 5000
+const isDev = process.env.NODE_ENV !== 'production';
 app.set("trust proxy", 1);
 app.use(express.json())
 app.use(express.urlencoded({ extended: true }));
 app.use(cookieParser());
+app.use(compression());
 
 
 
@@ -98,6 +102,7 @@ app.use((req, res, next) => {
   return xss()(req, res, next);
 });
 app.use(hpp());
+app.use(apiPerformanceMonitor());
 
 // Deny-by-default API policy: only allow explicit public endpoints without auth.
 app.use('/api', denyByDefaultApi());
@@ -184,7 +189,21 @@ app.post("/db-alter/sync-seed", async (req, res) => {
 });
 
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '../frontend/dist')));
+  app.use(
+    express.static(path.join(__dirname, '../frontend/dist'), {
+      maxAge: "7d",
+      immutable: true,
+      etag: true,
+      lastModified: true,
+      setHeaders: (res, filePath) => {
+        if (filePath.endsWith(".html")) {
+          res.setHeader("Cache-Control", "no-cache");
+          return;
+        }
+        res.setHeader("Cache-Control", "public, max-age=604800, immutable");
+      },
+    })
+  );
 
   app.get(/.*/, (req, res, next) => {
     if (req.path === '/api' || req.path.startsWith('/api/')) {
@@ -201,18 +220,23 @@ app.use(NotFound)
 app.use(ErrorHandle);
 
 
+const shouldSyncOnStart = isDev || process.env.DB_SYNC_ON_START === "true";
+const shouldRunMigrationsOnStart = isDev || process.env.RUN_MIGRATIONS_ON_START === "true";
 
-const isDev = process.env.NODE_ENV !== 'production';
+const startServer = async () => {
+  try {
+    await sequelize.authenticate();
+    console.log(" Database connected");
 
-sequelize.authenticate()
-  .then(() => console.log(" Database connected"))
-  .catch(err => console.error(" DB AUTH ERROR:", err));
+    if (shouldSyncOnStart) {
+      await sequelize.sync({ alter: isDev, force: false });
+      console.log(" Sequelize schema sync completed");
+    }
 
-sequelize.sync({ alter: isDev, force: false })
-  .then(async () => {
-    console.log(' Connected to MySQL and tables synced');
-
-    await runMigrations();
+    if (shouldRunMigrationsOnStart) {
+      await runMigrations();
+      console.log(" DB migrations completed");
+    }
 
     startIssueDueScheduler();
     startDailyReportMissingScheduler();
@@ -222,8 +246,11 @@ sequelize.sync({ alter: isDev, force: false })
     app.listen(PORT, () => {
       console.log(` Server running on port ${PORT}`);
     });
-  })
-  .catch((error) => {
+  } catch (error) {
     console.error(" MySQL FULL ERROR:");
     console.error(error);
-  });
+    process.exit(1);
+  }
+};
+
+startServer();

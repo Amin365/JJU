@@ -9,6 +9,7 @@ import { Op, col, fn, QueryTypes, where as sqlWhere } from "sequelize";
 import User from "../models/user.js";
 import AuditLog from "../models/AuditLog.js";
 import DailyReport from "../models/DailyReport.js";
+import { getApiPerformanceSnapshot } from "../utility/performanceMetrics.js";
 
 // Track scheduled job status in memory
 const jobStatus = {
@@ -387,6 +388,21 @@ export const getSystemSummary = async (req, res, next) => {
   }
 };
 
+/**
+ * GET /system-health/performance
+ */
+export const getApiPerformance = async (req, res, next) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessSystemHealth(req)) return res.status(403).json({ message: "Access denied" });
+
+    const snapshot = getApiPerformanceSnapshot();
+    return res.status(200).json({ data: snapshot });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export default {
   getSystemHealth,
   getNotificationHealth,
@@ -394,5 +410,6 @@ export default {
   getDatabaseStats,
   getRecentErrors,
   getSystemSummary,
+  getApiPerformance,
   updateJobStatus,
 };

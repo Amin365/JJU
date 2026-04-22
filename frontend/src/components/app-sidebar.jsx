@@ -231,9 +231,9 @@ if(!token){
       return res.data;
     },
     enabled: !!token,
-    staleTime: 0,
-    refetchOnMount: "always",
-    refetchOnWindowFocus: true,
+    staleTime: 300000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
   });
 
   const roleName = React.useMemo(() => {

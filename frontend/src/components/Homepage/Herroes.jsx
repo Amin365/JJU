@@ -162,13 +162,13 @@ export default function HeroSection() {
         <div className="mb-12">
           <HowWorks clubLogoSrc="/jjuclub.jpg" />
         </div>
-        {/* <div>
+        <div>
         <TeamLeaders/>
 
-        </div> */}
-        <div className="mt-8">
-          <Testomials />
         </div>
+        {/* <div className="mt-8">
+          <Testomials />
+        </div> */}
         <div className="mt-8">
           <Faqs />
         </div>

@@ -46,6 +46,26 @@ const normalizeUserName = (user) => {
 const getUploadedImage = (file) => file?.path || file?.secure_url || file?.url || "";
 
 const isValidNumericId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim()
+  );
+
+const getBlogIdentifierWhere = (pathId) => {
+  const normalized = String(pathId || "").trim();
+  if (!normalized) return null;
+
+  if (isValidNumericId(normalized)) return { id: Number(normalized) };
+  if (isUuid(normalized)) return { uuid: normalized };
+
+  return { slug: normalized };
+};
+
+const findBlogPostByPathId = async (pathId, options = {}) => {
+  const where = getBlogIdentifierWhere(pathId);
+  if (!where) return null;
+  return BlogPost.findOne({ where, ...options });
+};
 
 const hasAnyPermission = (req, perms = []) => {
   const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
@@ -244,6 +264,7 @@ export const getBlogPosts = async (req, res) => {
         { content: { [Op.like]: safeQ } },
         { author_name: { [Op.like]: safeQ } },
         { slug: { [Op.like]: safeQ } },
+        { uuid: { [Op.like]: safeQ } },
       ];
     }
 
@@ -282,14 +303,7 @@ export const getBlogPosts = async (req, res) => {
 export const getBlogPostById = async (req, res) => {
   try {
     const { id } = req.params;
-
-    let post = null;
-
-    if (isValidNumericId(id)) {
-      post = await BlogPost.findByPk(Number(id));
-    } else {
-      post = await BlogPost.findOne({ where: { slug: id } });
-    }
+    const post = await findBlogPostByPathId(id);
 
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
@@ -309,11 +323,12 @@ export const updateBlogPost = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
-    if (!isValidNumericId(id)) {
+    const where = getBlogIdentifierWhere(id);
+    if (!where) {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     if (String(post.created_by) !== String(userId) && !canManageBlogs(req)) {
@@ -457,11 +472,12 @@ export const deleteBlogPost = async (req, res) => {
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
     const { id } = req.params;
-    if (!isValidNumericId(id)) {
+    const where = getBlogIdentifierWhere(id);
+    if (!where) {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     if (String(post.created_by) !== String(userId) && !canManageBlogs(req)) {
@@ -479,20 +495,14 @@ export const deleteBlogPost = async (req, res) => {
 export const blogMetaPage = async (req, res) => {
   try {
     const { id } = req.params;
-
-    let post = null;
-    if (isValidNumericId(id)) {
-      post = await BlogPost.findByPk(Number(id));
-    } else {
-      post = await BlogPost.findOne({ where: { slug: id } });
-    }
+    const post = await findBlogPostByPathId(id);
 
     if (!post || post.status !== "Published") {
       return res.status(404).send("Blog not found");
     }
 
     const BASE_URL = process.env.APP_URL || "";
-    const urlIdentifier = post.slug || post.id;
+    const urlIdentifier = post.uuid || post.slug || post.id;
     const redirectUrl = `${BASE_URL}/blogs/${urlIdentifier}`;
     const shareUrl = `${BASE_URL}/api/share/blog/${urlIdentifier}`;
 
@@ -560,11 +570,12 @@ export const incrementViews = async (req, res) => {
   try {
     const { id } = req.params;
 
-    if (!isValidNumericId(id)) {
+    const where = getBlogIdentifierWhere(id);
+    if (!where) {
       return res.status(400).json({ message: "Invalid blog id" });
     }
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Post not found" });
 
     await post.increment("views", { by: 1 });
@@ -609,6 +620,7 @@ export const getFeaturedPosts = async (req, res) => {
       limit: perPage,
       attributes: [
         "id",
+        "uuid",
         "title",
         "slug",
         "blog_picture",
@@ -640,9 +652,10 @@ export const toggleFeature = async (req, res) => {
     if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
-    if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
+    const where = getBlogIdentifierWhere(id);
+    if (!where) return res.status(400).json({ message: "Invalid blog id" });
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isFeatured = !post.isFeatured;
@@ -668,9 +681,10 @@ export const togglePin = async (req, res) => {
     if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
-    if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
+    const where = getBlogIdentifierWhere(id);
+    if (!where) return res.status(400).json({ message: "Invalid blog id" });
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isPinned = !post.isPinned;
@@ -696,9 +710,10 @@ export const toggleEditorsPick = async (req, res) => {
     if (!canManageBlogs(req)) return res.status(403).json({ message: "Permission denied" });
 
     const { id } = req.params;
-    if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
+    const where = getBlogIdentifierWhere(id);
+    if (!where) return res.status(400).json({ message: "Invalid blog id" });
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.isEditorsPick = !post.isEditorsPick;
@@ -726,12 +741,13 @@ export const updateDisplayOrder = async (req, res) => {
     const { id } = req.params;
     const { displayOrder } = req.body;
 
-    if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
+    const where = getBlogIdentifierWhere(id);
+    if (!where) return res.status(400).json({ message: "Invalid blog id" });
     if (typeof displayOrder !== "number") {
       return res.status(400).json({ message: "displayOrder must be a number" });
     }
 
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
 
     post.displayOrder = displayOrder;
@@ -756,17 +772,18 @@ export const updateRelatedPosts = async (req, res) => {
     const { id } = req.params;
     const { relatedPosts } = req.body;
 
-    if (!isValidNumericId(id)) return res.status(400).json({ message: "Invalid blog id" });
+    const where = getBlogIdentifierWhere(id);
+    if (!where) return res.status(400).json({ message: "Invalid blog id" });
     if (!Array.isArray(relatedPosts)) {
       return res.status(400).json({ message: "relatedPosts must be an array" });
     }
 
-    const validIds = relatedPosts
-      .filter((pid) => isValidNumericId(pid) && String(pid) !== String(id))
-      .map((pid) => Number(pid));
-
-    const post = await BlogPost.findByPk(Number(id));
+    const post = await BlogPost.findOne({ where });
     if (!post) return res.status(404).json({ message: "Blog not found" });
+
+    const validIds = relatedPosts
+      .filter((pid) => isValidNumericId(pid) && Number(pid) !== Number(post.id))
+      .map((pid) => Number(pid));
 
     post.relatedPosts = validIds;
     await post.save();

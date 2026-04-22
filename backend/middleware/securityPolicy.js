@@ -15,6 +15,7 @@ const defaultPublicRules = [
   { method: "POST", pattern: /^\/members$/i },
   { method: "POST", pattern: /^\/join-club$/i },
   { method: "GET", pattern: /^\/health\/email$/i },
+  { method: "GET", pattern: /^\/share\/blog\/.+/i },
 ];
 
 const isPublicRequest = (req, rules) => {

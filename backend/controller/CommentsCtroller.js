@@ -13,6 +13,25 @@ import Role from "../models/Role.js";
  */
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+const isUuid = (value) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || "").trim()
+  );
+
+const findPostByPathId = async (pathId) => {
+  const normalized = String(pathId || "").trim();
+  if (!normalized) return null;
+
+  if (isValidId(normalized)) {
+    return BlogPost.findByPk(Number(normalized), { attributes: ["id"] });
+  }
+
+  if (isUuid(normalized)) {
+    return BlogPost.findOne({ where: { uuid: normalized }, attributes: ["id"] });
+  }
+
+  return BlogPost.findOne({ where: { slug: normalized }, attributes: ["id"] });
+};
 
 const normalizeRole = (value) => {
   const roleName = String(value || "").toLowerCase();
@@ -33,19 +52,14 @@ const pickDisplayRole = (user, fallback = "Member") => {
 // GET COMMENTS (public)
 export const getCommentsByPostId = async (req, res) => {
   try {
-    const { id } = req.params; // blog post id
-
-    if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
-    }
-
-    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
+    const { id } = req.params; // blog post id/uuid/slug
+    const exists = await findPostByPathId(id);
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     // Public view: approved + pending (hidden/deleted excluded)
     const comments = await Comment.findAll({
       where: {
-        post_id: Number(id),
+        post_id: Number(exists.id),
         status: { [Op.in]: ["approved", "pending"] },
       },
       include: [
@@ -143,21 +157,18 @@ export const createCommentForPost = async (req, res) => {
 
     if (!userId) return res.status(401).json({ message: "Unauthorized" });
 
-    const { id } = req.params; // blog post id
+    const { id } = req.params; // blog post id/uuid/slug
     const { content } = req.body;
 
-    if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
-    }
     if (!content || !content.trim()) {
       return res.status(400).json({ message: "Comment content is required" });
     }
 
-    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
+    const exists = await findPostByPathId(id);
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.create({
-      post_id: Number(id),
+      post_id: Number(exists.id),
       content: content.trim(),
       author_user_id: Number(userId),
       author_name: userName,
@@ -205,9 +216,6 @@ export const createReplyForComment = async (req, res) => {
     const { id, commentId } = req.params;
     const { content } = req.body;
 
-    if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
-    }
     if (!isValidId(commentId)) {
       return res.status(400).json({ message: "Invalid comment id" });
     }
@@ -215,11 +223,11 @@ export const createReplyForComment = async (req, res) => {
       return res.status(400).json({ message: "Reply content is required" });
     }
 
-    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
+    const exists = await findPostByPathId(id);
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.findOne({
-      where: { id: Number(commentId), post_id: Number(id) },
+      where: { id: Number(commentId), post_id: Number(exists.id) },
     });
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 
@@ -262,18 +270,15 @@ export const toggleCommentLike = async (req, res) => {
 
     const { id, commentId } = req.params;
 
-    if (!isValidId(id)) {
-      return res.status(400).json({ message: "Invalid blog post id" });
-    }
     if (!isValidId(commentId)) {
       return res.status(400).json({ message: "Invalid comment id" });
     }
 
-    const exists = await BlogPost.findByPk(Number(id), { attributes: ["id"] });
+    const exists = await findPostByPathId(id);
     if (!exists) return res.status(404).json({ message: "Blog post not found" });
 
     const comment = await Comment.findOne({
-      where: { id: Number(commentId), post_id: Number(id) },
+      where: { id: Number(commentId), post_id: Number(exists.id) },
     });
     if (!comment) return res.status(404).json({ message: "Comment not found" });
 

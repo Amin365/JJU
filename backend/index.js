@@ -46,6 +46,7 @@ import { runMigrations } from "./migrations/index.js";
 import "./models/index.js";
 import { validateSecurityConfig } from "./utility/validateSecurityConfig.js";
 import { apiPerformanceMonitor } from "./utility/performanceMetrics.js";
+import { ensureBlogPostUuidColumn } from "./utility/ensureBlogPostUuidColumn.js";
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -237,6 +238,8 @@ const startServer = async () => {
       await runMigrations();
       console.log(" DB migrations completed");
     }
+
+    await ensureBlogPostUuidColumn();
 
     startIssueDueScheduler();
     startDailyReportMissingScheduler();

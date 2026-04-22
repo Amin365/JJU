@@ -3,6 +3,7 @@ import sequelize from '../config/database.js';
 
 const BlogPost = sequelize.define('BlogPost', {
   id: { type: DataTypes.INTEGER, primaryKey: true, autoIncrement: true },
+  uuid: { type: DataTypes.UUID, defaultValue: DataTypes.UUIDV4, unique: true, allowNull: true },
   title: { type: DataTypes.STRING, allowNull: false },
   content: { type: DataTypes.TEXT, allowNull: false },
   author: { type: DataTypes.STRING, allowNull: false },

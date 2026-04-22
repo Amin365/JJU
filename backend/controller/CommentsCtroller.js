@@ -18,6 +18,17 @@ const isUuid = (value) =>
     String(value || "").trim()
   );
 
+const getUuidFromCompositeIdentifier = (value) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+
+  const match = normalized.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+  );
+
+  return match ? match[1] : null;
+};
+
 const findPostByPathId = async (pathId) => {
   const normalized = String(pathId || "").trim();
   if (!normalized) return null;
@@ -28,6 +39,11 @@ const findPostByPathId = async (pathId) => {
 
   if (isUuid(normalized)) {
     return BlogPost.findOne({ where: { uuid: normalized }, attributes: ["id"] });
+  }
+
+  const compositeUuid = getUuidFromCompositeIdentifier(normalized);
+  if (compositeUuid) {
+    return BlogPost.findOne({ where: { uuid: compositeUuid }, attributes: ["id"] });
   }
 
   return BlogPost.findOne({ where: { slug: normalized }, attributes: ["id"] });

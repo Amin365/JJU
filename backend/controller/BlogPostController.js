@@ -51,12 +51,57 @@ const isUuid = (value) =>
     String(value || "").trim()
   );
 
+const getUuidFromCompositeIdentifier = (value) => {
+  const normalized = String(value || "").trim();
+  if (!normalized) return null;
+
+  const match = normalized.match(
+    /([0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12})$/i
+  );
+
+  return match ? match[1] : null;
+};
+
+const buildPublicBlogIdentifier = (post) => {
+  const slug = String(post?.slug || "").trim();
+  const uuid = String(post?.uuid || "").trim();
+
+  if (slug && uuid) return `${slug}-${uuid}`;
+  if (slug) return slug;
+  if (uuid) return uuid;
+
+  return post?.id;
+};
+
+const toAbsoluteUrl = (url, baseUrl) => {
+  const value = String(url || "").trim();
+  if (!value) return "";
+
+  if (/^https?:\/\//i.test(value)) return value;
+
+  const normalizedBase = String(baseUrl || "").trim().replace(/\/$/, "");
+  if (!normalizedBase) return value;
+
+  const normalizedPath = value.startsWith("/") ? value : `/${value}`;
+  return `${normalizedBase}${normalizedPath}`;
+};
+
+const isSocialCrawlerRequest = (req) => {
+  const ua = String(req.headers["user-agent"] || "");
+  return /(facebookexternalhit|facebot|twitterbot|linkedinbot|slackbot|whatsapp|telegrambot|discordbot|skypeuripreview|pinterest|vkshare)/i.test(
+    ua
+  );
+};
+
 const getBlogIdentifierWhere = (pathId) => {
   const normalized = String(pathId || "").trim();
   if (!normalized) return null;
 
   if (isValidNumericId(normalized)) return { id: Number(normalized) };
   if (isUuid(normalized)) return { uuid: normalized };
+
+  const compositeUuid = getUuidFromCompositeIdentifier(normalized);
+  if (compositeUuid) return { uuid: compositeUuid };
 
   return { slug: normalized };
 };
@@ -502,9 +547,9 @@ export const blogMetaPage = async (req, res) => {
     }
 
     const BASE_URL = process.env.APP_URL || "";
-    const urlIdentifier = post.uuid || post.slug || post.id;
-    const redirectUrl = `${BASE_URL}/blogs/${urlIdentifier}`;
-    const shareUrl = `${BASE_URL}/api/share/blog/${urlIdentifier}`;
+    const urlIdentifier = buildPublicBlogIdentifier(post);
+    const redirectUrl = toAbsoluteUrl(`/blogs/${urlIdentifier}`, BASE_URL);
+    const shareUrl = toAbsoluteUrl(`/api/share/blog/${urlIdentifier}`, BASE_URL);
 
     const pageTitle = post.seoTitle?.trim() || post.title;
     const plainTextContent = sanitizeHtml(post.content || "", {
@@ -514,7 +559,10 @@ export const blogMetaPage = async (req, res) => {
     const description =
       post.seoDescription?.trim() ||
       plainTextContent.replace(/\s+/g, " ").trim().slice(0, 160);
-    const image = post.socialImage?.trim() || post.blog_picture || `${BASE_URL}/default-og.jpg`;
+    const image = toAbsoluteUrl(
+      post.socialImage?.trim() || post.blog_picture || "/default-og.jpg",
+      BASE_URL
+    );
     const canonical = post.canonicalUrl?.trim() || redirectUrl;
 
     const escapeHtml = (str) =>
@@ -528,6 +576,10 @@ export const blogMetaPage = async (req, res) => {
     const safeTitle = escapeHtml(pageTitle);
     const safeDescription = escapeHtml(description);
 
+    if (!isSocialCrawlerRequest(req)) {
+      return res.redirect(302, redirectUrl);
+    }
+
     return res.status(200).send(`
 <!DOCTYPE html>
 <html lang="en">
@@ -538,6 +590,10 @@ export const blogMetaPage = async (req, res) => {
   <meta property="og:title" content="${safeTitle}" />
   <meta property="og:description" content="${safeDescription}" />
   <meta property="og:image" content="${image}" />
+  <meta property="og:image:secure_url" content="${image}" />
+  <meta property="og:image:type" content="image/jpeg" />
+  <meta property="og:image:width" content="1200" />
+  <meta property="og:image:height" content="630" />
   <meta property="og:url" content="${shareUrl}" />
   <meta property="og:type" content="article" />
   <meta property="og:site_name" content="JJU Reading Club" />
@@ -546,6 +602,7 @@ export const blogMetaPage = async (req, res) => {
   <meta name="twitter:title" content="${safeTitle}" />
   <meta name="twitter:description" content="${safeDescription}" />
   <meta name="twitter:image" content="${image}" />
+  <meta name="twitter:url" content="${shareUrl}" />
 
   <meta name="description" content="${safeDescription}" />
   ${
@@ -555,9 +612,10 @@ export const blogMetaPage = async (req, res) => {
   }
 
   <link rel="canonical" href="${canonical}" />
-  <meta http-equiv="refresh" content="0; url=${redirectUrl}" />
 </head>
-<body></body>
+<body>
+  <p>If you are not redirected automatically, <a href="${redirectUrl}">open the blog post</a>.</p>
+</body>
 </html>
     `);
   } catch (err) {

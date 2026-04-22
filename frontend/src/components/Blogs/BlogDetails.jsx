@@ -40,6 +40,15 @@ function timeAgo(dateLike) {
   if (Number.isNaN(d.getTime())) return "";
   return formatDistanceToNow(d, { addSuffix: true });
 }
+
+function buildBlogPathId(post) {
+  const slug = String(post?.slug || "").trim();
+  const uuid = String(post?.uuid || "").trim();
+  if (slug && uuid) return `${slug}-${uuid}`;
+  if (slug) return slug;
+  if (uuid) return uuid;
+  return post?.id;
+}
 // ---- END UTILS ----
 
 export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
@@ -140,7 +149,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
 
   // Parse post data
   const post = useMemo(() => {
-    const pathId = postResponse?.uuid || postResponse?.slug || postResponse?.id || postId;
+    const pathId = buildBlogPathId(postResponse) || postId;
     return {
       id: postResponse?.id || postId,
       pathId,
@@ -189,7 +198,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
       .map((p) => {
         const pTags = Array.isArray(p.tags) ? p.tags : [];
         const matching = pTags.filter((t) => tags.includes(t));
-        const pathId = p.uuid || p.slug || p.id;
+        const pathId = buildBlogPathId(p);
         return {
           id: p.id,
           pathId,
@@ -219,7 +228,7 @@ export function BlogPostDetail({ postId, onBack, onRelatedPostClick }) {
     return filtered
       .map((p) => ({
         id: p.id,
-        pathId: p.uuid || p.slug || p.id,
+        pathId: buildBlogPathId(p),
         title: p.title,
         author: p.author_name || p.author || "Unknown",
         publishDate: p.createdAt,

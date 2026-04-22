@@ -47,6 +47,15 @@ function tagLabel(tag) {
   return "";
 }
 
+function buildBlogPathId(post) {
+  const slug = String(post?.slug || "").trim();
+  const uuid = String(post?.uuid || "").trim();
+  if (slug && uuid) return `${slug}-${uuid}`;
+  if (slug) return slug;
+  if (uuid) return uuid;
+  return post?.id;
+}
+
 /*  tag pill  */
 
 function TagPill({ active, children, onClick, className = "" }) {
@@ -119,6 +128,9 @@ export default function BlogFeed({ onPostClick }) {
 
       return {
         id: String(post?.id || post?.id || `fallback-${index}`),
+        pathId: buildBlogPathId(post),
+        uuid: post?.uuid || "",
+        slug: post?.slug || "",
         title: stripHtml(post?.title) || "Untitled",
         excerpt:
           stripHtml(post?.excerpt) ||
@@ -145,6 +157,9 @@ export default function BlogFeed({ onPostClick }) {
   const featuredPosts = useMemo(() => {
     return (featuredData?.data || []).map((post, index) => ({
       id: String(post?.id || post?.id || `featured-${index}`),
+      pathId: buildBlogPathId(post),
+      uuid: post?.uuid || "",
+      slug: post?.slug || "",
       title: stripHtml(post?.title) || "Untitled",
       excerpt: stripHtml(post?.seoDescription) || `${stripHtml(post?.content || "").slice(0, 140)}...`,
       coverImage: post?.blog_picture || FALLBACK_IMAGE,
@@ -310,7 +325,7 @@ export default function BlogFeed({ onPostClick }) {
                 {featuredPosts.slice(0, 2).map((post) => (
                   <Card
                     key={post.id}
-                    onClick={() => handlePostClick(post.uuid || post.slug || post.id)}
+                    onClick={() => handlePostClick(post.pathId || post.id)}
                     className="cursor-pointer hover:shadow-xl transition-all transform hover:-translate-y-1 rounded-2xl overflow-hidden bg-gradient-to-br from-orange-50 to-yellow-50 dark:from-orange-950 dark:to-yellow-950 border-orange-200 dark:border-orange-800"
                   >
                     <div className="flex flex-col md:flex-row">
@@ -398,7 +413,7 @@ export default function BlogFeed({ onPostClick }) {
               return (
                 <Card
                   key={post.id}
-                  onClick={() => handlePostClick(post.uuid || post.slug || post.id)}
+                  onClick={() => handlePostClick(post.pathId || post.id)}
                   className="cursor-pointer hover:shadow-xl transition-transform transform hover:-translate-y-1 rounded-2xl overflow-hidden relative bg-white dark:bg-gray-800"
                 >
                   <div className="relative">

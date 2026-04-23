@@ -2,6 +2,7 @@ import AuditLog from "../models/AuditLog.js";
 import SuspendedIp from "../models/SuspendedIp.js";
 import { Op, col, fn, where as sqlWhere } from "sequelize";
 import { logAudit } from "../utility/auditLog.js";
+import { ensureSuspendedIpTable } from "../utility/ensureSuspendedIpTable.js";
 
 const toPositiveInt = (value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
   const n = parseInt(value, 10);
@@ -306,6 +307,8 @@ export const getEntityTypes = async (req, res, next) => {
  */
 export const suspendIpAddress = async (req, res, next) => {
   try {
+    await ensureSuspendedIpTable();
+
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
     if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
 

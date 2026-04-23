@@ -94,6 +94,7 @@ export default function AuditLogViewer() {
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("all");
   const [selectedLog, setSelectedLog] = useState(null);
+  const [confirmSuspendLog, setConfirmSuspendLog] = useState(null);
   const limit = 15;
 
   const suspendIpMutation = useMutation({
@@ -180,12 +181,25 @@ export default function AuditLogViewer() {
       return;
     }
 
-    const confirmed = window.confirm(
-      `Suspend IP ${ipAddress}? Requests from this IP will be blocked.`
-    );
-    if (!confirmed) return;
+    setConfirmSuspendLog(log);
+  };
 
-    suspendIpMutation.mutate({ ipAddress, sourceLogId: log?.id || null });
+  const handleConfirmSuspendIp = () => {
+    const ipAddress = String(confirmSuspendLog?.ipAddress || "").trim();
+    if (!ipAddress) {
+      toast.error("This log has no IP address");
+      setConfirmSuspendLog(null);
+      return;
+    }
+
+    suspendIpMutation.mutate(
+      { ipAddress, sourceLogId: confirmSuspendLog?.id || null },
+      {
+        onSuccess: () => {
+          setConfirmSuspendLog(null);
+        },
+      }
+    );
   };
 
   const handleCopyIp = async (log) => {
@@ -597,6 +611,40 @@ export default function AuditLogViewer() {
               )}
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!confirmSuspendLog} onOpenChange={() => setConfirmSuspendLog(null)}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Suspend IP Address</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <p className="text-sm text-slate-600 dark:text-slate-300">
+              Are you sure you want to suspend this IP address?
+            </p>
+            <div className="rounded-md border bg-slate-50 dark:bg-gray-900 px-3 py-2">
+              <p className="text-xs text-slate-500">IP Address</p>
+              <p className="text-sm font-mono text-slate-800 dark:text-white">
+                {confirmSuspendLog?.ipAddress || "—"}
+              </p>
+            </div>
+            <p className="text-xs text-slate-500">
+              Requests from this IP will be blocked across API endpoints.
+            </p>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setConfirmSuspendLog(null)}>
+                Cancel
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={handleConfirmSuspendIp}
+                disabled={suspendIpMutation.isPending}
+              >
+                {suspendIpMutation.isPending ? "Suspending..." : "Confirm Suspend"}
+              </Button>
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

@@ -1,5 +1,6 @@
 import { Op } from "sequelize";
 import SuspendedIp from "../models/SuspendedIp.js";
+import { ensureSuspendedIpTable } from "../utility/ensureSuspendedIpTable.js";
 
 const normalizeIp = (rawIp) => {
   const value = String(rawIp || "").trim();
@@ -24,6 +25,8 @@ const extractRequestIp = (req) => {
 
 export const blockSuspendedIp = async (req, res, next) => {
   try {
+    await ensureSuspendedIpTable();
+
     const ipAddress = extractRequestIp(req);
     if (!ipAddress) return next();
 

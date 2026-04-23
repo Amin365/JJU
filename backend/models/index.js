@@ -28,6 +28,7 @@ import Clubreq from './Clubreq.js';
 import PushSubscription from './ushSubscription.js';
 import StreakRestore from './StreakRestore.js';
 import Resource from './Resource.js';
+import SuspendedIp from './SuspendedIp.js';
 
 // ── Associations 
 
@@ -192,4 +193,5 @@ export {
   PushSubscription,
   StreakRestore,
   Resource,
+  SuspendedIp,
 };

@@ -1,5 +1,7 @@
 import AuditLog from "../models/AuditLog.js";
+import SuspendedIp from "../models/SuspendedIp.js";
 import { Op, col, fn, where as sqlWhere } from "sequelize";
+import { logAudit } from "../utility/auditLog.js";
 
 const toPositiveInt = (value, fallback, min = 1, max = Number.MAX_SAFE_INTEGER) => {
   const n = parseInt(value, 10);
@@ -22,6 +24,15 @@ const canAccessAuditLogs = (req) => {
   const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
   if (/super\s*admin/i.test(roleName) || /admin/i.test(roleName)) return true;
   return hasAnyPermission(req, ["View Role", "Edit Role", "Delete Role"]);
+};
+
+const normalizeIp = (rawIp) => {
+  const value = String(rawIp || "").trim();
+  if (!value) return "";
+
+  const first = value.split(",")[0].trim();
+  if (first.startsWith("::ffff:")) return first.slice(7).toLowerCase();
+  return first.toLowerCase();
 };
 
 /**
@@ -289,6 +300,88 @@ export const getEntityTypes = async (req, res, next) => {
   }
 };
 
+/**
+ * Suspend an IP address
+ * POST /audit-logs/suspended-ips
+ */
+export const suspendIpAddress = async (req, res, next) => {
+  try {
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
+    const { ipAddress, reason, expiresAt, sourceLogId } = req.body || {};
+    const normalizedIp = normalizeIp(ipAddress);
+
+    if (!normalizedIp) {
+      return res.status(400).json({ message: "ipAddress is required" });
+    }
+
+    const expiresDate = expiresAt ? new Date(expiresAt) : null;
+    if (expiresAt && Number.isNaN(expiresDate.getTime())) {
+      return res.status(400).json({ message: "Invalid expiresAt date" });
+    }
+
+    const [record] = await SuspendedIp.findOrCreate({
+      where: { ipAddress: normalizedIp },
+      defaults: {
+        ipAddress: normalizedIp,
+        reason: String(reason || "Suspended from audit log").slice(0, 255),
+        isActive: true,
+        suspendedBy: req.user.id,
+        suspendedByEmail: req.user.email || null,
+        suspendedByName: req.user.username || req.user.first_name || null,
+        expiresAt: expiresDate,
+        meta: {
+          source: "audit_log",
+          sourceLogId: sourceLogId || null,
+        },
+      },
+    });
+
+    if (!record.isNewRecord) {
+      await record.update({
+        isActive: true,
+        reason: String(reason || record.reason || "Suspended from audit log").slice(0, 255),
+        suspendedBy: req.user.id,
+        suspendedByEmail: req.user.email || null,
+        suspendedByName: req.user.username || req.user.first_name || null,
+        expiresAt: expiresDate,
+        meta: {
+          ...(record.meta || {}),
+          source: "audit_log",
+          sourceLogId: sourceLogId || null,
+          reactivatedAt: new Date().toISOString(),
+        },
+      });
+    }
+
+    await logAudit({
+      user: req.user,
+      action: "security.ip_suspended",
+      entityType: "Security",
+      entityLabel: normalizedIp,
+      req,
+      description: `IP ${normalizedIp} suspended by admin`,
+      meta: {
+        ipAddress: normalizedIp,
+        sourceLogId: sourceLogId || null,
+      },
+    });
+
+    return res.status(200).json({
+      data: {
+        id: record.id,
+        ipAddress: record.ipAddress,
+        isActive: true,
+        reason: record.reason,
+        expiresAt: record.expiresAt,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export default {
   getAuditLogs,
   getAuditLogById,
@@ -296,4 +389,5 @@ export default {
   getEntityAuditLogs,
   getActionTypes,
   getEntityTypes,
+  suspendIpAddress,
 };

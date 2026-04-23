@@ -12,13 +12,17 @@ import { toast } from "sonner";
 const AVAILABLE_TAGS = [
   "Saynis",
   "Taariikh",
-  "Sheeko Faneed",
+  "Faallo Buug",
   "Sheeko Gaaban",
-  "Suugan",
-  "Technology",
+  "Suugaan",
+  "Tignooloji",
+  "Dhaqaale",
+  "Siyaasad",
+  "Aragti",
   "Buug Sookoobid",
   "Diin",
-  "Arimo Bulsho",
+  "Afnaq",
+  "Arrimo Bulsho",
 ];
 
 // Utility to normalize author names: remove duplicates, extra spaces, and trim

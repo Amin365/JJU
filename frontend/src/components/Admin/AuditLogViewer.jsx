@@ -4,9 +4,10 @@
  */
 
 import React, { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import api from "@/app/api/apislice";
 import { format } from "date-fns";
+import { toast } from "sonner";
 
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -88,11 +89,30 @@ const ENTITY_TYPES = [
 ];
 
 export default function AuditLogViewer() {
+  const queryClient = useQueryClient();
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("all");
   const [selectedLog, setSelectedLog] = useState(null);
   const limit = 15;
+
+  const suspendIpMutation = useMutation({
+    mutationFn: async ({ ipAddress, sourceLogId }) => {
+      const res = await api.post("/audit-logs/suspended-ips", {
+        ipAddress,
+        sourceLogId,
+        reason: "Suspended from audit login activity",
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("IP suspended successfully");
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.message || "Failed to suspend IP");
+    },
+  });
 
   const { data, isLoading, refetch } = useQuery({
     queryKey: ["audit-logs", page, search, entityType],
@@ -149,6 +169,38 @@ export default function AuditLogViewer() {
     e.preventDefault();
     setPage(1);
     refetch();
+  };
+
+  const isLoginEvent = (log) => /auth\.(login|failed_login)/i.test(String(log?.action || ""));
+
+  const handleSuspendIpFromLog = (log) => {
+    const ipAddress = String(log?.ipAddress || "").trim();
+    if (!ipAddress) {
+      toast.error("This log has no IP address");
+      return;
+    }
+
+    const confirmed = window.confirm(
+      `Suspend IP ${ipAddress}? Requests from this IP will be blocked.`
+    );
+    if (!confirmed) return;
+
+    suspendIpMutation.mutate({ ipAddress, sourceLogId: log?.id || null });
+  };
+
+  const handleCopyIp = async (log) => {
+    const ip = String(log?.ipAddress || "").trim();
+    if (!ip) {
+      toast.error("No IP address found in this log");
+      return;
+    }
+
+    try {
+      await navigator.clipboard.writeText(ip);
+      toast.success("IP copied");
+    } catch {
+      toast.error("Failed to copy IP");
+    }
   };
 
   return (
@@ -516,6 +568,31 @@ export default function AuditLogViewer() {
                       {selectedLog.userAgent || "—"}
                     </p>
                   </div>
+                </div>
+              )}
+
+              {isLoginEvent(selectedLog) && (
+                <div className="pt-4 border-t space-y-3">
+                  <p className="text-sm font-medium text-slate-500">Security Actions</p>
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="destructive"
+                      onClick={() => handleSuspendIpFromLog(selectedLog)}
+                      disabled={suspendIpMutation.isPending || !selectedLog?.ipAddress}
+                    >
+                      {suspendIpMutation.isPending ? "Suspending..." : "Suspend IP Address"}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => handleCopyIp(selectedLog)}
+                      disabled={!selectedLog?.ipAddress}
+                    >
+                      Copy IP
+                    </Button>
+                  </div>
+                  <p className="text-xs text-slate-500">
+                    This action blocks this login IP from accessing API endpoints.
+                  </p>
                 </div>
               )}
             </div>

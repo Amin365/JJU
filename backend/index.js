@@ -24,6 +24,7 @@ import {xss} from "express-xss-sanitizer";
 import hpp from 'hpp'
 import cookieParser from "cookie-parser";
 import { denyByDefaultApi } from "./middleware/securityPolicy.js";
+import { blockSuspendedIp } from "./middleware/ipSuspension.js";
 
 import path from 'path'
 import { fileURLToPath } from "url";  
@@ -65,6 +66,7 @@ app.use(compression());
 
 const allowedOrigins = [
   "http://localhost:5173",
+  "http://localhost:5174",
   "https://jjureadingclub.com" 
 ];
 
@@ -104,6 +106,9 @@ app.use((req, res, next) => {
 });
 app.use(hpp());
 app.use(apiPerformanceMonitor());
+
+// Enforce admin-suspended IPs across all API endpoints.
+app.use('/api', blockSuspendedIp);
 
 // Deny-by-default API policy: only allow explicit public endpoints without auth.
 app.use('/api', denyByDefaultApi());

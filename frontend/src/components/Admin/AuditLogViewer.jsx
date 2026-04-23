@@ -94,7 +94,8 @@ export default function AuditLogViewer() {
   const [search, setSearch] = useState("");
   const [entityType, setEntityType] = useState("all");
   const [selectedLog, setSelectedLog] = useState(null);
-  const [confirmSuspendLog, setConfirmSuspendLog] = useState(null);
+  const [confirmIpActionLog, setConfirmIpActionLog] = useState(null);
+  const [ipActionType, setIpActionType] = useState("suspend");
   const limit = 15;
 
   const suspendIpMutation = useMutation({
@@ -112,6 +113,23 @@ export default function AuditLogViewer() {
     },
     onError: (err) => {
       toast.error(err?.response?.data?.message || "Failed to suspend IP");
+    },
+  });
+
+  const unsuspendIpMutation = useMutation({
+    mutationFn: async ({ ipAddress, sourceLogId }) => {
+      const res = await api.delete("/audit-logs/suspended-ips", {
+        data: { ipAddress, sourceLogId },
+      });
+      return res.data;
+    },
+    onSuccess: () => {
+      toast.success("IP unsuspended successfully");
+      queryClient.invalidateQueries({ queryKey: ["audit-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["suspended-ip-status"] });
+    },
+    onError: (err) => {
+      toast.error(err?.response?.data?.message || "Failed to unsuspend IP");
     },
   });
 
@@ -135,6 +153,22 @@ export default function AuditLogViewer() {
     },
     staleTime: 60000,
   });
+
+  const selectedIp = String(selectedLog?.ipAddress || "").trim();
+
+  const { data: suspendedStatusData } = useQuery({
+    queryKey: ["suspended-ip-status", selectedIp],
+    queryFn: async () => {
+      const res = await api.get("/audit-logs/suspended-ips/status", {
+        params: { ipAddress: selectedIp },
+      });
+      return res.data?.data;
+    },
+    enabled: Boolean(selectedIp && isLoginEvent(selectedLog)),
+    staleTime: 15000,
+  });
+
+  const isSelectedIpSuspended = Boolean(suspendedStatusData?.isSuspended);
 
   const logs = data?.data || [];
   const totalPages = data?.totalPages || 1;
@@ -172,34 +206,41 @@ export default function AuditLogViewer() {
     refetch();
   };
 
-  const isLoginEvent = (log) => /auth\.(login|failed_login)/i.test(String(log?.action || ""));
+  function isLoginEvent(log) {
+    return /auth\.(login|failed_login)/i.test(String(log?.action || ""));
+  }
 
-  const handleSuspendIpFromLog = (log) => {
+  const openIpActionDialog = (log, actionType) => {
     const ipAddress = String(log?.ipAddress || "").trim();
     if (!ipAddress) {
       toast.error("This log has no IP address");
       return;
     }
 
-    setConfirmSuspendLog(log);
+    setIpActionType(actionType);
+    setConfirmIpActionLog(log);
   };
 
-  const handleConfirmSuspendIp = () => {
-    const ipAddress = String(confirmSuspendLog?.ipAddress || "").trim();
+  const handleConfirmIpAction = () => {
+    const ipAddress = String(confirmIpActionLog?.ipAddress || "").trim();
     if (!ipAddress) {
       toast.error("This log has no IP address");
-      setConfirmSuspendLog(null);
+      setConfirmIpActionLog(null);
       return;
     }
 
-    suspendIpMutation.mutate(
-      { ipAddress, sourceLogId: confirmSuspendLog?.id || null },
-      {
-        onSuccess: () => {
-          setConfirmSuspendLog(null);
-        },
-      }
-    );
+    const payload = { ipAddress, sourceLogId: confirmIpActionLog?.id || null };
+    const onSuccess = () => {
+      setConfirmIpActionLog(null);
+      queryClient.invalidateQueries({ queryKey: ["suspended-ip-status", selectedIp] });
+    };
+
+    if (ipActionType === "unsuspend") {
+      unsuspendIpMutation.mutate(payload, { onSuccess });
+      return;
+    }
+
+    suspendIpMutation.mutate(payload, { onSuccess });
   };
 
   const handleCopyIp = async (log) => {
@@ -572,9 +613,23 @@ export default function AuditLogViewer() {
                 <div className="grid grid-cols-2 gap-4 pt-4 border-t">
                   <div>
                     <p className="text-sm font-medium text-slate-500">IP Address</p>
-                    <p className="text-slate-800 dark:text-white text-xs font-mono">
-                      {selectedLog.ipAddress || "—"}
-                    </p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <p className="text-slate-800 dark:text-white text-xs font-mono">
+                        {selectedLog.ipAddress || "—"}
+                      </p>
+                      {selectedLog.ipAddress ? (
+                        <Badge
+                          variant="outline"
+                          className={
+                            isSelectedIpSuspended
+                              ? "text-red-700 border-red-300 bg-red-50 dark:text-red-200 dark:border-red-800 dark:bg-red-950"
+                              : "text-emerald-700 border-emerald-300 bg-emerald-50 dark:text-emerald-200 dark:border-emerald-800 dark:bg-emerald-950"
+                          }
+                        >
+                          {isSelectedIpSuspended ? "Suspended" : "Active"}
+                        </Badge>
+                      ) : null}
+                    </div>
                   </div>
                   <div>
                     <p className="text-sm font-medium text-slate-500">User Agent</p>
@@ -590,11 +645,17 @@ export default function AuditLogViewer() {
                   <p className="text-sm font-medium text-slate-500">Security Actions</p>
                   <div className="flex flex-wrap gap-2">
                     <Button
-                      variant="destructive"
-                      onClick={() => handleSuspendIpFromLog(selectedLog)}
-                      disabled={suspendIpMutation.isPending || !selectedLog?.ipAddress}
+                      variant={isSelectedIpSuspended ? "outline" : "destructive"}
+                      onClick={() =>
+                        openIpActionDialog(selectedLog, isSelectedIpSuspended ? "unsuspend" : "suspend")
+                      }
+                      disabled={
+                        (!selectedLog?.ipAddress) ||
+                        suspendIpMutation.isPending ||
+                        unsuspendIpMutation.isPending
+                      }
                     >
-                      {suspendIpMutation.isPending ? "Suspending..." : "Suspend IP Address"}
+                      {isSelectedIpSuspended ? "Unsuspend IP Address" : "Suspend IP Address"}
                     </Button>
                     <Button
                       variant="outline"
@@ -605,7 +666,9 @@ export default function AuditLogViewer() {
                     </Button>
                   </div>
                   <p className="text-xs text-slate-500">
-                    This action blocks this login IP from accessing API endpoints.
+                    {isSelectedIpSuspended
+                      ? "This IP is currently suspended. Unsuspend to allow access again."
+                      : "This action blocks this login IP from accessing API endpoints."}
                   </p>
                 </div>
               )}
@@ -614,34 +677,46 @@ export default function AuditLogViewer() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={!!confirmSuspendLog} onOpenChange={() => setConfirmSuspendLog(null)}>
+      <Dialog open={!!confirmIpActionLog} onOpenChange={() => setConfirmIpActionLog(null)}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Suspend IP Address</DialogTitle>
+            <DialogTitle>
+              {ipActionType === "unsuspend" ? "Unsuspend IP Address" : "Suspend IP Address"}
+            </DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <p className="text-sm text-slate-600 dark:text-slate-300">
-              Are you sure you want to suspend this IP address?
+              {ipActionType === "unsuspend"
+                ? "Are you sure you want to unsuspend this IP address?"
+                : "Are you sure you want to suspend this IP address?"}
             </p>
             <div className="rounded-md border bg-slate-50 dark:bg-gray-900 px-3 py-2">
               <p className="text-xs text-slate-500">IP Address</p>
               <p className="text-sm font-mono text-slate-800 dark:text-white">
-                {confirmSuspendLog?.ipAddress || "—"}
+                {confirmIpActionLog?.ipAddress || "—"}
               </p>
             </div>
             <p className="text-xs text-slate-500">
-              Requests from this IP will be blocked across API endpoints.
+              {ipActionType === "unsuspend"
+                ? "This IP will be allowed to access API endpoints again."
+                : "Requests from this IP will be blocked across API endpoints."}
             </p>
             <div className="flex justify-end gap-2">
-              <Button variant="outline" onClick={() => setConfirmSuspendLog(null)}>
+              <Button variant="outline" onClick={() => setConfirmIpActionLog(null)}>
                 Cancel
               </Button>
               <Button
-                variant="destructive"
-                onClick={handleConfirmSuspendIp}
-                disabled={suspendIpMutation.isPending}
+                variant={ipActionType === "unsuspend" ? "default" : "destructive"}
+                onClick={handleConfirmIpAction}
+                disabled={suspendIpMutation.isPending || unsuspendIpMutation.isPending}
               >
-                {suspendIpMutation.isPending ? "Suspending..." : "Confirm Suspend"}
+                {suspendIpMutation.isPending || unsuspendIpMutation.isPending
+                  ? ipActionType === "unsuspend"
+                    ? "Unsuspending..."
+                    : "Suspending..."
+                  : ipActionType === "unsuspend"
+                  ? "Confirm Unsuspend"
+                  : "Confirm Suspend"}
               </Button>
             </div>
           </div>

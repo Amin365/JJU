@@ -385,6 +385,103 @@ export const suspendIpAddress = async (req, res, next) => {
   }
 };
 
+/**
+ * Get IP suspension status
+ * GET /audit-logs/suspended-ips/status?ipAddress=
+ */
+export const getSuspendedIpStatus = async (req, res, next) => {
+  try {
+    await ensureSuspendedIpTable();
+
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
+    const normalizedIp = normalizeIp(req.query?.ipAddress);
+    if (!normalizedIp) {
+      return res.status(400).json({ message: "ipAddress is required" });
+    }
+
+    const record = await SuspendedIp.findOne({
+      where: { ipAddress: normalizedIp },
+      attributes: ["id", "ipAddress", "isActive", "reason", "expiresAt", "updatedAt"],
+    });
+
+    const now = new Date();
+    const isActive = Boolean(record?.isActive) && (!record?.expiresAt || new Date(record.expiresAt) > now);
+
+    return res.status(200).json({
+      data: {
+        ipAddress: normalizedIp,
+        exists: Boolean(record),
+        isSuspended: isActive,
+        reason: record?.reason || null,
+        expiresAt: record?.expiresAt || null,
+        updatedAt: record?.updatedAt || null,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
+/**
+ * Unsuspend an IP address
+ * DELETE /audit-logs/suspended-ips
+ */
+export const unsuspendIpAddress = async (req, res, next) => {
+  try {
+    await ensureSuspendedIpTable();
+
+    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
+    if (!canAccessAuditLogs(req)) return res.status(403).json({ message: "Access denied" });
+
+    const { ipAddress, sourceLogId } = req.body || {};
+    const normalizedIp = normalizeIp(ipAddress);
+
+    if (!normalizedIp) {
+      return res.status(400).json({ message: "ipAddress is required" });
+    }
+
+    const record = await SuspendedIp.findOne({ where: { ipAddress: normalizedIp } });
+    if (!record) {
+      return res.status(404).json({ message: "IP suspension record not found" });
+    }
+
+    await record.update({
+      isActive: false,
+      meta: {
+        ...(record.meta || {}),
+        unsuspendedAt: new Date().toISOString(),
+        unsuspendedBy: req.user.id,
+        sourceLogId: sourceLogId || null,
+      },
+    });
+
+    await logAudit({
+      user: req.user,
+      action: "security.ip_unsuspended",
+      entityType: "Security",
+      entityLabel: normalizedIp,
+      req,
+      description: `IP ${normalizedIp} unsuspended by admin`,
+      meta: {
+        ipAddress: normalizedIp,
+        sourceLogId: sourceLogId || null,
+      },
+    });
+
+    return res.status(200).json({
+      data: {
+        id: record.id,
+        ipAddress: record.ipAddress,
+        isActive: false,
+      },
+    });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 export default {
   getAuditLogs,
   getAuditLogById,
@@ -393,4 +490,6 @@ export default {
   getActionTypes,
   getEntityTypes,
   suspendIpAddress,
+  getSuspendedIpStatus,
+  unsuspendIpAddress,
 };

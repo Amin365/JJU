@@ -1,4 +1,6 @@
 import Resource from "../models/Resource.js";
+import User from "../models/user.js";
+import BlogPost from "../models/BlogPost.js";
 import { Op } from 'sequelize';
 import { generateUniqueSlug, isValidSlug } from "../utility/slugUtils.js";
 import cleanTitle from "../utility/cleanHtml.js";
@@ -17,6 +19,19 @@ const hasModerationRole = (req) => {
 const canManageResources = (req) =>
   hasModerationRole(req) ||
   hasAnyPermission(req, ["Manage Members", "Manage Books", "Manage Issues", "Add Role", "Edit Role"]);
+
+const isValidNumericId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
+
+const findResourceByPathId = async (pathId, options = {}) => {
+  const normalized = String(pathId || "").trim();
+  if (!normalized) return null;
+
+  const where = isValidNumericId(normalized)
+    ? { id: Number(normalized) }
+    : { slug: normalized };
+
+  return Resource.findOne({ where, ...options });
+};
 
 /**
  * Helper: Normalize tags
@@ -113,7 +128,7 @@ export const createResource = async (req, res) => {
       if (!isValidSlug(cleanSlug)) {
         return res.status(400).json({ message: "Invalid slug format" });
       }
-      const existing = await Resource.findOne({ slug: cleanSlug }).select("_id");
+      const existing = await Resource.findOne({ where: { slug: cleanSlug }, attributes: ["id"] });
       if (existing) {
         return res.status(400).json({ message: "Slug already in use" });
       }
@@ -187,7 +202,7 @@ export const getResources = async (req, res) => {
 
     const pageNum = Math.max(1, Number(page));
     const perPage = Math.min(100, Math.max(1, Number(limit)));
-    const skip = (pageNum - 1) * perPage;
+    const offset = (pageNum - 1) * perPage;
 
     const filter = {};
 
@@ -206,12 +221,12 @@ export const getResources = async (req, res) => {
 
     // Tag filter
     if (tag?.trim()) {
-      filter.tags = { [Op.in]: [new RegExp(tag.trim(), "i")] };
+      filter.tags = { [Op.like]: `%${tag.trim()}%` };
     }
 
     // Category filter
     if (category?.trim()) {
-      filter.category = new RegExp(category.trim(), "i");
+      filter.category = { [Op.like]: `%${category.trim()}%` };
     }
 
     // Featured/Pinned filters
@@ -220,26 +235,36 @@ export const getResources = async (req, res) => {
 
     // Search
     if (q?.trim()) {
-      const regex = new RegExp(q.replace(/[.*+?^${}()|[\]\\]/g, "\\$&"), "i");
-      filter.$or = [
-        { title: regex },
-        { description: regex },
-        { content: regex },
-        { tags: regex },
+      const safeQ = `%${String(q).trim()}%`;
+      filter[Op.or] = [
+        { title: { [Op.like]: safeQ } },
+        { description: { [Op.like]: safeQ } },
+        { content: { [Op.like]: safeQ } },
+        { tags: { [Op.like]: safeQ } },
       ];
     }
 
-    const sortOrder = { isPinned: -1, isFeatured: -1, displayOrder: -1, createdAt: -1 };
+    const sortOrder = [
+      ["isPinned", "DESC"],
+      ["isFeatured", "DESC"],
+      ["displayOrder", "DESC"],
+      ["createdAt", "DESC"],
+    ];
 
-    const [resources, total] = await Promise.all([
-      Resource.find(filter)
-        .sort(sortOrder)
-        .skip(skip)
-        .limit(perPage)
-        .populate("created_by", "email first_name last_name")
-        ,
-      Resource.countDocuments(filter),
-    ]);
+    const { rows: resources, count: total } = await Resource.findAndCountAll({
+      where: filter,
+      order: sortOrder,
+      offset,
+      limit: perPage,
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: ["id", "email", "first_name", "last_name"],
+          required: false,
+        },
+      ],
+    });
 
     res.json({
       data: resources,
@@ -262,24 +287,48 @@ export const getResourceById = async (req, res) => {
   try {
     const { id } = req.params;
 
-    let resource;
-    if (mongoose.isValidObjectId(id)) {
-      resource = await Resource.findByPk(id)
-        .populate("created_by", "email first_name last_name")
-        .populate("relatedResources", "title slug coverImage type")
-        .populate("relatedPosts", "title slug blog_picture");
-    } else {
-      resource = await Resource.findOne({ slug: id })
-        .populate("created_by", "email first_name last_name")
-        .populate("relatedResources", "title slug coverImage type")
-        .populate("relatedPosts", "title slug blog_picture");
-    }
+    const resource = await findResourceByPathId(id, {
+      include: [
+        {
+          model: User,
+          as: "createdBy",
+          attributes: ["id", "email", "first_name", "last_name"],
+          required: false,
+        },
+      ],
+    });
 
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    res.json({ data: resource });
+    const plain = resource.get({ plain: true });
+    const relatedResourceIds = Array.isArray(plain.relatedResources)
+      ? plain.relatedResources.filter((rid) => isValidNumericId(rid)).map((rid) => Number(rid))
+      : [];
+    const relatedPostIds = Array.isArray(plain.relatedPosts)
+      ? plain.relatedPosts.filter((pid) => isValidNumericId(pid)).map((pid) => Number(pid))
+      : [];
+
+    const [relatedResources, relatedPosts] = await Promise.all([
+      relatedResourceIds.length
+        ? Resource.findAll({
+            where: { id: { [Op.in]: relatedResourceIds } },
+            attributes: ["id", "title", "slug", "coverImage", "type"],
+          })
+        : [],
+      relatedPostIds.length
+        ? BlogPost.findAll({
+            where: { id: { [Op.in]: relatedPostIds } },
+            attributes: ["id", "title", "slug", "blog_picture"],
+          })
+        : [],
+    ]);
+
+    plain.relatedResourcesData = relatedResources;
+    plain.relatedPostsData = relatedPosts;
+
+    res.json({ data: plain });
   } catch (err) {
     console.error("getResourceById:", err);
     res.status(500).json({ message: "Server error" });
@@ -300,11 +349,7 @@ export const updateResource = async (req, res) => {
     }
 
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid resource id" });
-    }
-
-    const resource = await Resource.findByPk(id);
+    const resource = await findResourceByPathId(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
@@ -365,9 +410,12 @@ export const updateResource = async (req, res) => {
           return res.status(400).json({ message: "Invalid slug format" });
         }
         const existing = await Resource.findOne({ 
-          slug: cleanSlug, 
-          _id: { [Op.ne]: id } 
-        }).select("_id");
+          where: {
+            slug: cleanSlug,
+            id: { [Op.ne]: resource.id },
+          },
+          attributes: ["id"],
+        });
         if (existing) {
           return res.status(400).json({ message: "Slug already in use" });
         }
@@ -406,12 +454,14 @@ export const updateResource = async (req, res) => {
     // Related content
     if (relatedResources !== undefined) {
       const validIds = (Array.isArray(relatedResources) ? relatedResources : [])
-        .filter(rid => mongoose.isValidObjectId(rid) && String(rid) !== String(id));
+        .filter((rid) => isValidNumericId(rid) && Number(rid) !== Number(resource.id))
+        .map((rid) => Number(rid));
       resource.relatedResources = validIds;
     }
     if (relatedPosts !== undefined) {
       const validIds = (Array.isArray(relatedPosts) ? relatedPosts : [])
-        .filter(pid => mongoose.isValidObjectId(pid));
+        .filter((pid) => isValidNumericId(pid))
+        .map((pid) => Number(pid));
       resource.relatedPosts = validIds;
     }
 
@@ -449,16 +499,12 @@ export const deleteResource = async (req, res) => {
     }
 
     const { id } = req.params;
-    if (!mongoose.isValidObjectId(id)) {
-      return res.status(400).json({ message: "Invalid resource id" });
-    }
-
-    const resource = await Resource.findByPk(id);
+    const resource = await findResourceByPathId(id);
     if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    await resource.deleteOne();
+    await resource.destroy();
     res.json({ success: true, message: "Resource deleted" });
   } catch (err) {
     console.error("deleteResource:", err);
@@ -474,17 +520,15 @@ export const incrementResourceViews = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const updated = await Resource.findByIdAndUpdate(
-      id,
-      { $inc: { views: 1 } },
-      { new: true, select: "views" }
-    );
-
-    if (!updated) {
+    const resource = await findResourceByPathId(id);
+    if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
-    res.json({ views: updated.views });
+    await resource.increment("views", { by: 1 });
+    await resource.reload({ attributes: ["views"] });
+
+    res.json({ views: resource.views });
   } catch (err) {
     console.error("incrementResourceViews:", err);
     res.status(500).json({ message: "Server error" });
@@ -499,19 +543,17 @@ export const incrementResourceDownloads = async (req, res) => {
   try {
     const { id } = req.params;
     
-    const updated = await Resource.findByIdAndUpdate(
-      id,
-      { $inc: { downloads: 1 } },
-      { new: true, select: "downloads fileUrl" }
-    );
-
-    if (!updated) {
+    const resource = await findResourceByPathId(id);
+    if (!resource) {
       return res.status(404).json({ message: "Resource not found" });
     }
 
+    await resource.increment("downloads", { by: 1 });
+    await resource.reload({ attributes: ["downloads", "fileUrl"] });
+
     res.json({ 
-      downloads: updated.downloads,
-      fileUrl: updated.fileUrl,
+      downloads: resource.downloads,
+      fileUrl: resource.fileUrl,
     });
   } catch (err) {
     console.error("incrementResourceDownloads:", err);
@@ -525,19 +567,17 @@ export const incrementResourceDownloads = async (req, res) => {
  */
 export const getResourceTypeSummary = async (req, res) => {
   try {
-    const filter = { status: "Published" };
-
-    const summary = await Resource.aggregate([
-      { $match: filter },
-      { 
-        $group: { 
-          _id: "$type", 
-          count: { $sum: 1 },
-          totalViews: { $sum: "$views" },
-          totalDownloads: { $sum: "$downloads" },
-        } 
-      },
-    ]);
+    const summary = await Resource.findAll({
+      where: { status: "Published" },
+      attributes: [
+        "type",
+        [Resource.sequelize.fn("COUNT", Resource.sequelize.col("id")), "count"],
+        [Resource.sequelize.fn("SUM", Resource.sequelize.col("views")), "totalViews"],
+        [Resource.sequelize.fn("SUM", Resource.sequelize.col("downloads")), "totalDownloads"],
+      ],
+      group: ["type"],
+      raw: true,
+    });
 
     const result = {
       guide: { count: 0, views: 0, downloads: 0 },
@@ -546,12 +586,12 @@ export const getResourceTypeSummary = async (req, res) => {
       download: { count: 0, views: 0, downloads: 0 },
     };
 
-    summary.forEach(item => {
-      if (result[item.id]) {
-        result[item.id] = {
-          count: item.count,
-          views: item.totalViews,
-          downloads: item.totalDownloads,
+    summary.forEach((item) => {
+      if (result[item.type]) {
+        result[item.type] = {
+          count: Number(item.count || 0),
+          views: Number(item.totalViews || 0),
+          downloads: Number(item.totalDownloads || 0),
         };
       }
     });

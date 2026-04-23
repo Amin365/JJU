@@ -15,6 +15,8 @@ import {
   getActionTypes,
   getEntityTypes,
   suspendIpAddress,
+  getSuspendedIpStatus,
+  unsuspendIpAddress,
 } from "../controller/AuditLogController.js";
 
 const AuditLogRouter = express.Router();
@@ -33,6 +35,12 @@ AuditLogRouter.get("/audit-logs/entity-types", adminOnly, apiLimiter, getEntityT
 
 // Suspend IP address (security response)
 AuditLogRouter.post("/audit-logs/suspended-ips", adminOnly, apiLimiter, suspendIpAddress);
+
+// Get suspended IP status
+AuditLogRouter.get("/audit-logs/suspended-ips/status", adminOnly, apiLimiter, getSuspendedIpStatus);
+
+// Unsuspend IP address
+AuditLogRouter.delete("/audit-logs/suspended-ips", adminOnly, apiLimiter, unsuspendIpAddress);
 
 // Get audit logs for a specific entity
 AuditLogRouter.get("/audit-logs/entity/:entityType/:entityId", adminOnly, apiLimiter, getEntityAuditLogs);

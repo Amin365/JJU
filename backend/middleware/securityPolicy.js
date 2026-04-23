@@ -21,6 +21,7 @@ const defaultPublicRules = [
   { method: "GET", pattern: /^\/blogposts\/[^/]+$/i },
   { method: "GET", pattern: /^\/blogposts\/[^/]+\/comments$/i },
   { method: "POST", pattern: /^\/blogposts\/[^/]+\/views$/i },
+  { method: "GET", pattern: /^\/resources\/[^/]+$/i },
 ];
 
 const isPublicRequest = (req, rules) => {

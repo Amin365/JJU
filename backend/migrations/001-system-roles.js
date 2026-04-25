@@ -24,6 +24,7 @@ export const systemRoles = async () => {
       { role: "Super Admin", plural: "Super Admins", system: true, color: "#6366f1" },
       { role: "Members", plural: "Members", system: true, color: "#4f46e5" },
       { role: "Moderator", plural: "Moderators", system: true, color: "#10b981" },
+      { role: "Book Store", plural: "Book Stores", system: true, color: "#6b7280" },
     ];
 
     // Insert or update roles

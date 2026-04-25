@@ -159,7 +159,7 @@ export default function GoalsPage() {
             exit={{ opacity: 0, height: 0 }}
             transition={{ duration: 0.2 }}
           >
-            <Card className="border-zinc-700 ml-6 bg-zinc-900">
+            <Card className="border-zinc-700 ml-6 ">
               <CardHeader className="pb-3">
                 <CardTitle className="text-base">
                   {editingGoal ? 'Edit Goal' : 'Create New Goal'}

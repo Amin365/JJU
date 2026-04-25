@@ -345,6 +345,8 @@ export default function ChallengesList() {
     enabled: !!user,
   });
 
+ 
+
   const createMutation = useMutation({
     mutationFn: (body) => api.post('/challenges', body),
     onSuccess: () => {
@@ -505,7 +507,7 @@ export default function ChallengesList() {
                 transition={{ duration: 0.25 }}
               >
                 <Card
-                  className="flex h-full cursor-pointer flex-col border border-zinc-800 bg-zinc-900/50 transition-colors hover:border-zinc-600"
+                  className="flex h-full cursor-pointer flex-col border border-zinc-800  transition-colors hover:border-zinc-600"
                   onClick={() => navigate(`/dashboard/challenges/${challenge.uuid || challenge.id}`)}
                 >
                   <CardHeader className="space-y-3 pb-3">

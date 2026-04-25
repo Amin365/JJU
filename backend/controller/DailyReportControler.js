@@ -59,7 +59,7 @@ async function getScopedReportUserIds(currentUser) {
     if (!memberIds.length) return [];
 
     const users = await User.findAll({
-      where: { member_id: { [Op.in]: memberIds } },
+      where: { member_id_fk: { [Op.in]: memberIds } },
       attributes: ["id"],
       raw: true,
     });
@@ -333,8 +333,8 @@ export const updateDailyReportStatus = async (req, res, next) => {
           status === "Approved"
             ? `Your reading report for "${report.book?.title || "this book"}" was approved.`
             : status === "Needs Improvement"
-            ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
-            : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
+              ? `Your reading report for "${report.book?.title || "this book"}" needs improvement.`
+              : `Your reading report for "${report.book?.title || "this book"}" was moved back to pending review.`,
         type: status === "Approved" ? "success" : status === "Needs Improvement" ? "warning" : "info",
         meta: { report: report.id, kind: "report-status-updated", status },
       });
@@ -366,7 +366,7 @@ export const getDailyReportsByMember = async (req, res, next) => {
     if (!memberId) return res.status(400).json({ message: "memberId is required" });
 
     const users = await User.findAll({
-      where: { member_id: Number(memberId) },
+      where: { member_id_fk: Number(memberId) },
       attributes: ["id"],
       raw: true,
     });
@@ -458,7 +458,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         }
 
         const users = await User.findAll({
-          where: { member_id: Number(memberId) },
+          where: { member_id_fk: Number(memberId) },
           attributes: ["id"],
           raw: true,
         });
@@ -482,7 +482,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         }
 
         const users = await User.findAll({
-          where: { member_id: Number(memberId) },
+          where: { member_id_fk: Number(memberId) },
           attributes: ["id"],
           raw: true,
         });
@@ -500,7 +500,7 @@ export const getDailyReportsScope = async (req, res, next) => {
         if (!memberIds.length) return res.status(200).json({ data: [] });
 
         const users = await User.findAll({
-          where: { member_id: { [Op.in]: memberIds } },
+          where: { member_id_fk: { [Op.in]: memberIds } },
           attributes: ["id"],
           raw: true,
         });

@@ -296,6 +296,15 @@ if(!token){
     "/dashboard/permissions",
   ];
 
+  const BookStoreAllowedRoutes = [
+    "/dashboard/books",
+    "/dashboard/issues",
+    "/dashboard/issues/request",
+    "/dashboard/reservations",
+       "/dashboard/notifications",
+    "/dashboard/notification-settings",
+  ];
+
   const routePermissionMap = {
     "/dashboard/users": ["view users", "add users", "edit users", "delete users"],
     "/dashboard/permissions": ["view role", "add role", "edit role", "delete role", "preferences"],
@@ -330,6 +339,10 @@ if(!token){
     }
     if (roleName === "moderator") {
       const allowed = new Set(moderatorAllowedRoutes);
+      return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
+    }
+    if (roleName === "Book Store") {
+      const allowed = new Set(BookStoreAllowedRoutes);
       return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
     }
 

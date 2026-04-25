@@ -22,7 +22,10 @@ const startOfDay = (d) => {
   return dt;
 };
 
-const toISO = (d) => startOfDay(d).toISOString().slice(0, 10);
+const toISO = (d) => {
+  const dt = new Date(d);
+  return `${dt.getFullYear()}-${String(dt.getMonth() + 1).padStart(2, "0")}-${String(dt.getDate()).padStart(2, "0")}`;
+};
 
 const fmtMonthTitle = (d) =>
   new Date(d).toLocaleDateString(undefined, { month: "long", year: "numeric" });
@@ -124,11 +127,12 @@ export default function DailyReportActivityDashboard() {
   // member reports for heatmap are already filtered by endpoint,
   // but keep this in case endpoint returns multi-user for that member
   const selectedMemberReports = useMemo(() => {
-    const startMs = startOfDay(period.start).getTime();
-    const endMs = startOfDay(new Date(period.end.getTime() + DAY)).getTime();
+    const startStr = toISO(period.start);
+    const endStr = toISO(period.end);
     return reports.filter((r) => {
-      const t = r?.readingDate ? new Date(r.readingDate).getTime() : 0;
-      return t >= startMs && t < endMs;
+      if (!r?.readingDate) return false;
+      const t = r.readingDate.substring(0, 10);
+      return t >= startStr && t <= endStr;
     });
   }, [reports, period]);
 
@@ -137,7 +141,8 @@ export default function DailyReportActivityDashboard() {
     for (const day of gridDays) data[toISO(day)] = 0;
 
     for (const r of selectedMemberReports) {
-      const key = toISO(new Date(r.readingDate));
+      if (!r?.readingDate) continue;
+      const key = r.readingDate.substring(0, 10);
       if (Object.prototype.hasOwnProperty.call(data, key)) data[key] += 1;
     }
     return data;
@@ -145,7 +150,9 @@ export default function DailyReportActivityDashboard() {
 
   const streak = useMemo(() => {
     const set = new Set();
-    for (const r of selectedMemberReports) set.add(toISO(new Date(r.readingDate)));
+    for (const r of selectedMemberReports) {
+      if (r?.readingDate) set.add(r.readingDate.substring(0, 10));
+    }
     return calcLongestStreakFromSet(set, gridDays);
   }, [selectedMemberReports, gridDays]);
 
@@ -179,7 +186,7 @@ export default function DailyReportActivityDashboard() {
 
       const s = stats.get(mid);
       s.totalReports += 1;
-      s.days.add(toISO(new Date(r.readingDate)));
+      if (r.readingDate) s.days.add(r.readingDate.substring(0, 10));
     }
 
     let top = null;

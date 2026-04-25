@@ -103,17 +103,17 @@ function findCompletionAt(reports, challenge, targetValue) {
 
 async function computeProgress(userId, challenge) {
   const where = {
-    createdBy: userId,
+    created_by: userId,
     readingDate: { [Op.gte]: challenge.startDate, [Op.lte]: challenge.endDate },
     status: "Approved",
   };
 
   const challengeBookId = getChallengeBookId(challenge);
-  if (challengeBookId) where.book = challengeBookId;
+  if (challengeBookId) where.book_id = challengeBookId;
 
   const reports = await DailyReport.findAll({
     where,
-    include: [{ model: Book, as: "bookRef", attributes: ["id", "title", "author", "isbn", "totalPages"], required: false }],
+    include: [{ model: Book, as: "book", attributes: ["id", "title", "author", "isbn", "totalPages"], required: false }],
     order: [["readingDate", "DESC"]],
   });
 
@@ -130,7 +130,7 @@ async function computeProgress(userId, challenge) {
 
   const uniqueBooks = new Set(
     reports
-      .map((r) => String(r.bookRef?.id || r.book || ""))
+      .map((r) => String(r.book?.id || r.book_id || ""))
       .filter(Boolean)
   );
 
@@ -242,7 +242,7 @@ function getRoleFlags(roleName = "") {
 
 async function getChallengeAccessContext(userId) {
   const currentUser = await User.findByPk(userId, {
-    attributes: ["id", "first_name", "last_name", "username", "email", "profile_picture", "role_id", "member_id"],
+    attributes: ["id", "first_name", "last_name", "username", "email", "profile_picture", "role_id", "member_id", "member_id_fk"],
     include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
   });
 
@@ -251,9 +251,9 @@ async function getChallengeAccessContext(userId) {
   const { roleName, isSuperAdmin, isModerator } = getRoleFlags(currentUser?.role?.role || currentUser?.role?.plural || "");
 
   let assignedModeratorId = null;
-  if (!isSuperAdmin && !isModerator && currentUser.member_id) {
+  if (!isSuperAdmin && !isModerator && currentUser.member_id_fk) {
     const assignment = await ModeratorMember.findOne({
-      where: { member_id: currentUser.member_id },
+      where: { member_id: currentUser.member_id_fk },
       attributes: ["moderator_id"],
     });
     assignedModeratorId = assignment?.moderator_id ? String(assignment.moderator_id) : null;

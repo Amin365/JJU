@@ -162,17 +162,23 @@ export default function HeroSection() {
         <div className="mb-12">
           <HowWorks clubLogoSrc="/jjuclub.jpg" />
         </div>
-        <div>
+        {/* <div>
         <TeamLeaders/>
 
-        </div>
-        {/* <div className="mt-8">
-          <Testomials />
         </div> */}
+        <div className="mt-8">
+          <Testomials />
+        </div>
         <div className="mt-8">
           <Faqs />
         </div>
-        <div className="mt-8 mb-32">
+        <div className="mt-8
+        
+        
+        
+        
+        
+         mb-32">
           <CallToaction />
         </div>
         <div className="relative flex flex-col mt-20 ">

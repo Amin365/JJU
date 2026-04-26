@@ -24,17 +24,29 @@ const roleNameOf = (user) =>
 
 const isSuperAdmin = (user) => /super\s*admin/i.test(roleNameOf(user));
 const isModerator = (user) => /moderator/i.test(roleNameOf(user));
+const isBookStore = (user) => /book\s*store/i.test(roleNameOf(user));
 
 const hasAnyPermission = (req, perms = []) => {
   const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
   return perms.some((p) => userPerms.has(String(p).toLowerCase()));
 };
 
-const canManageIssues = (req) => hasAnyPermission(req, ["Manage Issues"]);
+const canManageIssues = (req) => {
+  if (hasAnyPermission(req, ["Manage Issues"])) return true;
+  if (isSuperAdmin(req.user) || isBookStore(req.user)) return true;
+  return false;
+};
 
 export const IssueCreate = async (req, res, next) => {
   try {
-    if (!req.user?.id || !canManageIssues(req)) {
+    if (!req.user?.id) return res.status(403).json({ message: "Access denied" });
+    
+    // Check permissions but also allow Book Store by fetching current user if needed
+    const currentUser = await User.findByPk(req.user.id, {
+      include: [{ model: Role, as: "role", attributes: ["role", "plural"], required: false }],
+    });
+    
+    if (!canManageIssues(req) && !isBookStore(currentUser) && !isSuperAdmin(currentUser)) {
       return res.status(403).json({ message: "Access denied" });
     }
 
@@ -143,18 +155,11 @@ export const getIssues = async (req, res, next) => {
   try {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
-    const canViewScoped = hasAnyPermission(req, ["View Members", "Manage Issues"]);
-    if (!canViewScoped) {
-      return res.status(403).json({ message: "Access denied" });
-    }
-
     const { page = 1, limit = 20, q, status } = req.query;
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const perPage = Math.min(500, Math.max(1, parseInt(limit, 10) || 20));
     const offset = (pageNum - 1) * perPage;
-
-    if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
 
     const currentUser = await User.findByPk(req.user.id, {
       attributes: ["id", "member_id", "role_id"],
@@ -163,11 +168,16 @@ export const getIssues = async (req, res, next) => {
 
     if (!currentUser) return res.status(401).json({ message: "Unauthorized" });
 
+    const canViewScoped = hasAnyPermission(req, ["View Members", "Manage Issues"]) || isBookStore(currentUser) || isSuperAdmin(currentUser);
+    if (!canViewScoped) {
+      return res.status(403).json({ message: "Access denied" });
+    }
+
     const where = {};
     if (status) where.status = status;
 
     // Role-based scope
-    if (isModerator(currentUser) && !isSuperAdmin(currentUser)) {
+    if (isModerator(currentUser) && !isSuperAdmin(currentUser) && !isBookStore(currentUser)) {
       const assigned = await ModeratorMember.findAll({
         where: { moderator_id: req.user.id },
         attributes: ["member_id"],
@@ -186,7 +196,7 @@ export const getIssues = async (req, res, next) => {
       }
 
       where.member_id = { [Op.in]: memberIds };
-    } else if (!isSuperAdmin(currentUser)) {
+    } else if (!isSuperAdmin(currentUser) && !isBookStore(currentUser)) {
       if (!isValidId(currentUser.member_id)) {
         return res.status(200).json({
           data: [],

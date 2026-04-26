@@ -23,7 +23,7 @@ const hasAnyPermission = (req, perms = []) => {
 
 const hasPrivilegedRole = (req) => {
   const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
-  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName) || /book\s*store/i.test(roleName);
 };
 
 const canManageBooks = (req) => hasPrivilegedRole(req) || hasAnyPermission(req, ["Manage Books"]);

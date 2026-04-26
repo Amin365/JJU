@@ -260,6 +260,7 @@ if(!token){
 
   // Route arrays for role-based filtering
   const memberAllowedRoutes = [
+    "/dashboard",
     "/dashboard/issues/request",
     "/dashboard/reservations",
     "/dashboard/report",
@@ -273,6 +274,7 @@ if(!token){
   ];
 
   const moderatorAllowedRoutes = [
+    "/dashboard",
     "/dashboard/activity",
     "/dashboard/members",
     "/dashboard/issues",
@@ -296,12 +298,15 @@ if(!token){
     "/dashboard/permissions",
   ];
 
-  const BookStoreAllowedRoutes = [
+  const LibraryAllowedRoutes = [
+    "/dashboard",
+    "/dashboard/members",
     "/dashboard/books",
     "/dashboard/issues",
     "/dashboard/issues/request",
     "/dashboard/reservations",
-       "/dashboard/notifications",
+    "/dashboard/leaderboard",
+    "/dashboard/notifications",
     "/dashboard/notification-settings",
   ];
 
@@ -323,13 +328,14 @@ if(!token){
   const hasRoutePermission = React.useCallback(
     (route) => {
       if (isSuperAdmin) return true;
+      if (roleName === "book store") return true;
 
       const requiredPermissions = routePermissionMap[route];
       if (!requiredPermissions || requiredPermissions.length === 0) return true;
 
       return requiredPermissions.some((perm) => userPermissions.has(String(perm).toLowerCase()));
     },
-    [isSuperAdmin, userPermissions]
+    [isSuperAdmin, userPermissions, roleName]
   );
 
   const filteredNav = React.useMemo(() => {
@@ -341,8 +347,8 @@ if(!token){
       const allowed = new Set(moderatorAllowedRoutes);
       return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
     }
-    if (roleName === "Book Store") {
-      const allowed = new Set(BookStoreAllowedRoutes);
+    if (roleName === "book store") {
+      const allowed = new Set(LibraryAllowedRoutes);
       return data.navMain.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
     }
 

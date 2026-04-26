@@ -7,12 +7,22 @@ import Notification from "../models/Notification.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 
+const roleNameOf = (user) =>
+  String(user?.role?.role || user?.role?.plural || "").toLowerCase();
+
+const isSuperAdmin = (user) => /super\s*admin/i.test(roleNameOf(user));
+const isBookStore = (user) => /book\s*store/i.test(roleNameOf(user));
+
 const hasAnyPermission = (req, perms = []) => {
   const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
   return perms.some((p) => userPerms.has(String(p).toLowerCase()));
 };
 
-const canManageReservations = (req) => hasAnyPermission(req, ["Manage Issues"]);
+const canManageReservations = (req) => {
+  if (hasAnyPermission(req, ["Manage Issues"])) return true;
+  if (isSuperAdmin(req.user) || isBookStore(req.user)) return true;
+  return false;
+};
 
 const isReservationOwner = async (req, reservation) => {
   if (!req.user?.id || !reservation?.member_id) return false;

@@ -1,5 +1,6 @@
 
 import React, { useMemo } from "react";
+import { useSelector } from "react-redux";
 import { useQuery } from "@tanstack/react-query";
 import { Link } from "react-router";
 import {
@@ -481,9 +482,9 @@ function RecentAchievementsWidget() {
   );
 }
 
-/*  main page  */
+/*  dashboards by role  */
 
-export default function DashboardHome() {
+function SuperAdminDashboard() {
   const statsQ = useQuery({
     queryKey: ["dashboard", "stats"],
     queryFn: () => api.get("/dashboard/stats"),
@@ -537,159 +538,193 @@ export default function DashboardHome() {
 
   return (
     <div className="space-y-6 px-4 lg:px-6 py-6">
-      {/* ── KPI cards ── */}
       <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
-        <StatCard
-          title="Total Books"
-          value={stats?.totalBooks}
-          icon={BookOpen}
-          colorClass="text-blue-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Available Books"
-          value={stats?.availableBooks}
-          icon={BookCheck}
-          colorClass="text-emerald-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Borrowed Books"
-          value={stats?.borrowedBooks}
-          icon={BookOpen}
-          colorClass="text-orange-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Total Members"
-          value={stats?.totalMembers}
-          icon={Users}
-          colorClass="text-purple-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Active Members"
-          value={stats?.activeMembers}
-          icon={UserCheck}
-          colorClass="text-green-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Overdue Issues"
-          value={stats?.overdueIssues}
-          icon={AlertTriangle}
-          colorClass="text-red-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Pending Join Requests"
-          value={stats?.pendingJoinRequests}
-          icon={UserPlus}
-          colorClass="text-yellow-500"
-          loading={statsLoading}
-        />
-        <StatCard
-          title="Pending Reports"
-          value={stats?.pendingDailyReports}
-          icon={ClipboardList}
-          colorClass="text-cyan-500"
-          loading={statsLoading}
-        />
+        <StatCard title="Total Books" value={stats?.totalBooks} icon={BookOpen} colorClass="text-blue-500" loading={statsLoading} />
+        <StatCard title="Available Books" value={stats?.availableBooks} icon={BookCheck} colorClass="text-emerald-500" loading={statsLoading} />
+        <StatCard title="Borrowed Books" value={stats?.borrowedBooks} icon={BookOpen} colorClass="text-orange-500" loading={statsLoading} />
+        <StatCard title="Total Members" value={stats?.totalMembers} icon={Users} colorClass="text-purple-500" loading={statsLoading} />
+        <StatCard title="Active Members" value={stats?.activeMembers} icon={UserCheck} colorClass="text-green-500" loading={statsLoading} />
+        <StatCard title="Overdue Issues" value={stats?.overdueIssues} icon={AlertTriangle} colorClass="text-red-500" loading={statsLoading} />
+        <StatCard title="Pending Join Requests" value={stats?.pendingJoinRequests} icon={UserPlus} colorClass="text-yellow-500" loading={statsLoading} />
+        <StatCard title="Pending Reports" value={stats?.pendingDailyReports} icon={ClipboardList} colorClass="text-cyan-500" loading={statsLoading} />
       </div>
 
-      {/* ── Charts ── */}
       <ChartsDashboard />
 
-      {/* ── Activity feed + Pending approvals ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Activity className="h-5 w-5" />
-              Recent Activity
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <ActivityFeed
-              events={activityQ.data}
-              loading={activityQ.isLoading}
-            />
-            {activityQ.isError && (
-              <p className="text-sm text-destructive">Failed to load activity.</p>
-            )}
-          </CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Activity className="h-5 w-5" />Recent Activity</CardTitle></CardHeader>
+          <CardContent><ActivityFeed events={activityQ.data} loading={activityQ.isLoading} /></CardContent>
         </Card>
-
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2 text-base">
-              <AlertTriangle className="h-5 w-5 text-yellow-500" />
-              Pending Approvals
-              {pendingTotal > 0 && (
-                <Badge variant="destructive" className="ml-auto">
-                  {pendingTotal}
-                </Badge>
-              )}
+              <AlertTriangle className="h-5 w-5 text-yellow-500" /> Pending Approvals
+              {pendingTotal > 0 && <Badge variant="destructive" className="ml-auto">{pendingTotal}</Badge>}
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            <PendingApprovals
-              data={pendingQ.data}
-              loading={pendingQ.isLoading}
-            />
-            {pendingQ.isError && (
-              <p className="text-sm text-destructive">Failed to load approvals.</p>
-            )}
-          </CardContent>
+          <CardContent><PendingApprovals data={pendingQ.data} loading={pendingQ.isLoading} /></CardContent>
         </Card>
       </div>
 
-      {/* ── Top readers + Popular books ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <Star className="h-5 w-5 text-yellow-400" />
-              Top Readers
-            </CardTitle>
-            <CardDescription>Ranked by daily report submissions</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <TopReadersList
-              readers={topReadersQ.data}
-              loading={topReadersQ.isLoading}
-            />
-            {topReadersQ.isError && (
-              <p className="text-sm text-destructive">Failed to load top readers.</p>
-            )}
-          </CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Star className="h-5 w-5 text-yellow-400" />Top Readers</CardTitle><CardDescription>Ranked by daily report submissions</CardDescription></CardHeader>
+          <CardContent><TopReadersList readers={topReadersQ.data} loading={topReadersQ.isLoading} /></CardContent>
         </Card>
-
         <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2 text-base">
-              <TrendingUp className="h-5 w-5 text-blue-500" />
-              Popular Books
-            </CardTitle>
-            <CardDescription>Most frequently issued books</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <PopularBooksList
-              books={popularBooksQ.data}
-              loading={popularBooksQ.isLoading}
-            />
-            {popularBooksQ.isError && (
-              <p className="text-sm text-destructive">Failed to load popular books.</p>
-            )}
-          </CardContent>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-blue-500" />Popular Books</CardTitle><CardDescription>Most frequently issued books</CardDescription></CardHeader>
+          <CardContent><PopularBooksList books={popularBooksQ.data} loading={popularBooksQ.isLoading} /></CardContent>
         </Card>
       </div>
 
-      {/* ── Active Challenges + Recent Achievements ── */}
       <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
         <ActiveChallengesWidget />
         <RecentAchievementsWidget />
       </div>
     </div>
   );
+}
+
+function ModeratorDashboard() {
+  const statsQ = useQuery({ queryKey: ["dashboard", "stats"], queryFn: () => api.get("/dashboard/stats"), select: (r) => r.data, staleTime: 60_000 });
+  const pendingQ = useQuery({ queryKey: ["dashboard", "pending-approvals"], queryFn: () => api.get("/dashboard/pending-approvals"), select: (r) => r.data, staleTime: 30_000 });
+  const topReadersQ = useQuery({ queryKey: ["dashboard", "top-readers"], queryFn: () => api.get("/dashboard/top-readers"), select: (r) => r.data, staleTime: 120_000 });
+
+  const stats = statsQ.data;
+  const statsLoading = statsQ.isLoading;
+
+  const pendingTotal = useMemo(() => {
+    const d = pendingQ.data;
+    if (!d) return 0;
+    return (d.pendingJoinRequests?.length ?? 0) + (d.overdueIssues?.length ?? 0) + (d.todayReports?.length ?? 0);
+  }, [pendingQ.data]);
+
+  return (
+    <div className="space-y-6 px-4 lg:px-6 py-6">
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Moderator Workspace</h1>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard title="Total Members" value={stats?.totalMembers} icon={Users} colorClass="text-purple-500" loading={statsLoading} />
+        <StatCard title="Active Members" value={stats?.activeMembers} icon={UserCheck} colorClass="text-green-500" loading={statsLoading} />
+        <StatCard title="Pending Reports" value={stats?.pendingDailyReports} icon={ClipboardList} colorClass="text-cyan-500" loading={statsLoading} />
+        <StatCard title="Overdue Issues" value={stats?.overdueIssues} icon={AlertTriangle} colorClass="text-red-500" loading={statsLoading} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2 text-base">
+              <AlertTriangle className="h-5 w-5 text-yellow-500" /> Pending Approvals
+              {pendingTotal > 0 && <Badge variant="destructive" className="ml-auto">{pendingTotal}</Badge>}
+            </CardTitle>
+          </CardHeader>
+          <CardContent><PendingApprovals data={pendingQ.data} loading={pendingQ.isLoading} /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Star className="h-5 w-5 text-yellow-400" />Top Readers</CardTitle><CardDescription>Ranked by daily report submissions</CardDescription></CardHeader>
+          <CardContent><TopReadersList readers={topReadersQ.data} loading={topReadersQ.isLoading} /></CardContent>
+        </Card>
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActiveChallengesWidget />
+      </div>
+    </div>
+  );
+}
+
+function BookStoreDashboard() {
+  const statsQ = useQuery({ queryKey: ["dashboard", "stats"], queryFn: () => api.get("/dashboard/stats"), select: (r) => r.data, staleTime: 60_000 });
+  const activityQ = useQuery({ queryKey: ["dashboard", "activity"], queryFn: () => api.get("/dashboard/activity"), select: (r) => r.data, staleTime: 30_000 });
+  const popularBooksQ = useQuery({ queryKey: ["dashboard", "popular-books"], queryFn: () => api.get("/dashboard/popular-books"), select: (r) => r.data, staleTime: 120_000 });
+
+  const stats = statsQ.data;
+  const statsLoading = statsQ.isLoading;
+
+  return (
+    <div className="space-y-6 px-4 lg:px-6 py-6">
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Library & Book Store Dashboard</h1>
+      <div className="grid grid-cols-2 gap-4 lg:grid-cols-4">
+        <StatCard title="Total Books" value={stats?.totalBooks} icon={BookOpen} colorClass="text-blue-500" loading={statsLoading} />
+        <StatCard title="Available Books" value={stats?.availableBooks} icon={BookCheck} colorClass="text-emerald-500" loading={statsLoading} />
+        <StatCard title="Borrowed Books" value={stats?.borrowedBooks} icon={BookOpen} colorClass="text-orange-500" loading={statsLoading} />
+        <StatCard title="Overdue Issues" value={stats?.overdueIssues} icon={AlertTriangle} colorClass="text-red-500" loading={statsLoading} />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-blue-500" />Popular Books</CardTitle><CardDescription>Most frequently issued books</CardDescription></CardHeader>
+          <CardContent><PopularBooksList books={popularBooksQ.data} loading={popularBooksQ.isLoading} /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Activity className="h-5 w-5" />Recent Library Activity</CardTitle></CardHeader>
+          <CardContent><ActivityFeed events={activityQ.data} loading={activityQ.isLoading} /></CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+function MemberDashboard() {
+  const topReadersQ = useQuery({ queryKey: ["dashboard", "top-readers"], queryFn: () => api.get("/dashboard/top-readers"), select: (r) => r.data, staleTime: 120_000 });
+  const popularBooksQ = useQuery({ queryKey: ["dashboard", "popular-books"], queryFn: () => api.get("/dashboard/popular-books"), select: (r) => r.data, staleTime: 120_000 });
+
+  return (
+    <div className="space-y-6 px-4 lg:px-6 py-6">
+      <h1 className="text-2xl font-bold text-gray-800 dark:text-gray-100">Welcome to your Reading Club!</h1>
+      <p className="text-muted-foreground">Here is your reading progress and club activity.</p>
+      
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <ActiveChallengesWidget />
+        <RecentAchievementsWidget />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><Star className="h-5 w-5 text-yellow-400" />Top Readers</CardTitle><CardDescription>Ranked by daily report submissions</CardDescription></CardHeader>
+          <CardContent><TopReadersList readers={topReadersQ.data} loading={topReadersQ.isLoading} /></CardContent>
+        </Card>
+        <Card>
+          <CardHeader><CardTitle className="flex items-center gap-2 text-base"><TrendingUp className="h-5 w-5 text-blue-500" />Popular Books</CardTitle><CardDescription>Most frequently issued books</CardDescription></CardHeader>
+          <CardContent><PopularBooksList books={popularBooksQ.data} loading={popularBooksQ.isLoading} /></CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+export default function DashboardHomeRouter() {
+  const { user, token } = useSelector((state) => state.auth);
+
+  const { data: profileData } = useQuery({
+    queryKey: ["dashboard-profile", token],
+    queryFn: async () => {
+      const res = await api.get("/auth/me");
+      return res.data;
+    },
+    enabled: !!token,
+    staleTime: 300000,
+    refetchOnMount: false,
+    refetchOnWindowFocus: false,
+  });
+
+  const roleName = React.useMemo(() => {
+    const roleSource = profileData?.user?.role || profileData?.user?.roleInfo || user?.role;
+    if (!roleSource) return "";
+    if (typeof roleSource === "object") return (roleSource.role || roleSource.name || roleSource.title || roleSource.plural || "").toLowerCase();
+    return String(roleSource).toLowerCase();
+  }, [profileData, user]);
+
+  if (roleName.includes("super admin") || roleName.includes("admin")) {
+    return <SuperAdminDashboard />;
+  } else if (roleName === "moderator") {
+    return <ModeratorDashboard />;
+  } else if (roleName === "book store") {
+    return <BookStoreDashboard />;
+  } else if (roleName === "member" || roleName === "members") {
+    return <MemberDashboard />;
+  } else {
+    // Default fallback
+    return <MemberDashboard />;
+  }
 }

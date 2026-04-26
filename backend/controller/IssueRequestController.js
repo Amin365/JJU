@@ -16,6 +16,7 @@ const roleNameOf = (user) =>
 
 const isSuperAdmin = (user) => /super\s*admin/i.test(roleNameOf(user));
 const isModerator = (user) => /moderator/i.test(roleNameOf(user));
+const isBookStore = (user) => /book\s*store/i.test(roleNameOf(user));
 
 const hasAnyPermission = (req, perms = []) => {
   const userPerms = new Set((req.user?.permissions || []).map((p) => String(p).toLowerCase()));
@@ -24,7 +25,7 @@ const hasAnyPermission = (req, perms = []) => {
 
 const hasPrivilegedRole = (req) => {
   const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
-  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName);
+  return /super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName) || /book\s*store/i.test(roleName);
 };
 
 const canReviewIssueRequests = (req) =>
@@ -197,7 +198,7 @@ export const getIssueRequests = async (req, res, next) => {
     if (status) where.status = status;
     if (book && isValidId(book)) where.book_id = Number(book);
 
-    if (isSuperAdmin(currentUser)) {
+    if (isSuperAdmin(currentUser) || isBookStore(currentUser)) {
       if (member && isValidId(member)) where.member_id = Number(member);
     } else if (isModerator(currentUser)) {
       const assigned = await ModeratorMember.findAll({

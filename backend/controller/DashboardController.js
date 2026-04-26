@@ -14,7 +14,7 @@ const hasAnyPermission = (req, perms = []) => {
 
 const canViewDashboard = (req) => {
   const roleName = String(req.user?.role?.role || req.user?.role?.plural || req.user?.role || "").toLowerCase();
-  if (/super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName)) {
+  if (/super\s*admin/i.test(roleName) || /moderator/i.test(roleName) || /admin/i.test(roleName) || /book\s*store/i.test(roleName)) {
     return true;
   }
 
@@ -274,7 +274,6 @@ export const getRecentActivity = async (req, res) => {
 export const getTopReaders = async (req, res) => {
   try {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
-    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
 
     const topReaderRows = await DailyReport.findAll({
       where: { created_by: { [Op.ne]: null } },
@@ -358,7 +357,6 @@ export const getTopReaders = async (req, res) => {
 export const getPopularBooks = async (req, res) => {
   try {
     if (!req.user?.id) return res.status(401).json({ message: "Unauthorized" });
-    if (!canViewDashboard(req)) return res.status(403).json({ message: "Access denied" });
 
     const grouped = (
       await Issue.findAll({

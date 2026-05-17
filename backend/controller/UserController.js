@@ -6,6 +6,12 @@ import bcrypt from "bcryptjs";
 import crypto from "crypto";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 import { sanitizeOutput } from "../utility/responseSanitizers.js";
+import {
+  buildUsernameCandidate,
+  ensureUniqueUsername,
+  findUserByUsername,
+  normalizeEmail,
+} from "../utility/usernames.js";
 
 const isValidId = (id) => Number.isInteger(Number(id)) && Number(id) > 0;
 const isUuid = (value) =>
@@ -45,7 +51,6 @@ export const createUserFromMember = async (req, res, next) => {
     const { member, username, password } = req.body;
 
     if (!member) return res.status(400).json({ message: "member is required" });
-    if (!username) return res.status(400).json({ message: "username is required" });
     if (!password || password.length < 6) {
       return res.status(400).json({ message: "password must be at least 6 characters" });
     }
@@ -71,20 +76,29 @@ export const createUserFromMember = async (req, res, next) => {
       return res.status(409).json({ message: "This member already has a user account" });
     }
 
-    const [existingUsername, existingEmail] = await Promise.all([
-      User.findOne({ where: { username } }),
-      User.findOne({ where: { email: m.email } }),
-    ]);
+    const resolvedUsername = await ensureUniqueUsername(
+      buildUsernameCandidate({
+        username,
+        fullName: m.full_name,
+        firstName: m.first_name,
+        middleName: m.middle_name,
+        lastName: m.last_name,
+        email: m.email,
+        fallback: m.code,
+      }),
+      { suffixSeed: String(m.id).slice(-4) }
+    );
 
-    if (existingUsername) return res.status(409).json({ message: "Username already exists" });
+    const existingEmail = await User.findOne({ where: { email: normalizeEmail(m.email) } });
+
     if (existingEmail) return res.status(409).json({ message: "Email already exists" });
 
     const user = await User.create({
       first_name: m.first_name,
       middle_name: m.middle_name || "",
       last_name: m.last_name,
-      username,
-      email: m.email,
+      username: resolvedUsername,
+      email: normalizeEmail(m.email),
       password,
       member_id: m.code || String(m.id),
       role_id: m.role_id || null,
@@ -364,7 +378,7 @@ export const updateUserById = async (req, res, next) => {
     }
 
     if (updateData.username) {
-      const existingUsername = await User.findOne({ where: { username: updateData.username } });
+      const existingUsername = await findUserByUsername(updateData.username, user.id);
       if (existingUsername && Number(existingUsername.id) !== Number(user.id)) {
         return res.status(409).json({ message: "Username already exists" });
       }

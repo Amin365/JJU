@@ -1,5 +1,4 @@
-import React, { useState, useMemo } from "react";
-import { useNavigate, useSearchParams } from "react-router";
+import React, { useEffect, useState, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useSelector } from "react-redux";
 import api from "@/app/api/apislice";
@@ -21,9 +20,7 @@ import {
   BookOpen,
   CheckCircle2,
   XCircle,
-  Clock,
   PlusCircle,
-  ArrowLeft,
   Loader2,
   Search,
   BookMarked,
@@ -31,6 +28,19 @@ import {
 
 /* ───────────────────────────── helpers ───────────────────────────── */
 const formatDate = (d) => (d ? new Date(d).toLocaleDateString() : "—");
+
+const toISODate = (date) => date.toISOString().slice(0, 10);
+const todayISO = () => toISODate(new Date());
+const addDaysISO = (dateStr, days) => {
+  const date = new Date(`${dateStr}T00:00:00`);
+  date.setDate(date.getDate() + days);
+  return toISODate(date);
+};
+const daysBetween = (start, end) => {
+  const startDate = new Date(`${start}T00:00:00`);
+  const endDate = new Date(`${end}T00:00:00`);
+  return Math.round((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24));
+};
 
 const statusClass = (s) => {
   switch ((s || "").toLowerCase()) {
@@ -44,14 +54,26 @@ const statusClass = (s) => {
 };
 
 /* ─────────────────────── Create Request Modal ─────────────────────── */
-const CreateRequestModal = ({ onClose, onSuccess }) => {
+const memberDisplayName = (member) =>
+  member?.full_name ||
+  [member?.first_name, member?.middle_name, member?.last_name].filter(Boolean).join(" ");
+
+const CreateRequestModal = ({ onClose, onSuccess, currentUser, isMemberUser, isProfileLoading }) => {
   const [memberCode, setMemberCode] = useState("");
   const [memberId, setMemberId] = useState(null);
   const [memberInfo, setMemberInfo] = useState(null);
   const [selectedBook, setSelectedBook] = useState("");
   const [requestedDays, setRequestedDays] = useState("7");
+  const [durationMode, setDurationMode] = useState("preset");
+  const [requestedReturnDate, setRequestedReturnDate] = useState(addDaysISO(todayISO(), 1));
   const [note, setNote] = useState("");
   const [lookingUp, setLookingUp] = useState(false);
+
+  const currentMemberPathId =
+    currentUser?.member?.uuid ||
+    currentUser?.member?.id ||
+    currentUser?.member_id_fk ||
+    null;
 
   const { data: booksData } = useQuery({
     queryKey: ["books", "all"],
@@ -63,6 +85,33 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
   });
 
   const books = Array.isArray(booksData) ? booksData : [];
+  const requestStartDate = todayISO();
+  const requestedDaysValue =
+    durationMode === "custom"
+      ? daysBetween(requestStartDate, requestedReturnDate)
+      : parseInt(requestedDays, 10) || 7;
+  const invalidCustomDuration =
+    durationMode === "custom" &&
+    (!requestedReturnDate || Number.isNaN(requestedDaysValue) || requestedDaysValue < 1 || requestedDaysValue > 14);
+
+  const { data: currentMember, isLoading: currentMemberLoading, isError: currentMemberError } = useQuery({
+    queryKey: ["member", "current-requester", currentMemberPathId],
+    queryFn: async () => {
+      const r = await api.get(`/members/${currentMemberPathId}`);
+      return r.data?.data ?? r.data;
+    },
+    enabled: Boolean(isMemberUser && currentMemberPathId),
+    staleTime: 60_000,
+  });
+
+  useEffect(() => {
+    if (!isMemberUser) return;
+    if (currentMember) {
+      setMemberId(currentMember.id);
+      setMemberInfo(currentMember);
+      setMemberCode(currentMember.code || "");
+    }
+  }, [currentMember, isMemberUser]);
 
   const lookupMember = async () => {
     if (!memberCode.trim()) return;
@@ -84,7 +133,7 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
       const r = await api.post("/issue-requests", {
         book: selectedBook,
         member: memberId,
-        requestedDays: parseInt(requestedDays, 10) || 7,
+        requestedDays: requestedDaysValue,
         note: note || undefined,
       });
       return r.data;
@@ -111,7 +160,25 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
           </div>
 
           {/* Member Lookup */}
-          {!memberInfo ? (
+          {isMemberUser && !currentMemberPathId && isProfileLoading ? (
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3 bg-slate-50 dark:bg-gray-800 text-sm text-slate-500 dark:text-slate-300 flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              Loading your account information...
+            </div>
+          ) : isMemberUser && !currentMemberPathId ? (
+            <div className="rounded-xl border border-red-200 dark:border-red-900/60 p-3 bg-red-50 dark:bg-red-950/30 text-sm text-red-700 dark:text-red-200">
+              Your account is not linked to a member profile yet.
+            </div>
+          ) : isMemberUser && currentMemberLoading ? (
+            <div className="rounded-xl border border-slate-200 dark:border-gray-700 p-3 bg-slate-50 dark:bg-gray-800 text-sm text-slate-500 dark:text-slate-300 flex items-center gap-2">
+              <Loader2 size={16} className="animate-spin" />
+              Loading your member information...
+            </div>
+          ) : isMemberUser && currentMemberError ? (
+            <div className="rounded-xl border border-red-200 dark:border-red-900/60 p-3 bg-red-50 dark:bg-red-950/30 text-sm text-red-700 dark:text-red-200">
+              Could not load your member information.
+            </div>
+          ) : !memberInfo ? (
             <div className="space-y-2">
               <label className="text-sm font-semibold text-slate-600 dark:text-slate-200">
                 Enter Member ID
@@ -135,16 +202,18 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
               <div className="flex justify-between items-start">
                 <div>
                   <p className="font-semibold text-slate-800 dark:text-white">
-                    {memberInfo.full_name || [memberInfo.first_name, memberInfo.last_name].filter(Boolean).join(" ")}
+                    {memberDisplayName(memberInfo)}
                   </p>
                   <p className="text-slate-500 dark:text-slate-400 text-xs">{memberInfo.code}</p>
                 </div>
-                <button
-                  onClick={() => { setMemberId(null); setMemberInfo(null); setMemberCode(""); }}
-                  className="text-xs text-slate-400 hover:text-red-500"
-                >
-                  Change
-                </button>
+                {!isMemberUser && (
+                  <button
+                    onClick={() => { setMemberId(null); setMemberInfo(null); setMemberCode(""); }}
+                    className="text-xs text-slate-400 hover:text-red-500"
+                  >
+                    Change
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -168,12 +237,22 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
             </Select>
           </div>
 
-          {/* Requested Days */}
+          {/* Requested Duration */}
           <div className="space-y-2">
             <label className="text-sm font-semibold text-slate-600 dark:text-slate-200">
-              Borrow Duration (days)
+              Borrow Duration
             </label>
-            <Select value={requestedDays} onValueChange={setRequestedDays}>
+            <Select
+              value={durationMode === "custom" ? "custom" : requestedDays}
+              onValueChange={(value) => {
+                if (value === "custom") {
+                  setDurationMode("custom");
+                  return;
+                }
+                setDurationMode("preset");
+                setRequestedDays(value);
+              }}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -181,8 +260,25 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
                 {[3, 5, 7, 10, 14].map((d) => (
                   <SelectItem key={d} value={String(d)}>{d} days</SelectItem>
                 ))}
+                <SelectItem value="custom">Pick return date</SelectItem>
               </SelectContent>
             </Select>
+            {durationMode === "custom" && (
+              <div className="space-y-1">
+                <Input
+                  type="date"
+                  value={requestedReturnDate}
+                  min={addDaysISO(requestStartDate, 1)}
+                  max={addDaysISO(requestStartDate, 14)}
+                  onChange={(e) => setRequestedReturnDate(e.target.value)}
+                />
+                <p className={cn("text-xs", invalidCustomDuration ? "text-red-500" : "text-slate-500")}>
+                  {invalidCustomDuration
+                    ? "Pick a return date between 1 and 14 days from today."
+                    : `${requestedDaysValue} day${requestedDaysValue === 1 ? "" : "s"} requested.`}
+                </p>
+              </div>
+            )}
           </div>
 
           {/* Note */}
@@ -203,7 +299,7 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
             </Button>
             <Button
               className="flex-1 dark:bg-orange-600"
-              disabled={!memberId || !selectedBook || createMutation.isPending}
+              disabled={!memberId || !selectedBook || invalidCustomDuration || createMutation.isPending}
               onClick={() => createMutation.mutate()}
             >
               {createMutation.isPending ? (
@@ -222,17 +318,16 @@ const CreateRequestModal = ({ onClose, onSuccess }) => {
 /* ─────────────────────── Review Modal (approve/reject) ─────────────────────── */
 const ReviewModal = ({ request, action, onClose, onSuccess }) => {
   const [reviewNote, setReviewNote] = useState("");
-  const [issueDate, setIssueDate] = useState(new Date().toISOString().slice(0, 10));
-  const [returnDate, setReturnDate] = useState(() => {
-    const d = new Date();
-    d.setDate(d.getDate() + (request?.requestedDays || 7));
-    return d.toISOString().slice(0, 10);
-  });
+  const [issueDate, setIssueDate] = useState(todayISO());
+  const [returnDate, setReturnDate] = useState(() => addDaysISO(todayISO(), request?.requestedDays || 7));
+  const issueDays = daysBetween(issueDate, returnDate);
+  const invalidIssueDates = !issueDate || !returnDate || Number.isNaN(issueDays) || issueDays < 0 || issueDays > 14;
 
   const mutation = useMutation({
     mutationFn: async () => {
       if (action === "approve") {
-        return api.patch(`/issue-requests/${request.id}/approve`, { reviewNote });
+        await api.patch(`/issue-requests/${request.id}/approve`, { reviewNote });
+        return api.patch(`/issue-requests/${request.id}/issue`, { issueDate, returnDate });
       }
       if (action === "reject") {
         return api.patch(`/issue-requests/${request.id}/reject`, { reviewNote });
@@ -243,7 +338,7 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
     },
     onSuccess: () => {
       toast.success(
-        action === "approve" ? "Request approved!" :
+        action === "approve" ? "Request approved and issued!" :
         action === "reject"  ? "Request rejected." :
         "Book issued successfully!"
       );
@@ -255,7 +350,7 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
     },
   });
 
-  const title = action === "approve" ? "Approve Request" :
+  const title = action === "approve" ? "Approve & Issue Request" :
                 action === "reject"  ? "Reject Request" :
                 "Issue Book";
 
@@ -277,16 +372,54 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
             <p className="mt-1"><span className="text-slate-500">Member:</span> <span className="font-medium text-slate-800 dark:text-white">{memberName}</span></p>
           </div>
 
-          {action === "issue" ? (
-            <div className="grid grid-cols-2 gap-3">
+          {action === "approve" || action === "issue" ? (
+            <div className="space-y-3">
+              {action === "approve" && (
+                <div>
+                  <label className="text-sm font-semibold text-slate-600 dark:text-slate-200">
+                    Approval Note (optional)
+                  </label>
+                  <Input
+                    className="mt-1"
+                    placeholder="Add a note..."
+                    value={reviewNote}
+                    onChange={(e) => setReviewNote(e.target.value)}
+                  />
+                </div>
+              )}
+              <div className="grid grid-cols-2 gap-3">
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Issue Date</label>
-                <Input type="date" value={issueDate} onChange={(e) => setIssueDate(e.target.value)} className="mt-1" />
+                <Input
+                  type="date"
+                  value={issueDate}
+                  onChange={(e) => {
+                    const nextIssueDate = e.target.value;
+                    setIssueDate(nextIssueDate);
+                    if (returnDate && daysBetween(nextIssueDate, returnDate) < 0) {
+                      setReturnDate(nextIssueDate);
+                    }
+                  }}
+                  className="mt-1"
+                />
               </div>
               <div>
                 <label className="text-xs font-semibold text-slate-500 dark:text-slate-400 uppercase">Return Date</label>
-                <Input type="date" value={returnDate} min={issueDate} onChange={(e) => setReturnDate(e.target.value)} className="mt-1" />
+                <Input
+                  type="date"
+                  value={returnDate}
+                  min={issueDate}
+                  max={issueDate ? addDaysISO(issueDate, 14) : undefined}
+                  onChange={(e) => setReturnDate(e.target.value)}
+                  className="mt-1"
+                />
               </div>
+              </div>
+              {invalidIssueDates && (
+                <p className="text-xs text-red-500">
+                  Return date must be on or after issue date and within 14 days.
+                </p>
+              )}
             </div>
           ) : (
             <div>
@@ -306,11 +439,11 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
             <Button variant="outline" className="flex-1" onClick={onClose}>Cancel</Button>
             <Button
               className={cn("flex-1", action === "reject" ? "bg-red-600 hover:bg-red-700 text-white" : "dark:bg-orange-600")}
-              disabled={mutation.isPending}
+              disabled={mutation.isPending || ((action === "approve" || action === "issue") && invalidIssueDates)}
               onClick={() => mutation.mutate()}
             >
               {mutation.isPending ? <Loader2 size={16} className="animate-spin mr-2" /> : null}
-              {action === "approve" ? "Approve" : action === "reject" ? "Reject" : "Issue Book"}
+              {action === "approve" ? "Approve & Issue" : action === "reject" ? "Reject" : "Issue Book"}
             </Button>
           </div>
         </div>
@@ -321,7 +454,6 @@ const ReviewModal = ({ request, action, onClose, onSuccess }) => {
 
 /* ─────────────────────── Main Page ─────────────────────── */
 const RequestBooksPage = () => {
-  const navigate = useNavigate();
   const qc = useQueryClient();
   const { user, token } = useSelector((s) => s.auth);
 
@@ -331,7 +463,7 @@ const RequestBooksPage = () => {
   const [reviewTarget, setReviewTarget] = useState(null); // { request, action }
 
   // Fetch current user's role
-  const { data: profileData } = useQuery({
+  const { data: profileData, isLoading: isProfileLoading } = useQuery({
     queryKey: ["profile-role", token],
     queryFn: async () => { const r = await api.get("/auth/me"); return r.data; },
     enabled: !!token,
@@ -358,6 +490,8 @@ const RequestBooksPage = () => {
   const isAdmin = roleName.includes("super") || roleName.includes("admin");
   const isModerator = roleName.includes("moderator");
   const canReview = isAdmin || isModerator;
+  const isMemberUser = !canReview && /\bmembers?\b/i.test(roleName);
+  const currentUser = profileData?.user || user;
 
   const limit = 15;
 
@@ -563,6 +697,9 @@ const RequestBooksPage = () => {
       {/* Modals */}
       {showCreateModal && (
         <CreateRequestModal
+          currentUser={currentUser}
+          isMemberUser={isMemberUser}
+          isProfileLoading={isProfileLoading}
           onClose={() => setShowCreateModal(false)}
           onSuccess={refreshAll}
         />

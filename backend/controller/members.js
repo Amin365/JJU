@@ -18,6 +18,7 @@ import {
   welcomeEmailTemplate,
 } from "../utility/emailTemplates.js";
 import { hashToken } from "../utility/tokenUtils.js";
+import { buildUsernameCandidate, ensureUniqueUsername } from "../utility/usernames.js";
 
 const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
@@ -145,14 +146,16 @@ export const createMember = async (req, res, next) => {
 
     const saved = await Member.create(memberPayload);
 
-    const baseUsername = String(saved.email || `${saved.first_name}${saved.last_name}`)
-      .toLowerCase()
-      .replace(/\s+/g, "")
-      .replace(/[^a-z0-9._-]/g, "");
-
-    let username = baseUsername || `user${String(saved.id).slice(-4)}`;
-    const existingUsername = await User.findOne({ where: { username } });
-    if (existingUsername) username = `${username}-${String(saved.id).slice(-4)}`;
+    const username = await ensureUniqueUsername(
+      buildUsernameCandidate({
+        firstName: saved.first_name,
+        middleName: saved.middle_name,
+        lastName: saved.last_name,
+        email: saved.email,
+        fallback: saved.code || `user${String(saved.id).slice(-4)}`,
+      }),
+      { suffixSeed: String(saved.id).slice(-4) }
+    );
 
     const securePassword = crypto.randomBytes(32).toString("hex");
     const inviteToken = crypto.randomBytes(32).toString("hex");
@@ -910,14 +913,14 @@ export const updateJoinClubStatus = async (req, res, next) => {
 
       if (!user) {
         const tempPassword = crypto.randomBytes(32).toString("hex");
-        const rawBase = clubReq.email.split("@")[0].toLowerCase().replace(/[^a-z0-9._-]/g, "");
-        const baseUsername = rawBase.length > 0 ? rawBase : `user${Date.now().toString().slice(-6)}`;
-        let username = baseUsername;
-
-        const existing = await User.findOne({ where: { username } });
-        if (existing) username = `${username}-${Date.now().toString().slice(-4)}`;
-
         const nameParts = clubReq.FullName.trim().split(/\s+/);
+        const username = await ensureUniqueUsername(
+          buildUsernameCandidate({
+            fullName: clubReq.FullName,
+            email: clubReq.email,
+            fallback: `user${Date.now().toString().slice(-6)}`,
+          })
+        );
 
         try {
           user = await User.create({

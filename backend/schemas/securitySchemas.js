@@ -17,7 +17,10 @@ const issueRequestIdParam = z.object({
 
 export const authSchemas = {
   register: z.object({
-    username: z.string().trim().min(3).max(64),
+    username: z.string().trim().min(2).max(64).optional(),
+    first_name: z.string().trim().min(1).max(100).optional(),
+    last_name: z.string().trim().min(1).max(100).optional(),
+    fullName: z.string().trim().min(2).max(200).optional(),
     email: z.string().trim().email().max(255),
     password: z.string().min(8).max(128),
   }),

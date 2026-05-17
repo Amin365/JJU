@@ -88,7 +88,7 @@ function formatDate(dateStr) {
 
 function NotificationSkeleton() {
   return (
-    <div className="p-4 border-b border-zinc-800">
+    <div className="p-4 border-b border-slate-200 dark:border-zinc-800">
       <div className="flex items-start gap-3">
         <Skeleton className="w-10 h-10 rounded-full" />
         <div className="flex-1 space-y-2">
@@ -109,8 +109,8 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
       initial={{ opacity: 0, y: 10 }}
       animate={{ opacity: 1, y: 0 }}
       exit={{ opacity: 0, x: -20 }}
-      className={`p-4 border-b border-zinc-800/50 hover:bg-zinc-900/30 transition-colors ${
-        !read ? "bg-zinc-900/50" : ""
+      className={`p-4 border-b border-slate-200/80 hover:bg-slate-50 transition-colors dark:border-zinc-800/50 dark:hover:bg-zinc-900/30 ${
+        !read ? "bg-slate-100 dark:bg-zinc-900/50" : ""
       }`}
     >
       <div className="flex items-start gap-3">
@@ -118,11 +118,17 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
         <div className="flex-1 min-w-0">
           <div className="flex items-start justify-between gap-2">
             <div className="flex-1 min-w-0">
-              <p className={`text-sm font-medium ${!read ? "text-white" : "text-zinc-400"}`}>
+              <p
+                className={`text-sm font-medium ${
+                  !read ? "text-slate-900 dark:text-white" : "text-slate-500 dark:text-zinc-400"
+                }`}
+              >
                 {title || message || "Notification"}
               </p>
               {message && title && (
-                <p className="text-xs text-zinc-500 mt-1 line-clamp-2">{message}</p>
+                <p className="text-xs text-slate-500 mt-1 line-clamp-2 dark:text-zinc-500">
+                  {message}
+                </p>
               )}
             </div>
             <div className="flex items-center gap-1 flex-shrink-0">
@@ -140,7 +146,7 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
               <Button
                 variant="ghost"
                 size="icon"
-                className="h-7 w-7 text-zinc-500 hover:text-red-500"
+                className="h-7 w-7 text-slate-500 hover:text-red-500 dark:text-zinc-500"
                 onClick={() => onDelete(id)}
                 title="Delete"
               >
@@ -152,7 +158,9 @@ function NotificationItem({ notification, onMarkRead, onDelete }) {
             <Badge variant="outline" className="text-[10px] px-1.5 py-0">
               {category || "system"}
             </Badge>
-            <span className="text-[10px] text-zinc-600">{formatDate(createdAt)}</span>
+            <span className="text-[10px] text-slate-500 dark:text-zinc-600">
+              {formatDate(createdAt)}
+            </span>
             {!read && <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />}
           </div>
           {meta?.ctaUrl && (
@@ -279,43 +287,43 @@ export default function NotificationCenter() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-        <Card className="bg-zinc-900/50 border-zinc-800">
+        <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
           <CardContent className="p-4">
-            <p className="text-xs text-zinc-500">Total</p>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">Total</p>
             <p className="text-2xl font-bold">{statsLoading ? "-" : statsData?.total || 0}</p>
           </CardContent>
         </Card>
-        <Card className="bg-zinc-900/50 border-zinc-800">
+        <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
           <CardContent className="p-4">
-            <p className="text-xs text-zinc-500">Unread</p>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">Unread</p>
             <p className="text-2xl font-bold text-blue-500">
               {statsLoading ? "-" : statsData?.unread || 0}
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-zinc-900/50 border-zinc-800">
+        <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
           <CardContent className="p-4">
-            <p className="text-xs text-zinc-500">Read</p>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">Read</p>
             <p className="text-2xl font-bold text-green-500">
               {statsLoading ? "-" : statsData?.read || 0}
             </p>
           </CardContent>
         </Card>
-        <Card className="bg-zinc-900/50 border-zinc-800">
+        <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
           <CardContent className="p-4">
-            <p className="text-xs text-zinc-500">This Page</p>
+            <p className="text-xs text-slate-500 dark:text-zinc-500">This Page</p>
             <p className="text-2xl font-bold">{notifications.length}</p>
           </CardContent>
         </Card>
       </div>
 
       {/* Filters */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-3">
             <div className="flex items-center gap-2">
-              <Filter className="h-4 w-4 text-zinc-500" />
-              <span className="text-sm text-zinc-400">Filters:</span>
+              <Filter className="h-4 w-4 text-slate-500 dark:text-zinc-500" />
+              <span className="text-sm text-slate-500 dark:text-zinc-400">Filters:</span>
             </div>
             <Select value={typeFilter} onValueChange={(v) => { setTypeFilter(v); setPage(1); }}>
               <SelectTrigger className="w-[140px] h-8 text-sm">
@@ -381,20 +389,20 @@ export default function NotificationCenter() {
       </Card>
 
       {/* Notifications List */}
-      <Card className="bg-zinc-900/50 border-zinc-800 overflow-hidden">
-        <CardHeader className="py-3 px-4 border-b border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800 overflow-hidden">
+        <CardHeader className="py-3 px-4 border-b border-slate-200 dark:border-zinc-800">
           <CardTitle className="text-base flex items-center justify-between">
             <span>Notifications ({total})</span>
-            <span className="text-xs text-zinc-500 font-normal">
+            <span className="text-xs text-slate-500 font-normal dark:text-zinc-500">
               Page {page} of {totalPages}
             </span>
           </CardTitle>
         </CardHeader>
-        <div className="divide-y divide-zinc-800/50">
+        <div className="divide-y divide-slate-200/80 dark:divide-zinc-800/50">
           {isLoading ? (
             Array.from({ length: 5 }).map((_, i) => <NotificationSkeleton key={i} />)
           ) : notifications.length === 0 ? (
-            <div className="p-8 text-center text-zinc-500">
+            <div className="p-8 text-center text-slate-500 dark:text-zinc-500">
               <Bell className="h-10 w-10 mx-auto mb-3 opacity-30" />
               <p>No notifications found</p>
               {(typeFilter !== "all" || categoryFilter !== "all" || readFilter !== "all") && (
@@ -419,7 +427,7 @@ export default function NotificationCenter() {
 
         {/* Pagination */}
         {totalPages > 1 && (
-          <div className="p-3 border-t border-zinc-800 flex items-center justify-center gap-2">
+          <div className="p-3 border-t border-slate-200 dark:border-zinc-800 flex items-center justify-center gap-2">
             <Button
               variant="outline"
               size="sm"
@@ -428,7 +436,7 @@ export default function NotificationCenter() {
             >
               <ChevronLeft className="h-4 w-4" />
             </Button>
-            <span className="text-sm text-zinc-400 px-3">
+            <span className="text-sm text-slate-500 px-3 dark:text-zinc-400">
               {page} / {totalPages}
             </span>
             <Button

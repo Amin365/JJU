@@ -57,13 +57,23 @@ function makeMockReq(body = {}, extras = {}) {
 describe("registerUser", () => {
   beforeEach(() => vi.clearAllMocks());
 
-  it("returns 400 when username is missing", async () => {
+  it("generates username from email when username is missing", async () => {
+    User.findOne.mockResolvedValueOnce(null).mockResolvedValueOnce(null);
+    User.create.mockResolvedValueOnce({
+      id: "new-id",
+      username: "a",
+      email: "a@b.com",
+      role_id: null,
+    });
     const req = makeMockReq({ email: "a@b.com", password: "secret" });
     const res = makeMockRes();
     await registerUser(req, res);
-    expect(res.status).toHaveBeenCalledWith(400);
+    expect(User.create).toHaveBeenCalledWith(
+      expect.objectContaining({ email: "a@b.com", username: "a" })
+    );
+    expect(res.status).toHaveBeenCalledWith(201);
     expect(res.json).toHaveBeenCalledWith(
-      expect.objectContaining({ message: expect.stringContaining("required") })
+      expect.objectContaining({ email: "a@b.com", username: "a" })
     );
   });
 

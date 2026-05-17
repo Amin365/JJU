@@ -259,7 +259,7 @@ export default function AuditLogViewer() {
   };
 
   return (
-    <div className="min-h-screen p-4 dark:bg-gray-900 bg-slate-50">
+    <div className="min-h-screen p-4 ">
       <div className="max-w-7xl mx-auto space-y-6">
         {/* Header */}
         <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
@@ -469,15 +469,6 @@ export default function AuditLogViewer() {
                     variant="outline"
                     size="sm"
                     disabled={page <= 1}
-                    onClick={() => setPage(1)}
-                    title="First page"
-                  >
-                    <ChevronsLeft className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page <= 1}
                     onClick={() => setPage((p) => p - 1)}
                     title="Previous page"
                   >
@@ -510,15 +501,6 @@ export default function AuditLogViewer() {
                   >
                     Next
                     <ChevronRight className="h-4 w-4" />
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={page >= totalPages}
-                    onClick={() => setPage(totalPages)}
-                    title="Last page"
-                  >
-                    <ChevronsRight className="h-4 w-4" />
                   </Button>
                 </div>
               </div>

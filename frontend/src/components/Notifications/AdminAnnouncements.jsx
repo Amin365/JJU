@@ -126,7 +126,7 @@ export default function AdminAnnouncements() {
       <div className="grid gap-6 lg:grid-cols-3">
         {/* Compose Section */}
         <div className="lg:col-span-2 space-y-4">
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="">
             <CardHeader>
               <CardTitle className="text-lg">Compose Announcement</CardTitle>
               <CardDescription>
@@ -142,10 +142,12 @@ export default function AdminAnnouncements() {
                   value={title}
                   onChange={(e) => setTitle(e.target.value)}
                   placeholder="Announcement title..."
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   maxLength={100}
                 />
-                <p className="text-xs text-zinc-500 mt-1">{title.length}/100 characters</p>
+                <p className="text-xs text-slate-500 mt-1 dark:text-zinc-500">
+                  {title.length}/100 characters
+                </p>
               </div>
 
               {/* Message */}
@@ -156,10 +158,12 @@ export default function AdminAnnouncements() {
                   onChange={(e) => setMessage(e.target.value)}
                   placeholder="Write your announcement message..."
                   rows={5}
-                  className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none"
+                  className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 resize-none dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   maxLength={1000}
                 />
-                <p className="text-xs text-zinc-500 mt-1">{message.length}/1000 characters</p>
+                <p className="text-xs text-slate-500 mt-1 dark:text-zinc-500">
+                  {message.length}/1000 characters
+                </p>
               </div>
 
               {/* Target Audience */}
@@ -191,7 +195,7 @@ export default function AdminAnnouncements() {
                     value={ctaLabel}
                     onChange={(e) => setCtaLabel(e.target.value)}
                     placeholder="e.g., View Details"
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                     maxLength={50}
                   />
                 </div>
@@ -202,7 +206,7 @@ export default function AdminAnnouncements() {
                     value={ctaUrl}
                     onChange={(e) => setCtaUrl(e.target.value)}
                     placeholder="https://..."
-                    className="w-full bg-zinc-800 border border-zinc-700 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-orange-500"
+                    className="w-full bg-white border border-slate-200 rounded-lg px-3 py-2 text-sm text-slate-900 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-orange-500 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100 dark:placeholder:text-zinc-500"
                   />
                 </div>
               </div>
@@ -214,7 +218,7 @@ export default function AdminAnnouncements() {
                     type="checkbox"
                     checked={sendPush}
                     onChange={(e) => setSendPush(e.target.checked)}
-                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-orange-500 focus:ring-orange-500"
+                    className="w-4 h-4 rounded border-slate-300 bg-white text-orange-500 focus:ring-orange-500 dark:border-zinc-700 dark:bg-zinc-800"
                   />
                   <span className="text-sm">Send Push Notification</span>
                 </label>
@@ -223,7 +227,7 @@ export default function AdminAnnouncements() {
                     type="checkbox"
                     checked={sendEmail}
                     onChange={(e) => setSendEmail(e.target.checked)}
-                    className="w-4 h-4 rounded border-zinc-700 bg-zinc-800 text-orange-500 focus:ring-orange-500"
+                    className="w-4 h-4 rounded border-slate-300 bg-white text-orange-500 focus:ring-orange-500 dark:border-zinc-700 dark:bg-zinc-800"
                   />
                   <span className="text-sm">Send Email</span>
                 </label>
@@ -246,7 +250,7 @@ export default function AdminAnnouncements() {
               <Button
                 onClick={handleSend}
                 disabled={sendMutation.isPending || !title.trim() || !message.trim()}
-                className="w-full"
+                className="w-full dark:bg-orange-500 dark:hover:bg-orange-600"
               >
                 {sendMutation.isPending ? (
                   <>
@@ -266,7 +270,7 @@ export default function AdminAnnouncements() {
 
         {/* Preview Section */}
         <div className="space-y-4">
-          <Card className="bg-zinc-900/50 border-zinc-800">
+          <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
             <CardHeader className="pb-3">
               <CardTitle className="text-base flex items-center gap-2">
                 <Eye className="h-4 w-4" />
@@ -286,24 +290,26 @@ export default function AdminAnnouncements() {
                     <Users className="h-8 w-8 text-orange-500" />
                     <div>
                       <p className="text-2xl font-bold">{previewData?.count || 0}</p>
-                      <p className="text-xs text-zinc-500">recipients</p>
+                      <p className="text-xs text-slate-500 dark:text-zinc-500">recipients</p>
                     </div>
                   </div>
 
                   {previewData?.preview?.length > 0 && (
                     <div>
-                      <p className="text-xs text-zinc-500 mb-2">Sample recipients:</p>
+                      <p className="text-xs text-slate-500 mb-2 dark:text-zinc-500">
+                        Sample recipients:
+                      </p>
                       <div className="space-y-1.5">
                         {previewData.preview.map((user, i) => (
                           <div key={i} className="flex items-center gap-2 text-xs">
-                            <span className="w-5 h-5 rounded-full bg-zinc-800 flex items-center justify-center text-zinc-400">
+                            <span className="w-5 h-5 rounded-full bg-slate-100 flex items-center justify-center text-slate-500 dark:bg-zinc-800 dark:text-zinc-400">
                               {user.name?.charAt(0) || "?"}
                             </span>
                             <span className="flex-1 truncate">{user.name || "Unknown"}</span>
                           </div>
                         ))}
                         {previewData.count > 5 && (
-                          <p className="text-xs text-zinc-600 mt-1">
+                          <p className="text-xs text-slate-500 mt-1 dark:text-zinc-600">
                             +{previewData.count - 5} more...
                           </p>
                         )}
@@ -317,17 +323,17 @@ export default function AdminAnnouncements() {
 
           {/* Notification Preview */}
           {(title || message) && (
-            <Card className="bg-zinc-900/50 border-zinc-800">
+            <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
               <CardHeader className="pb-2">
                 <CardTitle className="text-base">Preview</CardTitle>
               </CardHeader>
               <CardContent>
-                <div className="bg-zinc-800 rounded-lg p-3 border border-zinc-700">
+                <div className="bg-slate-50 rounded-lg p-3 border border-slate-200 dark:bg-zinc-800 dark:border-zinc-700">
                   <div className="flex items-start gap-2">
                     <Megaphone className="h-5 w-5 text-orange-500 flex-shrink-0 mt-0.5" />
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium">{title || "Announcement Title"}</p>
-                      <p className="text-xs text-zinc-400 mt-1 line-clamp-3">
+                      <p className="text-xs text-slate-500 mt-1 line-clamp-3 dark:text-zinc-400">
                         {message || "Your announcement message will appear here..."}
                       </p>
                       {ctaLabel && ctaUrl && (
@@ -343,7 +349,7 @@ export default function AdminAnnouncements() {
       </div>
 
       {/* History Section */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
         <CardHeader
           className="cursor-pointer"
           onClick={() => setShowHistory(!showHistory)}
@@ -373,13 +379,13 @@ export default function AdminAnnouncements() {
                 No announcements sent yet
               </p>
             ) : (
-              <div className="divide-y divide-zinc-800">
+              <div className="divide-y divide-slate-200 dark:divide-zinc-800">
                 {history.map((item, idx) => (
                   <div key={idx} className="py-3 first:pt-0 last:pb-0">
                     <div className="flex items-start justify-between gap-3">
                       <div className="flex-1 min-w-0">
                         <p className="text-sm font-medium">{item.title}</p>
-                        <p className="text-xs text-zinc-500 line-clamp-2 mt-1">
+                        <p className="text-xs text-slate-500 line-clamp-2 mt-1 dark:text-zinc-500">
                           {item.message}
                         </p>
                       </div>
@@ -387,7 +393,7 @@ export default function AdminAnnouncements() {
                         {item.targetAudience}
                       </Badge>
                     </div>
-                    <div className="flex items-center gap-3 mt-2 text-xs text-zinc-500">
+                    <div className="flex items-center gap-3 mt-2 text-xs text-slate-500 dark:text-zinc-500">
                       <span>{formatDate(item.createdAt)}</span>
                       <span>•</span>
                       <span>{item.recipientCount} recipients</span>

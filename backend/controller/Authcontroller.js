@@ -23,6 +23,12 @@ import { logAuthAction } from "../utility/auditLog.js";
 import { sendMail, buildEmailHtml } from "./EmailController.js";
 import { sanitizeOutput } from "../utility/responseSanitizers.js";
 import { encryptSensitive } from "../utility/dataProtection.js";
+import {
+  buildUsernameCandidate,
+  ensureUniqueUsername,
+  findUserByEmailOrUsername,
+  normalizeEmail,
+} from "../utility/usernames.js";
 
 export const loginLimiter = rateLimit({
   windowMs: 15 * 60 * 1000,
@@ -45,17 +51,19 @@ export const loginLimiter = rateLimit({
 });
 
 export const registerUser = async (req, res) => {
-  const { username, email, password } = req.body;
+  const { username, email, password, first_name, last_name, fullName } = req.body;
 
-  if (!username || !email || !password) {
+  if (!email || !password) {
     return res.status(400).json({
-      message: "username, email and password are required",
+      message: "email and password are required",
     });
   }
 
   try {
-    const normalizedEmail = String(email).trim().toLowerCase();
-    const normalizedUsername = String(username).trim();
+    const normalizedEmail = normalizeEmail(email);
+    const nameParts = String(fullName || "").trim().split(/\s+/).filter(Boolean);
+    const resolvedFirstName = String(first_name || nameParts[0] || normalizedEmail.split("@")[0] || "User").trim();
+    const resolvedLastName = String(last_name || (nameParts.length > 1 ? nameParts.slice(1).join(" ") : "-")).trim();
     const normalizedPassword = String(password);
 
     const userExists = await User.findOne({
@@ -66,7 +74,19 @@ export const registerUser = async (req, res) => {
       return res.status(400).json({ message: "User already exists" });
     }
 
+    const normalizedUsername = await ensureUniqueUsername(
+      buildUsernameCandidate({
+        username,
+        fullName,
+        firstName: resolvedFirstName,
+        lastName: resolvedLastName,
+        email: normalizedEmail,
+      })
+    );
+
     const user = await User.create({
+      first_name: resolvedFirstName,
+      last_name: resolvedLastName,
       username: normalizedUsername,
       email: normalizedEmail,
       // password hashing should be handled in model hook
@@ -106,11 +126,7 @@ export const loginUser = async (req, res) => {
   }
 
   try {
-    const user = await User.findOne({
-      where: {
-        [Op.or]: [{ email: id }, { username: id }],
-      },
-    });
+    const user = await findUserByEmailOrUsername(id);
 
     if (!user) {
       return res.status(401).json({

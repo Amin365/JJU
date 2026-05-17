@@ -7,11 +7,14 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
+  useSidebar,
 } from "@/components/ui/sidebar"
 import { NavLink } from "react-router"
 import { Book as BookIcon } from "lucide-react"
 
 export function NavMain({ items = [] }) {
+  const { isMobile, setOpenMobile } = useSidebar();
+
   return (
     <SidebarGroup>
       <SidebarGroupLabel className="flex items-center gap-2 text-xs font-semibold uppercase text-slate-400">
@@ -25,6 +28,9 @@ export function NavMain({ items = [] }) {
             <SidebarMenuButton asChild tooltip={item.title}>
               <NavLink
                 to={item.url}
+                onClick={() => {
+                  if (isMobile) setOpenMobile(false);
+                }}
                 className={({ isActive }) =>
                   [
                     "flex items-center gap-3 px-3 py-2  transition-colors",

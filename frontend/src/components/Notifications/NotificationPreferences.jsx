@@ -14,7 +14,7 @@ function ToggleSwitch({ checked, onChange, disabled }) {
       onClick={() => onChange(!checked)}
       disabled={disabled}
       className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${
-        checked ? "bg-orange-500" : "bg-zinc-700"
+        checked ? "bg-orange-500" : "bg-slate-300 dark:bg-zinc-700"
       } ${disabled ? "opacity-50 cursor-not-allowed" : "cursor-pointer"}`}
     >
       <span
@@ -28,10 +28,12 @@ function ToggleSwitch({ checked, onChange, disabled }) {
 
 function PreferenceItem({ label, description, checked, onChange, disabled }) {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-zinc-800/50 last:border-0">
+    <div className="flex items-center justify-between py-3 border-b border-slate-200 last:border-0 dark:border-zinc-800/50">
       <div className="flex-1 pr-4">
         <p className="text-sm font-medium">{label}</p>
-        {description && <p className="text-xs text-zinc-500 mt-0.5">{description}</p>}
+        {description && (
+          <p className="text-xs text-slate-500 mt-0.5 dark:text-zinc-500">{description}</p>
+        )}
       </div>
       <ToggleSwitch checked={checked} onChange={onChange} disabled={disabled} />
     </div>
@@ -40,7 +42,7 @@ function PreferenceItem({ label, description, checked, onChange, disabled }) {
 
 function PreferenceSkeleton() {
   return (
-    <div className="flex items-center justify-between py-3 border-b border-zinc-800/50">
+    <div className="flex items-center justify-between py-3 border-b border-slate-200 dark:border-zinc-800/50">
       <div className="space-y-2">
         <Skeleton className="h-4 w-40" />
         <Skeleton className="h-3 w-56" />
@@ -203,7 +205,7 @@ export default function NotificationPreferences() {
       </div>
 
       {/* Push Notifications */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Bell className="h-5 w-5 text-orange-500" />
@@ -232,7 +234,7 @@ export default function NotificationPreferences() {
       </Card>
 
       {/* Email Notifications */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Mail className="h-5 w-5 text-blue-500" />
@@ -261,7 +263,7 @@ export default function NotificationPreferences() {
       </Card>
 
       {/* Quiet Hours */}
-      <Card className="bg-zinc-900/50 border-zinc-800">
+      <Card className="bg-white border-slate-200 dark:bg-zinc-900/50 dark:border-zinc-800">
         <CardHeader>
           <CardTitle className="flex items-center gap-2 text-lg">
             <Moon className="h-5 w-5 text-purple-500" />
@@ -286,22 +288,26 @@ export default function NotificationPreferences() {
               {data?.quietHoursEnabled && (
                 <div className="flex items-center gap-4 py-3">
                   <div>
-                    <label className="text-xs text-zinc-500 block mb-1">Start Time</label>
+                    <label className="text-xs text-slate-500 block mb-1 dark:text-zinc-500">
+                      Start Time
+                    </label>
                     <input
                       type="time"
                       value={data?.quietHoursStart || "22:00"}
                       onChange={(e) => handleToggle("quietHoursStart", e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm"
+                      className="bg-white border border-slate-200 rounded px-2 py-1 text-sm text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                       disabled={updateMutation.isPending}
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-zinc-500 block mb-1">End Time</label>
+                    <label className="text-xs text-slate-500 block mb-1 dark:text-zinc-500">
+                      End Time
+                    </label>
                     <input
                       type="time"
                       value={data?.quietHoursEnd || "08:00"}
                       onChange={(e) => handleToggle("quietHoursEnd", e.target.value)}
-                      className="bg-zinc-800 border border-zinc-700 rounded px-2 py-1 text-sm"
+                      className="bg-white border border-slate-200 rounded px-2 py-1 text-sm text-slate-900 dark:bg-zinc-800 dark:border-zinc-700 dark:text-zinc-100"
                       disabled={updateMutation.isPending}
                     />
                   </div>
@@ -314,7 +320,7 @@ export default function NotificationPreferences() {
 
       {/* Status indicator */}
       {updateMutation.isPending && (
-        <div className="fixed bottom-4 right-4 bg-zinc-800 border border-zinc-700 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg">
+        <div className="fixed bottom-4 right-4 bg-white border border-slate-200 rounded-lg px-4 py-2 flex items-center gap-2 shadow-lg dark:bg-zinc-800 dark:border-zinc-700">
           <Loader2 className="h-4 w-4 animate-spin text-orange-500" />
           <span className="text-sm">Saving...</span>
         </div>

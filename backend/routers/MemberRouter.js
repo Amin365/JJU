@@ -45,6 +45,8 @@ const memberOwnerResolver = async (req) => {
 
 
 MemberRouter.param("id", (req, res, next, id) => {
+  if (req.path.startsWith("/join-club/")) return next()
+
   const numericId = Number(id)
   const isNumeric = Number.isInteger(numericId) && numericId > 0
   const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(String(id || "").trim())

@@ -1,218 +1,101 @@
+import React, { useMemo, useState } from "react";
+import { Search, ChevronLeft, ChevronRight, Eye } from "lucide-react";
+import { useQuery } from "@tanstack/react-query";
+import { useNavigate } from "react-router";
+import api from "@/app/api/apislice";
+import { cn } from "@/lib/utils";
+import { Card, CardContent } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Button } from "@/components/ui/button";
 
-import React, { useEffect, useMemo, useState } from "react"
-import { Search, ChevronLeft, ChevronRight, CheckCircle, XCircle, Eye } from "lucide-react"
-import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query"
-import api from "@/app/api/apislice"
-import { cn } from "@/lib/utils"
-
-import { Card, CardContent } from "@/components/ui/card"
-import { Input } from "@/components/ui/input"
-import { Button } from "@/components/ui/button"
-import { toast } from "sonner"
-
-/* ================================
-   API
-================================ */
 const fetchJoinClubs = async ({ queryKey }) => {
-  const [, page = 1, limit = 10, statusFilter = ""] = queryKey
-  const params = { page, limit }
-  if (statusFilter) params.status = statusFilter
-  const res = await api.get("/join-club", { params })
-  return res.data
-}
+  const [, page = 1, limit = 10, statusFilter = ""] = queryKey;
+  const params = { page, limit };
+  if (statusFilter) params.status = statusFilter;
+  const res = await api.get("/join-club", { params });
+  return res.data;
+};
 
 const formatDate = (dateStr) =>
-  dateStr ? new Date(dateStr).toLocaleDateString() : "—"
+  dateStr ? new Date(dateStr).toLocaleDateString() : "-";
 
-/* ================================
-   Status Badge
-================================ */
 const StatusBadge = ({ status }) => (
   <span
     className={cn(
-      "px-2 py-1 rounded-md text-xs font-semibold",
+      "rounded-md px-2 py-1 text-xs font-semibold",
       status === "Approved"
         ? "bg-green-100 text-green-700 dark:bg-green-800 dark:text-green-100"
         : status === "Rejected"
-        ? "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-100"
-        : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100"
+          ? "bg-red-100 text-red-700 dark:bg-red-800 dark:text-red-100"
+          : "bg-yellow-100 text-yellow-700 dark:bg-yellow-800 dark:text-yellow-100"
     )}
   >
     {status}
   </span>
-)
+);
 
-/* ================================
-   Review Dialog
-================================ */
-const ReviewDialog = ({ request, onClose, onSubmit, isLoading }) => {
-  const [rejectionReason, setRejectionReason] = useState("")
-  const [action, setAction] = useState(null) // "Approved" | "Rejected"
-
-  const handleConfirm = () => {
-    if (!action) return
-    onSubmit({ id: request._id, status: action, rejectionReason: action === "Rejected" ? rejectionReason : "" })
-  }
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50">
-      <div className="bg-white dark:bg-gray-800 rounded-2xl shadow-xl w-full max-w-2xl mx-4 p-6">
-        <h2 className="text-lg font-bold mb-1 dark:text-white">Review Join Request</h2>
-        <p className="text-sm text-slate-500 dark:text-gray-400 mb-4">
-          Reviewing request from <span className="font-semibold text-slate-700 dark:text-white">{request.FullName}</span> ({request.email})
-        </p>
-
-        <div className="bg-slate-50 dark:bg-gray-700 rounded-lg p-4 text-sm mb-4 space-y-1">
-          <div className="mb-3"><span className="text-slate-500">Phone:</span> {request.phone}</div>
-          <div className="mb-3"><span className="text-slate-500">Requested:</span> {formatDate(request.createdAt)}</div>
-          <div className="mb-3"><span className="text-slate-500">Status:</span> <StatusBadge status={request.status} /></div>
-        </div>
-
-        {/* Action selector */}
-        <div className="flex gap-3 mb-4">
-          <button
-            onClick={() => setAction("Approved")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-medium transition",
-              action === "Approved"
-                ? "bg-green-600 text-white border-green-600"
-                : "border-slate-200 dark:border-gray-600 dark:text-gray-200 hover:border-green-400"
-            )}
-          >
-            <CheckCircle size={16} /> Approve
-          </button>
-          <button
-            onClick={() => setAction("Rejected")}
-            className={cn(
-              "flex-1 flex items-center justify-center gap-2 py-2 rounded-lg border text-sm font-medium transition",
-              action === "Rejected"
-                ? "bg-red-600 text-white border-red-600"
-                : "border-slate-200 dark:border-gray-600 dark:text-gray-200 hover:border-red-400"
-            )}
-          >
-            <XCircle size={16} /> Reject
-          </button>
-        </div>
-
-        {action === "Rejected" && (
-          <div className="mb-4">
-            <label className="block text-xs font-medium text-slate-600 dark:text-gray-300 mb-1">
-              Rejection reason <span className="text-slate-400">(optional)</span>
-            </label>
-            <textarea
-              rows={3}
-              className="w-full rounded-lg border border-slate-200 dark:border-gray-600 bg-white dark:bg-gray-700 dark:text-white px-3 py-2 text-sm resize-none focus:outline-none focus:ring-2 focus:ring-orange-400"
-              placeholder="Enter reason for rejection..."
-              value={rejectionReason}
-              onChange={(e) => setRejectionReason(e.target.value)}
-            />
-          </div>
-        )}
-
-        {action === "Approved" && (
-          <p className="text-xs text-slate-500 dark:text-gray-400 mb-4">
-            A member record will be created for this applicant and they will be notified.
-          </p>
-        )}
-
-        <div className="flex gap-3 justify-end">
-          <Button variant="outline" onClick={onClose} disabled={isLoading}>Cancel</Button>
-          <Button
-            disabled={!action || isLoading}
-            onClick={handleConfirm}
-            className={cn(
-              action === "Approved" ? "bg-green-600 hover:bg-green-700" : action === "Rejected" ? "bg-red-600 hover:bg-red-700" : ""
-            )}
-          >
-            {isLoading ? "Processing…" : `Confirm ${action || ""}`}
-          </Button>
-        </div>
-      </div>
-    </div>
-  )
-}
-
-/* ================================
-   Component
-================================ */
 const JoinClubsTable = () => {
-  const queryClient = useQueryClient()
-
-  const [currentPage, setCurrentPage] = useState(1)
-  const [limit] = useState(10)
-  const [searchTerm, setSearchTerm] = useState("")
-  const [statusFilter, setStatusFilter] = useState("")
-  const [reviewTarget, setReviewTarget] = useState(null)
+  const navigate = useNavigate();
+  const [currentPage, setCurrentPage] = useState(1);
+  const [limit] = useState(10);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [statusFilter, setStatusFilter] = useState("");
 
   const { data, isLoading, isFetching, error } = useQuery({
     queryKey: ["join-clubs", currentPage, limit, statusFilter],
     queryFn: fetchJoinClubs,
     keepPreviousData: true,
     staleTime: 30_000,
-  })
+  });
 
-  const updateStatusMutation = useMutation({
-    mutationFn: async ({ id, status, rejectionReason }) => {
-      const res = await api.patch(`/join-club/${id}/status`, { status, rejectionReason })
-      return res.data
-    },
-    onSuccess: (_, vars) => {
-      toast.success(`Request ${vars.status.toLowerCase()} successfully`)
-      queryClient.invalidateQueries({ queryKey: ["join-clubs"] })
-      setReviewTarget(null)
-    },
-    onError: (err) => {
-      toast.error(err?.response?.data?.message || "Failed to update status")
-    },
-  })
-
-  const requests = data?.data ?? []
-  const totalItems = data?.count ?? requests.length
+  const requests = useMemo(() => data?.data ?? [], [data?.data]);
+  const totalItems = data?.count ?? requests.length;
   const totalPages =
-    data?.totalPages ?? Math.max(1, Math.ceil(totalItems / limit))
-
-  useEffect(() => {
-    setCurrentPage(1)
-  }, [searchTerm, statusFilter])
+    data?.totalPages ?? Math.max(1, Math.ceil(totalItems / limit));
 
   const filteredRequests = useMemo(() => {
-    const q = searchTerm.trim().toLowerCase()
-    if (!q) return requests
+    const q = searchTerm.trim().toLowerCase();
+    if (!q) return requests;
     return requests.filter((r) =>
       [r.FullName, r.email, r.phone].some((field) =>
         field?.toLowerCase().includes(q)
       )
-    )
-  }, [requests, searchTerm])
+    );
+  }, [requests, searchTerm]);
 
-  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * limit + 1
-  const endItem = totalItems === 0 ? 0 : Math.min(currentPage * limit, totalItems)
+  const startItem = totalItems === 0 ? 0 : (currentPage - 1) * limit + 1;
+  const endItem = totalItems === 0 ? 0 : Math.min(currentPage * limit, totalItems);
+  const statusTabs = ["", "Pending", "Approved", "Rejected"];
 
-  const statusTabs = ["", "Pending", "Approved", "Rejected"]
+  const openDetails = (requestId) => {
+    navigate(`/dashboard/join-clubs/${requestId}`);
+  };
 
   return (
-    <div className="h-full flex flex-col gap-6 animate-in fade-in duration-500 p-4 dark:bg-gray-900">
-      {/* Header */}
+    <div className="flex h-full flex-col gap-6 p-4 animate-in fade-in duration-500 dark:bg-gray-900">
       <div>
         <h1 className="text-3xl font-bold tracking-tight text-slate-800 dark:text-white">
           Join Club Requests
         </h1>
-        <p className="text-sm mt-1 text-slate-500 dark:text-gray-300">
+        <p className="mt-1 text-sm text-slate-500 dark:text-gray-300">
           Review and manage reading club membership requests.
         </p>
       </div>
 
-      {/* Status tabs */}
-      <div className="flex gap-2 flex-wrap">
+      <div className="flex flex-wrap gap-2">
         {statusTabs.map((s) => (
           <button
             key={s || "all"}
-            onClick={() => setStatusFilter(s)}
+            type="button"
+            onClick={() => {
+              setStatusFilter(s);
+              setCurrentPage(1);
+            }}
             className={cn(
-              "px-3 py-1.5 rounded-full text-xs font-semibold border transition",
+              "rounded-full border px-3 py-1.5 text-xs font-semibold transition",
               statusFilter === s
-                ? "bg-orange-500 text-white border-orange-500"
-                : "bg-white dark:bg-gray-800 border-slate-200 dark:border-gray-600 text-slate-600 dark:text-gray-300 hover:border-orange-300"
+                ? "border-orange-500 bg-orange-500 text-white"
+                : "border-slate-200 bg-white text-slate-600 hover:border-orange-300 dark:border-gray-600 dark:bg-gray-800 dark:text-gray-300"
             )}
           >
             {s || "All"}
@@ -220,10 +103,9 @@ const JoinClubsTable = () => {
         ))}
       </div>
 
-      {/* Search */}
       <Card>
-        <CardContent className="grid grid-cols-12 gap-4 items-center">
-          <div className="col-span-11 relative">
+        <CardContent className="grid grid-cols-12 items-center gap-4">
+          <div className="relative col-span-11">
             <Search
               className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400"
               size={18}
@@ -232,22 +114,24 @@ const JoinClubsTable = () => {
               className="pl-10"
               placeholder="Search by name, email, or phone..."
               value={searchTerm}
-              onChange={(e) => setSearchTerm(e.target.value)}
+              onChange={(e) => {
+                setSearchTerm(e.target.value);
+                setCurrentPage(1);
+              }}
             />
           </div>
           <div className="col-span-1 flex justify-end">
-            <span className="text-xs font-medium px-2 py-1 rounded-md bg-slate-100 dark:bg-gray-700">
+            <span className="rounded-md bg-slate-100 px-2 py-1 text-xs font-medium dark:bg-gray-700">
               {filteredRequests.length}
             </span>
           </div>
         </CardContent>
       </Card>
 
-      {/* Table */}
       <Card className="flex-1 overflow-hidden">
         <div className="overflow-x-auto">
           <table className="w-full text-left text-sm">
-            <thead className="sticky top-0 bg-slate-50 dark:bg-gray-900 border-b">
+            <thead className="sticky top-0 border-b bg-slate-50 dark:bg-gray-900">
               <tr>
                 <th className="p-4 font-semibold">Full Name</th>
                 <th className="p-4 font-semibold">Email</th>
@@ -255,45 +139,53 @@ const JoinClubsTable = () => {
                 <th className="p-4 font-semibold">Status</th>
                 <th className="p-4 font-semibold">Requested At</th>
                 <th className="p-4 font-semibold">Reviewed By</th>
-                <th className="p-4 font-semibold text-right">Actions</th>
+                <th className="p-4 text-right font-semibold">Actions</th>
               </tr>
             </thead>
 
             <tbody className="divide-y">
-              {filteredRequests.map((r) => (
+              {filteredRequests.map((request) => (
                 <tr
-                  key={r._id}
-                  className="hover:bg-slate-50 dark:hover:bg-gray-800 transition"
+                  key={request.id}
+                  onClick={() => openDetails(request.id)}
+                  className="cursor-pointer transition hover:bg-slate-50 dark:hover:bg-gray-800"
                 >
-                  <td className="p-4 font-medium">{r.FullName}</td>
-                  <td className="p-4">{r.email}</td>
-                  <td className="p-4">{r.phone}</td>
+                  <td className="p-4 font-medium">{request.FullName}</td>
+                  <td className="p-4">{request.email}</td>
+                  <td className="p-4">{request.phone}</td>
                   <td className="p-4">
                     <div className="flex flex-col gap-1">
-                      <StatusBadge status={r.status} />
-                      {r.rejectionReason && (
-                        <span className="text-[11px] text-red-500 italic">{r.rejectionReason}</span>
+                      <StatusBadge status={request.status} />
+                      {request.rejectionReason && (
+                        <span className="text-[11px] italic text-red-500">
+                          {request.rejectionReason}
+                        </span>
                       )}
                     </div>
                   </td>
-                  <td className="p-4">{formatDate(r.createdAt)}</td>
-                  <td className="p-4 text-slate-500 text-xs">
-                    {r.reviewedBy
-                      ? `${r.reviewedBy.first_name || ""} ${r.reviewedBy.last_name || ""}`.trim() || r.reviewedBy.username
-                      : "—"}
-                    {r.reviewedAt && (
-                      <div className="text-[10px] text-slate-400">{formatDate(r.reviewedAt)}</div>
+                  <td className="p-4">{formatDate(request.createdAt)}</td>
+                  <td className="p-4 text-xs text-slate-500">
+                    {request.reviewedBy
+                      ? `${request.reviewedBy.first_name || ""} ${request.reviewedBy.last_name || ""}`.trim() ||
+                        request.reviewedBy.username
+                      : "-"}
+                    {request.reviewedAt && (
+                      <div className="text-[10px] text-slate-400">
+                        {formatDate(request.reviewedAt)}
+                      </div>
                     )}
                   </td>
                   <td className="p-4 text-right">
                     <Button
                       size="sm"
                       variant="outline"
-                      disabled={r.status !== "Pending"}
-                      onClick={() => setReviewTarget(r)}
+                      onClick={(event) => {
+                        event.stopPropagation();
+                        openDetails(request.id);
+                      }}
                       className="gap-1"
                     >
-                      <Eye size={14} /> Review
+                      <Eye size={14} /> View
                     </Button>
                   </td>
                 </tr>
@@ -326,9 +218,8 @@ const JoinClubsTable = () => {
           </table>
         </div>
 
-        {/* Pagination */}
-        <div className="flex justify-between items-center p-4 border-t">
-          <p className="text-sm text-muted-foreground hidden md:block">
+        <div className="flex items-center justify-between border-t p-4">
+          <p className="hidden text-sm text-muted-foreground md:block">
             {totalItems === 0
               ? "Showing 0 results"
               : `Showing ${startItem} to ${endItem} of ${totalItems} results`}
@@ -344,7 +235,7 @@ const JoinClubsTable = () => {
               <ChevronLeft size={16} /> Previous
             </Button>
 
-            <span className="px-3 py-2 rounded-lg text-sm font-semibold bg-muted">
+            <span className="rounded-lg bg-muted px-3 py-2 text-sm font-semibold">
               {currentPage} / {totalPages}
             </span>
 
@@ -359,18 +250,8 @@ const JoinClubsTable = () => {
           </div>
         </div>
       </Card>
-
-      {/* Review dialog */}
-      {reviewTarget && (
-        <ReviewDialog
-          request={reviewTarget}
-          onClose={() => setReviewTarget(null)}
-          onSubmit={(vars) => updateStatusMutation.mutate(vars)}
-          isLoading={updateStatusMutation.isPending}
-        />
-      )}
     </div>
-  )
-}
+  );
+};
 
-export default JoinClubsTable
+export default JoinClubsTable;

@@ -49,6 +49,7 @@ const Homepage=lazy(()=>import("./components/Homepage/Herroes"))
 const File=lazy(()=>import("./components/Homepage/File"))
 
 const JoinClub=lazy(()=>import("./components/Homepage/JoinClubsTable"))
+const JoinClubDetails=lazy(()=>import("./components/Homepage/JoinClubDetails"))
 const ChallengesList = lazy(() => import('./components/Challenges/ChallengesList'));
 const ChallengeDetails = lazy(() => import('./components/Challenges/ChallengeDetails'));
 const AchievementsPage = lazy(() => import('./components/Achievements/AchievementsPage'));
@@ -153,6 +154,7 @@ function App() {
   <Route path="profile" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><Profile /></Suspense>} />
   <Route path="id-card/:memberId" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><IDcard /></Suspense>} />
   <Route path="join-clubs" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><JoinClub /></Suspense>} />
+  <Route path="join-clubs/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><JoinClubDetails /></Suspense>} />
   <Route path="challenges" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ChallengesList /></Suspense>} />
   <Route path="challenges/:id" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><ChallengeDetails /></Suspense>} />
   <Route path="achievements" element={<Suspense fallback={<Loader size="lg" colorClass="text-orange-600" />}><AchievementsPage /></Suspense>} />

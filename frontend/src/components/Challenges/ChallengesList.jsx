@@ -4,7 +4,7 @@ import { useNavigate } from 'react-router';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
-  Calendar, Trophy, Users, ChevronRight, Loader2, Plus, ShieldCheck, UserRound, BookOpen,
+  Calendar, Trophy, Users, ChevronRight, Loader2, Plus, ShieldCheck, UserRound, BookOpen, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/app/api/apislice';
@@ -37,6 +37,8 @@ const TYPE_COLORS = {
   streak: 'bg-pink-500/20 text-pink-400 border-pink-500/30',
 };
 
+const MotionDiv = motion.div;
+
 const EMPTY_FORM = {
   title: '',
   description: '',
@@ -66,11 +68,29 @@ function getUserName(user) {
 }
 
 function getRoleName(user) {
-  return String(user?.role?.role || user?.role?.plural || '').toLowerCase();
+  const roleSource = user?.role || user?.roleInfo;
+  if (typeof roleSource === 'object') {
+    return String(roleSource?.role || roleSource?.plural || roleSource?.name || '').toLowerCase();
+  }
+  return String(roleSource || '').toLowerCase();
 }
 
 function isModeratorUser(user) {
   return /moderator|super\s*admin/i.test(getRoleName(user));
+}
+
+function isSuperAdminUser(user) {
+  return /super\s*admin/i.test(getRoleName(user));
+}
+
+function getChallengeCreatorId(challenge) {
+  return challenge?.created_by ?? challenge?.createdBy?.id ?? challenge?.createdById ?? null;
+}
+
+function canDeleteChallenge(user, challenge) {
+  if (!user || !challenge) return false;
+  if (isSuperAdminUser(user)) return true;
+  return Number(getChallengeCreatorId(challenge)) === Number(user.id);
 }
 
 function getErrorMessage(error, fallback) {
@@ -79,7 +99,7 @@ function getErrorMessage(error, fallback) {
 
 function ChallengeCardSkeleton() {
   return (
-    <Card className="border border-zinc-800 bg-zinc-900/50">
+    <Card className="border border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
       <CardHeader className="pb-3">
         <Skeleton className="mb-2 h-5 w-3/4" />
         <Skeleton className="h-4 w-full" />
@@ -109,7 +129,7 @@ function ChallengeCreateDialog({
 }) {
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-h-[90vh] overflow-y-auto sm:max-w-2xl">
+      <DialogContent className="max-h-[90vh] overflow-y-auto bg-white text-slate-950 dark:bg-zinc-950 dark:text-slate-50 sm:max-w-2xl">
         <DialogHeader>
           <DialogTitle>Create Challenge</DialogTitle>
           <DialogDescription>
@@ -141,7 +161,7 @@ function ChallengeCreateDialog({
               />
             </div>
 
-            <div className="space-y-3 md:col-span-2 rounded-xl border border-zinc-800 bg-zinc-950/50 p-4">
+            <div className="space-y-3 rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50 md:col-span-2">
               <div>
                 <h3 className="text-sm font-semibold">Reading report source</h3>
                 <p className="mt-1 text-xs text-muted-foreground">
@@ -182,7 +202,7 @@ function ChallengeCreateDialog({
                   <p className="text-muted-foreground">
                     {formData.bookPreview.author || 'Unknown author'} • ISBN {formData.bookPreview.isbn}
                   </p>
-                  <p className="mt-1 text-xs text-emerald-300">
+                  <p className="mt-1 text-xs text-emerald-700 dark:text-emerald-300">
                     Only approved reports for this book will count in the challenge. Reports are reviewed by moderators or super admins.
                   </p>
                 </div>
@@ -251,7 +271,7 @@ function ChallengeCreateDialog({
             </div>
           </div>
 
-          <div className="rounded-xl border border-zinc-800 bg-zinc-950/50 p-4">
+          <div className="rounded-xl border border-slate-200 bg-slate-50 p-4 dark:border-zinc-800 dark:bg-zinc-950/50">
             <h3 className="mb-3 text-sm font-semibold">Rules and targets</h3>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -313,7 +333,7 @@ function ChallengeCreateDialog({
             Cancel
           </Button>
           <Button type="submit" 
-          className="dark:bg-orange-500"
+          className="bg-orange-600 text-white hover:bg-orange-700 dark:bg-orange-500 dark:hover:bg-orange-600"
           form="challenge-create-form" disabled={isSaving}>
             {isSaving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Plus className="mr-2 h-4 w-4" />}
             Create Challenge
@@ -328,6 +348,7 @@ export default function ChallengesList() {
   const [activeTab, setActiveTab] = useState('All');
   const [joiningId, setJoiningId] = useState(null);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState(null);
   const [formData, setFormData] = useState(EMPTY_FORM);
 
   const navigate = useNavigate();
@@ -400,6 +421,18 @@ export default function ChallengesList() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: (challengeId) => api.delete(`/challenges/${challengeId}`),
+    onSuccess: () => {
+      toast.success('Challenge deleted.');
+      queryClient.invalidateQueries({ queryKey: ['challenges'] });
+      setDeleteTarget(null);
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'Failed to delete challenge.'));
+    },
+  });
+
   const filtered = useMemo(() => (
     activeTab === 'All'
       ? challenges
@@ -447,8 +480,12 @@ export default function ChallengesList() {
     lookupBookMutation.mutate(formData.bookIsbn);
   }
 
+  function handleDeleteChallenge(challenge) {
+    setDeleteTarget(challenge);
+  }
+
   return (
-    <div className="space-y-6 px-4 py-6 lg:px-6">
+    <div className="space-y-6 px-4 py-6 text-slate-950 dark:text-slate-50 lg:px-6">
       <div className="flex flex-wrap items-center justify-between gap-4">
         <div>
           <h1 className="flex items-center gap-2 text-2xl font-bold">
@@ -469,7 +506,7 @@ export default function ChallengesList() {
       </div>
 
       {canCreateChallenges && (
-        <Card className="border border-emerald-500/20 bg-emerald-500/5">
+        <Card className="border border-emerald-500/20 bg-emerald-500/5 dark:bg-emerald-500/10">
           <CardContent className="flex flex-col gap-3 py-4 text-sm text-muted-foreground md:flex-row md:items-center md:justify-between">
             <div className="flex items-start gap-3">
               <ShieldCheck className="mt-0.5 h-4 w-4 text-emerald-400" />
@@ -485,7 +522,7 @@ export default function ChallengesList() {
       )}
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="bg-zinc-800/60">
+        <TabsList className="bg-slate-100 dark:bg-zinc-800/60">
           {['All', 'Active', 'Draft', 'Completed'].map((tab) => (
             <TabsTrigger key={tab} value={tab}>{tab}</TabsTrigger>
           ))}
@@ -500,14 +537,14 @@ export default function ChallengesList() {
         {isLoading
           ? Array.from({ length: 6 }).map((_, index) => <ChallengeCardSkeleton key={index} />)
           : filtered.map((challenge) => (
-              <motion.div
+              <MotionDiv
                 key={challenge.id}
                 initial={{ opacity: 0, y: 16 }}
                 animate={{ opacity: 1, y: 0 }}
                 transition={{ duration: 0.25 }}
               >
                 <Card
-                  className="flex h-full cursor-pointer flex-col border border-zinc-800  transition-colors hover:border-zinc-600"
+                  className="flex h-full cursor-pointer flex-col border border-slate-200 bg-white shadow-sm transition-colors hover:border-slate-300 dark:border-zinc-800 dark:bg-zinc-900/50 dark:hover:border-zinc-600"
                   onClick={() => navigate(`/dashboard/challenges/${challenge.uuid || challenge.id}`)}
                 >
                   <CardHeader className="space-y-3 pb-3">
@@ -598,10 +635,30 @@ export default function ChallengesList() {
                       >
                         View <ChevronRight className="ml-1 h-3.5 w-3.5" />
                       </Button>
+                      {canDeleteChallenge(user, challenge) && (
+                        <Button
+                          size="sm"
+                          variant="destructive"
+                          className="shrink-0"
+                          disabled={deleteMutation.isPending}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleDeleteChallenge(challenge);
+                          }}
+                          title="Delete challenge"
+                          aria-label="Delete challenge"
+                        >
+                          {deleteMutation.isPending ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : (
+                            <Trash2 className="h-3.5 w-3.5" />
+                          )}
+                        </Button>
+                      )}
                     </div>
                   </CardContent>
                 </Card>
-              </motion.div>
+              </MotionDiv>
             ))}
       </div>
 
@@ -622,6 +679,36 @@ export default function ChallengesList() {
         isSaving={createMutation.isPending}
         isLookingUpBook={lookupBookMutation.isPending}
       />
+
+      <Dialog open={Boolean(deleteTarget)} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <DialogContent className="bg-white text-slate-950 dark:bg-zinc-950 dark:text-slate-50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete challenge?</DialogTitle>
+            <DialogDescription>
+              This will remove "{deleteTarget?.title}" and all participation records for it. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteTarget(null)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => deleteTarget && deleteMutation.mutate(deleteTarget.id)}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Delete Challenge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -574,6 +574,32 @@ export const updateChallengeStatus = async (req, res, next) => {
   }
 };
 
+// DELETE /challenges/:id
+export const deleteChallenge = async (req, res, next) => {
+  try {
+    const accessContext = await getChallengeAccessContext(req.user.id);
+    const { isSuperAdmin, isModerator } = accessContext || {};
+
+    if (!isSuperAdmin && !isModerator) return res.status(403).json({ message: "Access denied" });
+
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id)) return res.status(400).json({ message: "Invalid challenge id" });
+
+    const challenge = await ReadingChallenge.findOne({
+      where: buildChallengeAccessFilter(accessContext, { id }),
+    });
+
+    if (!challenge) return res.status(404).json({ message: "Challenge not found" });
+
+    await ChallengeParticipation.destroy({ where: { challenge_id: challenge.id } });
+    await challenge.destroy();
+
+    return res.status(200).json({ message: "Challenge deleted", id: challenge.id });
+  } catch (err) {
+    return next(err);
+  }
+};
+
 // GET /challenges/:id/my-progress
 export const getMyProgress = async (req, res, next) => {
   try {
@@ -615,5 +641,6 @@ export default {
   joinChallenge,
   getChallengeLeaderboard,
   updateChallengeStatus,
+  deleteChallenge,
   getMyProgress,
 };

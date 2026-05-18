@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { Menu, X } from "lucide-react";
 import { NavLink, Navigate, Outlet, useLocation } from "react-router";
 import { useDispatch, useSelector } from "react-redux";
@@ -115,6 +115,32 @@ export default function DashboardPage() {
   const [showDesktopLauncher, setShowDesktopLauncher] = useState(!routeModule);
   const [activeModule, setActiveModule] = useState(routeModule || null);
   const resolvedActiveModule = activeModule || routeModule;
+
+  useEffect(() => {
+    if (!desktopLauncher || isMobile) return;
+
+    if (routeModule) {
+      setActiveModule(routeModule);
+      setShowDesktopLauncher(false);
+      return;
+    }
+
+    if (location.pathname === "/dashboard") {
+      setActiveModule(null);
+      setShowDesktopLauncher(true);
+      return;
+    }
+
+    const pageName = location.pathname
+      .split("/")
+      .filter(Boolean)
+      .pop()
+      ?.replace(/-/g, " ")
+      .replace(/\b\w/g, (char) => char.toUpperCase());
+
+    setActiveModule({ name: pageName || "Page", link: location.pathname });
+    setShowDesktopLauncher(false);
+  }, [desktopLauncher, isMobile, location.pathname, routeModule]);
 
   if (!token) {
     return <Navigate to="/login" state={{ from: location }} replace />;

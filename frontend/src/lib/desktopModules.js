@@ -29,7 +29,7 @@ export function getVisibleNavItems(user) {
 
   if (roleName === "member" || roleName === "members") {
     const allowed = new Set(memberAllowedRoutes);
-    return NAV_ITEMS.filter((item) => allowed.has(item.url) && hasRoutePermission(item.url));
+    return NAV_ITEMS.filter((item) => allowed.has(item.url));
   }
 
   if (roleName === "moderator") {

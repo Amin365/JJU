@@ -1,9 +1,10 @@
+import { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { useParams, useNavigate } from 'react-router';
 import { useSelector } from 'react-redux';
 import { motion } from 'framer-motion';
 import {
-  Trophy, Calendar, BookOpen, Clock, FileText, Flame, ArrowLeft, Loader2, Users, UserRound,
+  Trophy, Calendar, BookOpen, Clock, FileText, Flame, ArrowLeft, Loader2, Users, UserRound, Trash2,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import api from '@/app/api/apislice';
@@ -12,6 +13,9 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Progress } from '@/components/ui/progress';
 import { Skeleton } from '@/components/ui/skeleton';
+import {
+  Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle,
+} from '@/components/ui/dialog';
 import {
   Table, TableBody, TableCell, TableHead, TableHeader, TableRow,
 } from '@/components/ui/table';
@@ -23,6 +27,8 @@ const STATUS_COLORS = {
   Draft: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
   Completed: 'bg-slate-500/20 text-slate-400 border-slate-500/30',
 };
+
+const MotionDiv = motion.div;
 
 function formatDate(d) {
   if (!d) return '—';
@@ -37,11 +43,29 @@ function getUserName(user) {
 }
 
 function getRoleName(user) {
-  return String(user?.role?.role || user?.role?.plural || '').toLowerCase();
+  const roleSource = user?.role || user?.roleInfo;
+  if (typeof roleSource === 'object') {
+    return String(roleSource?.role || roleSource?.plural || roleSource?.name || '').toLowerCase();
+  }
+  return String(roleSource || '').toLowerCase();
 }
 
 function isModeratorUser(user) {
   return /moderator|super\s*admin/i.test(getRoleName(user));
+}
+
+function isSuperAdminUser(user) {
+  return /super\s*admin/i.test(getRoleName(user));
+}
+
+function getChallengeCreatorId(challenge) {
+  return challenge?.created_by ?? challenge?.createdBy?.id ?? challenge?.createdById ?? null;
+}
+
+function canDeleteChallenge(user, challenge) {
+  if (!user || !challenge) return false;
+  if (isSuperAdminUser(user)) return true;
+  return Number(getChallengeCreatorId(challenge)) === Number(user.id);
 }
 
 function getRuleItems(rules = {}, challengeType) {
@@ -87,6 +111,7 @@ export default function ChallengeDetails() {
   const user = useSelector((state) => state.auth.user);
   const queryClient = useQueryClient();
   const canManageChallenges = isModeratorUser(user);
+  const [deleteOpen, setDeleteOpen] = useState(false);
 
   const { data: challenge, isLoading, isError } = useQuery({
     queryKey: ['challenge', id],
@@ -137,6 +162,18 @@ export default function ChallengeDetails() {
     },
   });
 
+  const deleteMutation = useMutation({
+    mutationFn: () => api.delete(`/challenges/${challenge.id}`),
+    onSuccess: () => {
+      toast.success('Challenge deleted.');
+      queryClient.invalidateQueries({ queryKey: ['challenges'] });
+      navigate('/dashboard/challenges');
+    },
+    onError: (error) => {
+      toast.error(getErrorMessage(error, 'Failed to delete challenge.'));
+    },
+  });
+
   if (isLoading) {
     return (
       <div className="px-4 lg:px-6 py-6 space-y-6">
@@ -157,6 +194,7 @@ export default function ChallengeDetails() {
   const isJoined = Boolean(challenge.isJoined || myProgress != null);
   const targetValue = challenge.rules?.targetTotal || 0;
   const ruleItems = getRuleItems(challenge.rules, challenge.type);
+  const canDelete = canDeleteChallenge(user, challenge);
 
   // Compute progress percent from available data based on challenge type
   const currentValue = myProgress
@@ -168,19 +206,36 @@ export default function ChallengeDetails() {
   const progressPercent = targetValue > 0 ? (currentValue / targetValue) * 100 : 0;
 
   return (
-    <div className="px-4 lg:px-6 py-6 space-y-6 max-w-5xl mx-auto">
-      <Button
-        variant="ghost"
-        size="sm"
-        className="gap-1"
-        onClick={() => navigate('/dashboard/challenges')}
-      >
-        <ArrowLeft className="h-4 w-4" /> Back to Challenges
-      </Button>
+    <div className="mx-auto max-w-5xl space-y-6 px-4 py-6 text-slate-950 dark:text-slate-50 lg:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <Button
+          variant="ghost"
+          size="sm"
+          className="gap-1"
+          onClick={() => navigate('/dashboard/challenges')}
+        >
+          <ArrowLeft className="h-4 w-4" /> Back to Challenges
+        </Button>
+        {canDelete && (
+          <Button
+            variant="destructive"
+            size="sm"
+            disabled={deleteMutation.isPending}
+            onClick={() => setDeleteOpen(true)}
+          >
+            {deleteMutation.isPending ? (
+              <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+            ) : (
+              <Trash2 className="mr-2 h-4 w-4" />
+            )}
+            Delete
+          </Button>
+        )}
+      </div>
 
       {/* Header card */}
-      <motion.div initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
-        <Card className="border-zinc-800 bg-zinc-900/50">
+      <MotionDiv initial={{ opacity: 0, y: 16 }} animate={{ opacity: 1, y: 0 }}>
+        <Card className="border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
           <CardHeader>
             <div className="flex items-start justify-between flex-wrap gap-3">
               <div className="space-y-1">
@@ -246,7 +301,7 @@ export default function ChallengeDetails() {
               </>
             )}
 
-            <div className="rounded-xl border border-zinc-800 bg-zinc-950/40 p-3 text-sm text-muted-foreground">
+            <div className="rounded-xl border border-slate-200 bg-slate-50 p-3 text-sm text-muted-foreground dark:border-zinc-800 dark:bg-zinc-950/40">
               Progress is calculated from approved reading reports only. Reports are reviewed by moderators or super admins.
               {challenge.book
                 ? ` Only reports for ${challenge.book.title} count in this challenge.`
@@ -284,11 +339,11 @@ export default function ChallengeDetails() {
             )}
           </CardContent>
         </Card>
-      </motion.div>
+      </MotionDiv>
 
       {/* My Progress */}
       {isJoined && myProgress && (
-        <Card className="border-zinc-800 bg-zinc-900/50">
+        <Card className="border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
           <CardHeader>
             <CardTitle className="text-base flex items-center gap-2">
               <Trophy className="h-4 w-4 text-yellow-400" /> My Progress
@@ -302,13 +357,13 @@ export default function ChallengeDetails() {
               <StatPill icon={Flame} label="Streak" value={myProgress.streak ?? 0} color="text-yellow-400" />
             </div>
             <div className="grid grid-cols-1 gap-2 text-xs text-muted-foreground sm:grid-cols-3">
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950/50">
                 Active reading days: <span className="font-semibold text-foreground">{myProgress.activeDays ?? 0}</span>
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950/50">
                 Avg pages / day: <span className="font-semibold text-foreground">{myProgress.averagePagesPerDay ?? 0}</span>
               </div>
-              <div className="rounded-lg border border-zinc-800 bg-zinc-950/50 px-3 py-2">
+              <div className="rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950/50">
                 Books counted: <span className="font-semibold text-foreground">{myProgress.booksCount ?? 0}</span>
               </div>
             </div>
@@ -326,7 +381,7 @@ export default function ChallengeDetails() {
       )}
 
       {/* Leaderboard */}
-      <Card className="border-zinc-800 bg-zinc-900/50">
+      <Card className="border-slate-200 bg-white shadow-sm dark:border-zinc-800 dark:bg-zinc-900/50">
         <CardHeader>
           <CardTitle className="text-base flex items-center gap-2">
             <Trophy className="h-4 w-4 text-yellow-400" /> Leaderboard
@@ -380,14 +435,46 @@ export default function ChallengeDetails() {
           )}
         </CardContent>
       </Card>
+
+      <Dialog open={deleteOpen} onOpenChange={setDeleteOpen}>
+        <DialogContent className="bg-white text-slate-950 dark:bg-zinc-950 dark:text-slate-50 sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete challenge?</DialogTitle>
+            <DialogDescription>
+              This will remove "{challenge.title}" and all participation records for it. This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => setDeleteOpen(false)}
+              disabled={deleteMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              variant="destructive"
+              onClick={() => deleteMutation.mutate()}
+              disabled={deleteMutation.isPending}
+            >
+              {deleteMutation.isPending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Trash2 className="mr-2 h-4 w-4" />}
+              Delete Challenge
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
 
 function StatPill({ icon: Icon, label, value, color }) {
+  const IconComponent = Icon;
+
   return (
-    <div className="flex flex-col items-center gap-1 rounded-xl border border-zinc-800 bg-zinc-900 py-3 px-2">
-      <Icon className={`h-5 w-5 ${color}`} />
+    <div className="flex flex-col items-center gap-1 rounded-xl border border-slate-200 bg-slate-50 px-2 py-3 dark:border-zinc-800 dark:bg-zinc-900">
+      <IconComponent className={`h-5 w-5 ${color}`} />
       <span className="text-lg font-bold">{value}</span>
       <span className="text-xs text-muted-foreground">{label}</span>
     </div>
